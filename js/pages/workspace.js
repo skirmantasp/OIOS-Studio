@@ -1120,6 +1120,8 @@ function renderProjectsTab(company, container) {
           if (proj.status === 'completed') statusBadge = 'badge-success';
           if (proj.status === 'on_hold') statusBadge = 'badge-danger';
 
+          const progress = (db && typeof db.calcProjectProgress === 'function') ? db.calcProjectProgress(proj) : proj.progress;
+
           return `
             <div class="card flex-column btn-view-project" data-id="${proj.id}" style="cursor:pointer; justify-content:space-between; margin-bottom:0; min-height: 180px;">
               <div>
@@ -1139,10 +1141,10 @@ function renderProjectsTab(company, container) {
                 <div style="margin-bottom: 8px;">
                   <div class="flex-between" style="font-size:11px; margin-bottom:2px; font-family:var(--font-mono)">
                     <span>Execution Progress</span>
-                    <span>${proj.progress}%</span>
+                    <span>${progress}%</span>
                   </div>
                   <div style="height:4px; background:var(--bg-tertiary); border-radius:2px; overflow:hidden;">
-                    <div style="height:100%; width:${proj.progress}%; background:var(--color-success); border-radius:2px;"></div>
+                    <div style="height:100%; width:${progress}%; background:var(--color-success); border-radius:2px;"></div>
                   </div>
                 </div>
                 
@@ -1175,9 +1177,14 @@ function renderProjectsTab(company, container) {
 }
 
 function openProjectDrawer(company, projId, container) {
-  const proj = db.getProject(projId);
+  let proj = db.getProject(projId);
   if (!proj) return;
 
+  if (db && typeof db.ensureProjectMilestones === 'function') {
+    proj = db.ensureProjectMilestones(projId) || proj;
+  }
+
+  const progress = (db && typeof db.calcProjectProgress === 'function') ? db.calcProjectProgress(proj) : proj.progress;
   const linkedIdeas = proj.linkedSystemIdeas.map(idId => db.getSystemIdea(idId)).filter(i => !!i);
 
   let statusBadge = 'badge-neutral';
@@ -1185,16 +1192,107 @@ function openProjectDrawer(company, projId, container) {
   if (proj.status === 'completed') statusBadge = 'badge-success';
   if (proj.status === 'on_hold') statusBadge = 'badge-danger';
 
+  // 1. Milestones section
+  const milestonesHTML = (proj.milestones && proj.milestones.length > 0) ? `
+    <div style="border-top:1px solid var(--border-color); padding-top:12px;">
+      <strong style="color: var(--text-primary); font-size:13px;">Project Milestones</strong>
+      <div class="milestones-list" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+        ${proj.milestones.map(ms => `
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; padding:6px 10px; border-radius:var(--radius-sm); background:var(--bg-primary); border:1px solid var(--border-color); transition:background 0.2s;">
+            <input type="checkbox" class="ms-checkbox" data-ms-id="${ms.id}" ${ms.completed ? 'checked' : ''} style="cursor:pointer;">
+            <span style="${ms.completed ? 'text-decoration:line-through; color:var(--text-muted);' : 'color:var(--text-secondary);'}">${escapeHTML(ms.title)}</span>
+            ${ms.completedAt ? `<span style="font-size:10px; color:var(--text-muted); margin-left:auto; font-family:var(--font-mono);">${formatDate(ms.completedAt)}</span>` : ''}
+          </label>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  // 2. Traceability Chain section
+  const traceabilityHTML = `
+    <div style="border-top:1px solid var(--border-color); padding-top:12px;">
+      <strong style="color: var(--text-primary); font-size:13px;">Traceability Chain</strong>
+      <div style="margin-top:8px; display:flex; flex-direction:column; gap:8px;">
+        ${linkedIdeas.length === 0 ? `
+          <span style="color:var(--text-muted); font-size:12px;">No traceability records found. Link a system idea to start.</span>
+        ` : linkedIdeas.map(idea => {
+          const insights = idea.linkedInsights ? idea.linkedInsights.map(insId => db.getInsight(insId)).filter(Boolean) : [];
+          return `
+            <div style="background:var(--bg-primary); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px; display:flex; flex-direction:column; gap:8px;">
+              <!-- System Idea -->
+              <div class="flex-between btn-goto-idea" data-idea-id="${idea.id}" style="cursor:pointer; padding:4px 6px; border-radius:var(--radius-sm); background:var(--bg-secondary); border:1px solid var(--border-color); transition:background 0.2s;">
+                <div style="display:flex; align-items:center; gap:6px; overflow:hidden;">
+                  <span class="badge badge-warning" style="font-size:9px; padding:2px 4px;">Idea</span>
+                  <span style="color:var(--color-info); font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">${escapeHTML(idea.title)}</span>
+                </div>
+                ${getIconHTML('arrow-right', 'width:12px; height:12px; color:var(--text-muted);')}
+              </div>
+              
+              <!-- Insights -->
+              ${insights.length === 0 ? `
+                <div style="margin-left:12px; font-size:11px; color:var(--text-muted); font-style:italic;">No linked insights.</div>
+              ` : insights.map(ins => {
+                const notes = ins.sourceNotes ? ins.sourceNotes.map(nId => db.getDiscoveryNote(nId)).filter(Boolean) : [];
+                return `
+                  <div style="margin-left:12px; border-left:1px solid var(--border-color); padding-left:8px; display:flex; flex-direction:column; gap:6px;">
+                    <div class="flex-between btn-goto-insight" data-insight-id="${ins.id}" style="cursor:pointer; padding:3px 5px; border-radius:var(--radius-sm); background:var(--bg-primary); border:1px dashed var(--border-color); transition:background 0.2s;">
+                      <div style="display:flex; align-items:center; gap:6px; overflow:hidden;">
+                        <span class="badge badge-success" style="font-size:8px; padding:1px 3px;">Insight</span>
+                        <span style="font-size:11px; font-weight:500; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">${escapeHTML(ins.title)}</span>
+                      </div>
+                      ${getIconHTML('arrow-right', 'width:10px; height:10px; color:var(--text-muted);')}
+                    </div>
+                    
+                    <!-- Notes -->
+                    ${notes.length === 0 ? `
+                      <div style="margin-left:12px; font-size:10px; color:var(--text-muted); font-style:italic;">No source notes.</div>
+                    ` : notes.map(note => `
+                      <div class="flex-between btn-goto-note" data-note-id="${note.id}" style="cursor:pointer; margin-left:12px; padding:2px 4px; border-radius:var(--radius-sm); transition:background 0.2s;">
+                        <div style="display:flex; align-items:center; gap:6px; overflow:hidden;">
+                          <span class="badge badge-info" style="font-size:8px; padding:1px 2px;">Note</span>
+                          <span style="font-size:10px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px;">${escapeHTML(note.title)}</span>
+                        </div>
+                        ${getIconHTML('arrow-right', 'width:8px; height:8px; color:var(--text-muted);')}
+                      </div>
+                    `).join('')}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  // 3. Activity Feed section
+  const activityHTML = (proj.activityLog && proj.activityLog.length > 0) ? `
+    <div style="border-top:1px solid var(--border-color); padding-top:12px;">
+      <strong style="color: var(--text-primary); font-size:13px;">Activity Log</strong>
+      <div style="margin-top:8px; max-height:120px; overflow-y:auto; display:flex; flex-direction:column; gap:4px; padding-right:2px;">
+        ${[...proj.activityLog].reverse().map(act => `
+          <div style="font-size:11px; padding:4px 6px; background:var(--bg-primary); border-radius:var(--radius-sm); border:1px solid var(--border-color);">
+            <div style="display:flex; justify-content:space-between; color:var(--text-muted); font-size:9px; font-family:var(--font-mono);">
+              <span>${act.type.toUpperCase().replace('_', ' ')}</span>
+              <span>${formatDate(act.createdAt, true)}</span>
+            </div>
+            <div style="color:var(--text-secondary); margin-top:2px; line-height:1.3;">${escapeHTML(act.message)}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
   const bodyHTML = `
     <div class="flex-column" style="gap:16px;">
       <div class="flex-between" style="font-family: var(--font-mono); font-size:11px;">
         <span>Status: <span class="badge ${statusBadge}">${proj.status.replace('_', ' ')}</span></span>
-        <span>Progress: <strong>${proj.progress}%</strong></span>
+        <span>Progress: <strong>${progress}%</strong></span>
       </div>
 
       <div style="margin-bottom: 8px;">
         <div style="height:6px; background:var(--bg-tertiary); border-radius:3px; overflow:hidden;">
-          <div style="height:100%; width:${proj.progress}%; background:var(--color-success); border-radius:3px;"></div>
+          <div style="height:100%; width:${progress}%; background:var(--color-success); border-radius:3px;"></div>
         </div>
       </div>
 
@@ -1214,22 +1312,11 @@ function openProjectDrawer(company, projId, container) {
         </div>
       </div>
 
-      <div style="border-top:1px solid var(--border-color); padding-top:12px;">
-        <strong>Implementing Architecture Proposals (System Ideas):</strong>
-        <div style="margin-top:8px; display:flex; flex-direction:column; gap:8px;">
-          ${linkedIdeas.length === 0 ? `
-            <span style="color:var(--text-muted); font-size:13px;">No system ideas linked to this project.</span>
-          ` : linkedIdeas.map(idea => `
-            <div class="flex-between btn-goto-idea" data-idea-id="${idea.id}" style="padding: 10px; border: 1px solid var(--border-color); border-radius:var(--radius-sm); cursor:pointer; background:var(--bg-primary);">
-              <div>
-                <strong style="color: var(--color-info); font-size: 13px;">${escapeHTML(idea.title)}</strong>
-                <div style="font-size:11px; color: var(--text-muted); margin-top:2px;">Status: ${idea.status} • Priority: ${idea.priority}</div>
-              </div>
-              ${getIconHTML('arrow-right', 'width:14px; color: var(--text-muted);')}
-            </div>
-          `).join('')}
-        </div>
-      </div>
+      ${milestonesHTML}
+
+      ${traceabilityHTML}
+
+      ${activityHTML}
 
       <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top:16px;">
         <button id="btn-delete-project-action" class="btn btn-danger" style="width:100%">${getIconHTML('trash')} Terminate Project</button>
@@ -1246,11 +1333,41 @@ function openProjectDrawer(company, projId, container) {
   });
 
   const drawerBody = document.getElementById('drawer-body-content');
+  
+  // Bind milestone checkboxes
+  drawerBody.querySelectorAll('.ms-checkbox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const msId = cb.getAttribute('data-ms-id');
+      if (db && typeof db.toggleMilestone === 'function') {
+        db.toggleMilestone(proj.id, msId);
+      }
+      renderProjectsTab(company, container);
+      openProjectDrawer(company, proj.id, container);
+    });
+  });
+
+  // Bind Traceability Chain navigation triggers
   drawerBody.querySelectorAll('.btn-goto-idea').forEach(btn => {
     btn.addEventListener('click', () => {
       const ideaId = btn.getAttribute('data-idea-id');
       closeDrawer();
       openIdeaDrawer(company, ideaId, container);
+    });
+  });
+
+  drawerBody.querySelectorAll('.btn-goto-insight').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const insId = btn.getAttribute('data-insight-id');
+      closeDrawer();
+      openInsightDrawer(company, insId, container);
+    });
+  });
+
+  drawerBody.querySelectorAll('.btn-goto-note').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const noteId = btn.getAttribute('data-note-id');
+      closeDrawer();
+      openDiscoveryNoteDrawer(company, noteId, container);
     });
   });
 

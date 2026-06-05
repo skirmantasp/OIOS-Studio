@@ -517,7 +517,44 @@ class StateManager {
     return this.data.projects.find(p => p.id === id);
   }
 
+  /**
+   * Default milestone template applied to all new (and migrated) projects
+   */
+  _defaultMilestones() {
+    const titles = [
+      'Requirements Mapping',
+      'Architecture Design',
+      'Data Integration Planning',
+      'Implementation Build',
+      'User Review',
+      'Go Live'
+    ];
+    return titles.map((title, i) => ({
+      id: 'ms_' + Date.now() + '_' + i,
+      title,
+      completed: false,
+      completedAt: null
+    }));
+  }
+
+  /**
+   * Calculate progress from milestone completion ratio.
+   * Falls back to stored progress if no milestones exist.
+   */
+  calcProjectProgress(proj) {
+    if (!proj.milestones || proj.milestones.length === 0) return proj.progress || 0;
+    const done = proj.milestones.filter(m => m.completed).length;
+    return Math.round((done / proj.milestones.length) * 100);
+  }
+
   addProject(project) {
+    const milestones = project.milestones || this._defaultMilestones();
+    const activityLog = [{
+      id: 'act_' + Date.now(),
+      type: 'created',
+      message: 'Project created',
+      createdAt: new Date().toISOString()
+    }];
     const newProject = {
       id: 'proj_' + Date.now(),
       companyId: project.companyId,
@@ -527,8 +564,11 @@ class StateManager {
       status: project.status || 'not_started',
       startDate: project.startDate || '',
       endDate: project.endDate || '',
-      progress: parseInt(project.progress) || 0
+      progress: parseInt(project.progress) || 0,
+      milestones,
+      activityLog
     };
+    newProject.progress = this.calcProjectProgress(newProject);
     this.data.projects.push(newProject);
     this.saveData();
     return newProject;
@@ -538,12 +578,66 @@ class StateManager {
     const idx = this.data.projects.findIndex(p => p.id === id);
     if (idx !== -1) {
       const merged = { ...this.data.projects[idx], ...updates };
-      merged.progress = parseInt(merged.progress) || 0;
+      // Recalculate progress from milestones if they exist
+      merged.progress = this.calcProjectProgress(merged);
       this.data.projects[idx] = merged;
       this.saveData();
       return this.data.projects[idx];
     }
     return null;
+  }
+
+  /**
+   * Ensure a project has milestones (migration for old projects).
+   * Returns updated project (already saved to localStorage).
+   */
+  ensureProjectMilestones(id) {
+    const proj = this.getProject(id);
+    if (!proj) return null;
+    let changed = false;
+    if (!proj.milestones || proj.milestones.length === 0) {
+      proj.milestones = this._defaultMilestones();
+      changed = true;
+    }
+    if (!proj.activityLog) {
+      proj.activityLog = [{
+        id: 'act_' + Date.now(),
+        type: 'created',
+        message: 'Project created',
+        createdAt: proj.createdAt || new Date().toISOString()
+      }];
+      changed = true;
+    }
+    if (changed) {
+      proj.progress = this.calcProjectProgress(proj);
+      const idx = this.data.projects.findIndex(p => p.id === id);
+      this.data.projects[idx] = proj;
+      this.saveData();
+    }
+    return this.data.projects.find(p => p.id === id);
+  }
+
+  /**
+   * Toggle a milestone on a project. Recalculates progress and logs activity.
+   */
+  toggleMilestone(projectId, milestoneId) {
+    const proj = this.ensureProjectMilestones(projectId);
+    if (!proj) return null;
+    const ms = proj.milestones.find(m => m.id === milestoneId);
+    if (!ms) return null;
+    ms.completed = !ms.completed;
+    ms.completedAt = ms.completed ? new Date().toISOString() : null;
+    proj.activityLog.push({
+      id: 'act_' + Date.now(),
+      type: ms.completed ? 'milestone_complete' : 'milestone_reopen',
+      message: ms.completed ? `Milestone completed: ${ms.title}` : `Milestone reopened: ${ms.title}`,
+      createdAt: new Date().toISOString()
+    });
+    proj.progress = this.calcProjectProgress(proj);
+    const idx = this.data.projects.findIndex(p => p.id === projectId);
+    this.data.projects[idx] = proj;
+    this.saveData();
+    return proj;
   }
 
   deleteProject(id) {
