@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OIOS Studio — Internal workspace for Organizational Intelligence Architects to manage companies, assessments, discovery, insights, system ideas, projects, and reports.">
+  <title>OIOS Studio — Organizational Intelligence OS</title>
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+  <!-- App Shell -->
+  <div id="app-container">
+
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar">
+      <div id="sidebar-header">
+        <div id="sidebar-logo">
+          OIOS <span>STUDIO</span>
+        </div>
+      </div>
+
+      <nav id="sidebar-nav">
+        <a class="nav-item active" data-page="dashboard" href="#/dashboard">
+          <i data-lucide="layout-dashboard"></i>
+          <span>Dashboard</span>
+        </a>
+        <a class="nav-item" data-page="companies" href="#/companies">
+          <i data-lucide="building-2"></i>
+          <span>Companies</span>
+        </a>
+        <a class="nav-item" data-page="reports" href="#/reports">
+          <i data-lucide="file-bar-chart-2"></i>
+          <span>Reports</span>
+        </a>
+        <a class="nav-item" data-page="settings" href="#/settings">
+          <i data-lucide="settings"></i>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div id="sidebar-footer">
+        <div>OIOS Studio v1.0</div>
+        <div>Local DB Active</div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="main-content">
+
+      <!-- Topbar -->
+      <header id="topbar">
+        <h1 id="topbar-title">Dashboard</h1>
+        <div id="topbar-actions">
+          <span id="workspace-indicator" style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); display: none;">
+            Workspace: <strong style="color: var(--text-primary)" id="current-workspace-name">-</strong>
+          </span>
+          <button id="theme-toggle" class="btn-icon" title="Toggle Theme">
+            <i data-lucide="sun"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Dynamic Viewport -->
+      <div id="app-viewport"></div>
+
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="app-modal" class="modal-backdrop">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 id="modal-title">Modal Title</h3>
+        <button id="modal-close" class="btn-icon">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-body-content"></div>
+      <div class="modal-footer" id="modal-footer-content"></div>
+    </div>
+  </div>
+
+  <!-- Side Drawer -->
+  <div id="app-drawer" class="drawer-backdrop">
+    <div class="drawer-container">
+      <div class="drawer-header">
+        <h3 id="drawer-title">Item Title</h3>
+        <div class="flex-row">
+          <button id="drawer-edit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 12px;">Edit</button>
+          <button id="drawer-close" class="btn-icon">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+      </div>
+      <div class="drawer-body" id="drawer-body-content"></div>
+    </div>
+  </div>
+
+  <!-- External CDNs -->
+  <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- App Entry Point -->
+  <script type="module" src="js/app.js"></script>
+
+</body>
+</html>

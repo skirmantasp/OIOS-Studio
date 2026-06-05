@@ -1,0 +1,24 @@
+{
+  "name": "oios-studio",
+  "version": "1.0.0",
+  "description": "Internal workspace for Organizational Intelligence Architects — manage companies, assessments, discovery notes, insights, system ideas, projects, and reports.",
+  "main": "index.html",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  },
+  "keywords": [
+    "oios",
+    "organizational-intelligence",
+    "architecture",
+    "internal-tool"
+  ],
+  "author": "Organizational Intelligence Architect",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
