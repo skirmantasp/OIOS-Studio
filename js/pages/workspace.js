@@ -157,31 +157,50 @@ function renderOverviewTab(company, container) {
       <div class="card flex-column" style="margin-bottom:0;">
         <h3 class="card-title">Intelligence Inventory</h3>
         
+        <style>
+          .inventory-item {
+            display: flex;
+            padding: 10px 14px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            text-decoration: none;
+            color: inherit;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+          }
+          .inventory-item:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--border-focus);
+            transform: translateX(4px);
+          }
+        </style>
+        
         <div class="flex-column" style="gap: 12px; margin-top: 8px;">
-          <div class="flex-between" style="padding: 10px 14px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+          <a class="inventory-item flex-between" href="#/workspace?id=${company.id}&tab=Discovery">
             <span style="font-weight:500;">Discovery Notes</span>
             <span class="badge badge-info">${notesCount} logged</span>
-          </div>
-          <div class="flex-between" style="padding: 10px 14px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+          </a>
+          <a class="inventory-item flex-between" href="#/workspace?id=${company.id}&tab=Insights">
             <span style="font-weight:500;">Key Insights</span>
             <span class="badge badge-success">${insightsCount} extracted</span>
-          </div>
-          <div class="flex-between" style="padding: 10px 14px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+          </a>
+          <a class="inventory-item flex-between" href="#/workspace?id=${company.id}&tab=System%20Ideas">
             <span style="font-weight:500;">System Ideas</span>
             <span class="badge badge-warning">${ideasCount} formulated</span>
-          </div>
-          <div class="flex-between" style="padding: 10px 14px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+          </a>
+          <a class="inventory-item flex-between" href="#/workspace?id=${company.id}&tab=Projects">
             <span style="font-weight:500;">Active Projects</span>
             <span class="badge badge-info">${activeProj} in pipeline</span>
-          </div>
-          <div class="flex-between" style="padding: 10px 14px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+          </a>
+          <a class="inventory-item flex-between" href="#/workspace?id=${company.id}&tab=Reports">
             <span style="font-weight:500;">Generated Reports</span>
             <span class="badge badge-success">${reportsCount} built</span>
-          </div>
+          </a>
         </div>
 
         <div style="margin-top: 16px; font-size:12px; color: var(--text-muted); line-height: 1.4;">
-          This panel displays files and assets mapped to this company. Navigate tabs to manage them.
+          This panel displays files and assets mapped to this company. Click rows to navigate directly.
         </div>
       </div>
     </div>
