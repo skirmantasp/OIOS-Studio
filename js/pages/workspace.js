@@ -2882,6 +2882,32 @@ function openGenerateIdeasModal(company, container) {
     }
   }
 
+  // Helper to strip global repeated grounding sections and get specific core matching text
+  function getInsightCoreText(insight) {
+    const title = insight.title || '';
+    const category = insight.category || '';
+    let desc = insight.description || '';
+    
+    const descLower = desc.toLowerCase();
+    const challengeIdx = descLower.indexOf('stated challenge:');
+    const bottleneckIdx = descLower.indexOf('stated bottleneck:');
+    
+    let cutIdx = -1;
+    if (challengeIdx !== -1 && bottleneckIdx !== -1) {
+      cutIdx = Math.min(challengeIdx, bottleneckIdx);
+    } else if (challengeIdx !== -1) {
+      cutIdx = challengeIdx;
+    } else if (bottleneckIdx !== -1) {
+      cutIdx = bottleneckIdx;
+    }
+    
+    if (cutIdx !== -1) {
+      desc = desc.substring(0, cutIdx);
+    }
+    
+    return `${title} ${category} ${desc}`.toLowerCase();
+  }
+
   // Define deterministic suggestions and keywords
   const possibleSuggestions = [
     {
@@ -2890,7 +2916,16 @@ function openGenerateIdeasModal(company, container) {
       feasibility: 'moderate',
       status: 'backlog',
       descriptionTemplate: (text) => `Create a centralized operational data layer that consolidates key information from ${getGroundedSystems(text)}. The goal is to reduce fragmented reporting, improve data consistency, and provide a reliable foundation for operational dashboards.`,
-      keywords: ['Fragmented System Landscape', 'Real-Time Reporting', 'disconnected systems', 'fragmented data', 'dashboard visibility']
+      keywords: ['Fragmented System Landscape', 'Real-Time Reporting', 'disconnected systems', 'fragmented data', 'dashboard visibility'],
+      filter: (ins, coreText) => {
+        const cat = (ins.category || '').toLowerCase();
+        if (cat === 'data' || cat === 'technology') return true;
+        if (cat === 'process') {
+          const sysDataKeywords = ['sap', 'excel', 'power bi', 'system', 'data', 'integration', 'database', 'platform', 'landscape'];
+          return sysDataKeywords.some(kw => coreText.includes(kw));
+        }
+        return false;
+      }
     },
     {
       title: 'Automated Reporting & KPI Pipeline',
@@ -2898,7 +2933,16 @@ function openGenerateIdeasModal(company, container) {
       feasibility: 'easy',
       status: 'backlog',
       descriptionTemplate: () => `Automate the weekly reporting process by reducing manual exports, copy-paste work, duplicate data entry, and manual KPI preparation. The goal is to reduce reporting preparation time and improve consistency across management reports.`,
-      keywords: ['Manual Reporting Workflows', 'Administrative Bottlenecks', 'manual consolidation', 'duplicate data entry', 'reporting preparation']
+      keywords: ['Manual Reporting Workflows', 'Administrative Bottlenecks', 'manual consolidation', 'duplicate data entry', 'reporting preparation'],
+      filter: (ins, coreText) => {
+        const cat = (ins.category || '').toLowerCase();
+        if (cat === 'process' || cat === 'data') return true;
+        if (cat === 'people' || cat === 'stakeholder' || cat === 'stakeholders') {
+          const reportingTerms = ['reporting', 'kpi', 'automated', 'automation', 'pipeline', 'report'];
+          return reportingTerms.some(term => coreText.includes(term));
+        }
+        return false;
+      }
     },
     {
       title: 'Inventory Visibility & Planning Dashboard',
@@ -2906,7 +2950,15 @@ function openGenerateIdeasModal(company, container) {
       feasibility: 'moderate',
       status: 'backlog',
       descriptionTemplate: () => `Create a focused inventory visibility dashboard that connects inventory status, procurement lead times, and operational planning indicators. The goal is to improve planning reliability and reduce uncertainty around stock, parts, and procurement needs.`,
-      keywords: ['Inventory Visibility', 'procurement', 'inventory accuracy', 'planning reliability']
+      keywords: ['Inventory Visibility', 'procurement', 'inventory accuracy', 'planning reliability'],
+      filter: (ins, coreText) => {
+        const cat = (ins.category || '').toLowerCase();
+        if (cat === 'data' || cat === 'process') {
+          const invKeywords = ['inventory', 'procurement', 'stock', 'spares', 'parts', 'warehouse', 'replenishment'];
+          return invKeywords.some(kw => coreText.includes(kw));
+        }
+        return false;
+      }
     },
     {
       title: 'Stakeholder Alignment & Adoption Plan',
@@ -2914,15 +2966,28 @@ function openGenerateIdeasModal(company, container) {
       feasibility: 'easy',
       status: 'backlog',
       descriptionTemplate: () => `Create a structured stakeholder alignment plan before technical implementation. This should clarify decision makers, affected teams, operational champions, concerns, training needs, and adoption risks.`,
-      keywords: ['Stakeholder Alignment', 'workflow redesign', 'adoption', 'change management', 'affected teams']
+      keywords: ['Stakeholder Alignment', 'workflow redesign', 'adoption', 'change management', 'affected teams'],
+      filter: (ins, coreText) => {
+        const cat = (ins.category || '').toLowerCase();
+        if (cat === 'people' || cat === 'stakeholder' || cat === 'stakeholders') {
+          const stakeholderKeywords = ['stakeholder', 'alignment', 'adoption', 'affected team', 'people', 'change management', 'training', 'buy-in', 'leadership'];
+          return stakeholderKeywords.some(kw => coreText.includes(kw));
+        }
+        return false;
+      }
     }
   ];
 
   // Helper to filter matching insights for a given set of keywords
-  function getMatchingInsights(keywords) {
+  function getMatchingInsights(keywords, filterFn) {
     return insights.filter(ins => {
-      const text = (ins.title + ' ' + (ins.description || '')).toLowerCase();
-      return keywords.some(kw => text.includes(kw.toLowerCase()));
+      const coreText = getInsightCoreText(ins);
+      const matchesKeywords = keywords.some(kw => coreText.includes(kw.toLowerCase()));
+      if (!matchesKeywords) return false;
+      if (filterFn) {
+        return filterFn(ins, coreText);
+      }
+      return true;
     });
   }
 
@@ -2932,7 +2997,7 @@ function openGenerateIdeasModal(company, container) {
     if (existingTitles.has(sugDef.title.trim().toLowerCase())) return;
 
     // Retrieve ONLY insights that actually trigger this specific suggestion
-    const matched = getMatchingInsights(sugDef.keywords);
+    const matched = getMatchingInsights(sugDef.keywords, sugDef.filter);
     if (matched.length > 0) {
       suggestions.push({
         localId: `sug_idea_${Date.now()}_${idx}`,

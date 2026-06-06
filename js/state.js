@@ -261,6 +261,7 @@ class StateManager {
     this.repairDuplicateInsightIds();
     this.repairDuplicateDiscoveryNoteIds();
     this.repairDuplicateSystemIdeaIds();
+    this.repairSystemIdeaTraceability();
   }
 
   generateUniqueId(prefix, collection) {
@@ -358,6 +359,118 @@ class StateManager {
     });
 
     if (hasDuplicates) {
+      this.saveData();
+    }
+  }
+
+  repairSystemIdeaTraceability() {
+    if (!this.data || !this.data.systemIdeas || !Array.isArray(this.data.systemIdeas)) return;
+    if (!this.data.insights || !Array.isArray(this.data.insights)) return;
+
+    let hasChanges = false;
+
+    const getInsightCoreText = (insight) => {
+      const title = insight.title || '';
+      const category = insight.category || '';
+      let desc = insight.description || '';
+      
+      const descLower = desc.toLowerCase();
+      const challengeIdx = descLower.indexOf('stated challenge:');
+      const bottleneckIdx = descLower.indexOf('stated bottleneck:');
+      
+      let cutIdx = -1;
+      if (challengeIdx !== -1 && bottleneckIdx !== -1) {
+        cutIdx = Math.min(challengeIdx, bottleneckIdx);
+      } else if (challengeIdx !== -1) {
+        cutIdx = challengeIdx;
+      } else if (bottleneckIdx !== -1) {
+        cutIdx = bottleneckIdx;
+      }
+      
+      if (cutIdx !== -1) {
+        desc = desc.substring(0, cutIdx);
+      }
+      
+      return `${title} ${category} ${desc}`.toLowerCase();
+    };
+
+    const rules = [
+      {
+        title: 'Unified Operations Data Hub',
+        keywords: ['Fragmented System Landscape', 'Real-Time Reporting', 'disconnected systems', 'fragmented data', 'dashboard visibility'],
+        filter: (ins, coreText) => {
+          const cat = (ins.category || '').toLowerCase();
+          if (cat === 'data' || cat === 'technology') return true;
+          if (cat === 'process') {
+            const sysDataKeywords = ['sap', 'excel', 'power bi', 'system', 'data', 'integration', 'database', 'platform', 'landscape'];
+            return sysDataKeywords.some(kw => coreText.includes(kw));
+          }
+          return false;
+        }
+      },
+      {
+        title: 'Automated Reporting & KPI Pipeline',
+        keywords: ['Manual Reporting Workflows', 'Administrative Bottlenecks', 'manual consolidation', 'duplicate data entry', 'reporting preparation'],
+        filter: (ins, coreText) => {
+          const cat = (ins.category || '').toLowerCase();
+          if (cat === 'process' || cat === 'data') return true;
+          if (cat === 'people' || cat === 'stakeholder' || cat === 'stakeholders') {
+            const reportingTerms = ['reporting', 'kpi', 'automated', 'automation', 'pipeline', 'report'];
+            return reportingTerms.some(term => coreText.includes(term));
+          }
+          return false;
+        }
+      },
+      {
+        title: 'Inventory Visibility & Planning Dashboard',
+        keywords: ['Inventory Visibility', 'procurement', 'inventory accuracy', 'planning reliability'],
+        filter: (ins, coreText) => {
+          const cat = (ins.category || '').toLowerCase();
+          if (cat === 'data' || cat === 'process') {
+            const invKeywords = ['inventory', 'procurement', 'stock', 'spares', 'parts', 'warehouse', 'replenishment'];
+            return invKeywords.some(kw => coreText.includes(kw));
+          }
+          return false;
+        }
+      },
+      {
+        title: 'Stakeholder Alignment & Adoption Plan',
+        keywords: ['Stakeholder Alignment', 'workflow redesign', 'adoption', 'change management', 'affected teams'],
+        filter: (ins, coreText) => {
+          const cat = (ins.category || '').toLowerCase();
+          if (cat === 'people' || cat === 'stakeholder' || cat === 'stakeholders') {
+            const stakeholderKeywords = ['stakeholder', 'alignment', 'adoption', 'affected team', 'people', 'change management', 'training', 'buy-in', 'leadership'];
+            return stakeholderKeywords.some(kw => coreText.includes(kw));
+          }
+          return false;
+        }
+      }
+    ];
+
+    this.data.systemIdeas.forEach(idea => {
+      const rule = rules.find(r => r.title.toLowerCase().trim() === idea.title.toLowerCase().trim());
+      if (rule) {
+        const companyInsights = this.data.insights.filter(ins => ins.companyId === idea.companyId);
+        
+        const validInsightIds = companyInsights.filter(ins => {
+          const coreText = getInsightCoreText(ins);
+          const matchesKeywords = rule.keywords.some(kw => coreText.includes(kw.toLowerCase()));
+          if (!matchesKeywords) return false;
+          return rule.filter(ins, coreText);
+        }).map(ins => ins.id);
+
+        const currentLinks = [...(idea.linkedInsights || [])].sort();
+        const newLinks = [...validInsightIds].sort();
+
+        if (JSON.stringify(currentLinks) !== JSON.stringify(newLinks)) {
+          console.log(`[Self-Healing] Repairing linkedInsights for system idea "${idea.title}" (ID: ${idea.id})`);
+          idea.linkedInsights = validInsightIds;
+          hasChanges = true;
+        }
+      }
+    });
+
+    if (hasChanges) {
       this.saveData();
     }
   }
