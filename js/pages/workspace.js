@@ -1578,12 +1578,27 @@ function renderDiscoveryIntakeTab(company, container) {
           `).join('')}
         </div>
 
-        <div style="border-top:1px solid var(--border-color); padding-top:12px; display:flex; align-items:center; gap:16px;">
+        <div style="border-top:1px solid var(--border-color); padding-top:12px; display:flex; align-items:center; gap:16px; margin-bottom:12px;">
           <span style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono);">OVERALL</span>
           <div style="flex:1; height:6px; background:var(--bg-tertiary); border-radius:3px; overflow:hidden;">
             <div style="height:100%; width:${c.overall}%; background:${completenessBarColor(c.overall)}; border-radius:3px; transition:width 0.3s ease;"></div>
           </div>
           <span style="font-size:16px; font-weight:700; font-family:var(--font-mono); color:${completenessBarColor(c.overall)};">${c.overall}%</span>
+        </div>
+
+        <div style="border-top:1px dashed var(--border-color); padding-top:12px;">
+          ${isReady ? `
+            <button id="btn-generate-notes-trigger" class="btn btn-primary" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              ${getIconHTML('sparkles', 'width: 16px; height: 16px;')} Generate Discovery Notes
+            </button>
+          ` : `
+            <button class="btn btn-secondary" disabled style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; opacity: 0.6; cursor: not-allowed;">
+              ${getIconHTML('sparkles', 'width: 16px; height: 16px;')} Generate Discovery Notes
+            </button>
+            <div style="font-size:12px; color:var(--text-muted); text-align:center; margin-top:8px;">
+              Complete at least 70% of Discovery Intake before generating suggested notes.
+            </div>
+          `}
         </div>
       </div>
     `;
@@ -1737,6 +1752,318 @@ function renderDiscoveryIntakeTab(company, container) {
       }, 300);
     });
   });
+
+  // ---- Generate Notes Click Event ----
+  container.addEventListener('click', (e) => {
+    if (e.target.closest('#btn-generate-notes-trigger')) {
+      openGenerateNotesModal(company, container);
+    }
+  });
+}
+
+// ---- Discovery Note Generator Helper Functions ----
+
+function containsKeyword(text, keywords) {
+  if (!text) return false;
+  const lowerText = text.toLowerCase();
+  return keywords.some(keyword => lowerText.includes(keyword.toLowerCase()));
+}
+
+function generateSuggestedNotes(company) {
+  const intake = company.discoveryIntake || db._defaultDiscoveryIntake();
+  const getSectionText = (section) => {
+    const sec = intake[section] || {};
+    return Object.values(sec).join(' ').toLowerCase();
+  };
+
+  const existingNotes = db.getDiscoveryNotes(company.id);
+  const existingTitles = existingNotes.map(n => n.title.trim().toLowerCase());
+  const suggestions = [];
+
+  // Rule 1: Reporting
+  const processText = getSectionText('process');
+  if (containsKeyword(processText, ['reporting', 'reports', 'monthly reporting'])) {
+    const p = intake.process || {};
+    const s = intake.systems || {};
+    const b = intake.business || {};
+    const d = intake.data || {};
+    const content = `### Reporting Challenges\n- **Manual Reporting Work**: ${p.manualWorkAreas || 'Repetitive reporting workflows.'}\n- **Process Bottlenecks**: ${p.knownBottlenecks || 'Manual gathering of reporting metrics.'}\n\n### Systems Involved\n- **Current Systems**: ${s.currentSystems || 'Spreadsheets and reporting dashboards.'}\n- **Integration Status**: ${s.integrations || 'No direct automated integration.'}\n\n### Expected Outcomes & KPIs\n- **Expected Outcome**: ${b.expectedOutcomes || 'Automated reporting dashboards.'}\n- **Related KPIs**: ${d.kpis || 'Time spent on reporting, data accuracy.'}`;
+    
+    suggestions.push({
+      title: 'Production Reporting Workflow Review',
+      category: 'document_review',
+      content: content
+    });
+  }
+
+  // Rule 2: Maintenance
+  const processSystemsText = getSectionText('process') + ' ' + getSectionText('systems');
+  if (containsKeyword(processSystemsText, ['maintenance'])) {
+    const p = intake.process || {};
+    const pe = intake.people || {};
+    const s = intake.systems || {};
+    const content = `### Maintenance Workflows\n- **Core Workflow**: ${p.coreProcesses || 'Equipment maintenance scheduling and tracking.'}\n- **Manual Record Updates**: ${p.manualWorkAreas || 'Manual record updates and log entries.'}\n\n### Affected Teams & Systems\n- **Affected Teams**: ${pe.affectedTeams || 'Maintenance technicians and operations teams.'}\n- **Systems in Use**: ${s.currentSystems || 'Isolated spreadsheets or local logs.'}\n\n### Operational Risks\n- **Bottlenecks/Risks**: ${p.knownBottlenecks || 'Delayed updates, transcription errors, and lack of real-time visibility into machine downtime.'}`;
+
+    suggestions.push({
+      title: 'Maintenance Records Process Observation',
+      category: 'observation',
+      content: content
+    });
+  }
+
+  // Rule 3: Inventory
+  const dataSystemsProcessText = getSectionText('data') + ' ' + getSectionText('systems') + ' ' + getSectionText('process');
+  if (containsKeyword(dataSystemsProcessText, ['inventory', 'procurement'])) {
+    const d = intake.data || {};
+    const s = intake.systems || {};
+    const b = intake.business || {};
+    const content = `### Inventory Reports & Data Sources\n- **Inventory Reports**: ${d.reports || 'Inventory status reports and trackers.'}\n- **Data Sources**: ${d.dataSources || 'ERP database or stock spreadsheets.'}\n\n### Visibility Gaps\n- **Technical Gaps**: ${s.technologyIssues || 'Data lag and lack of real-time inventory updates.'}\n- **Integration Issues**: ${s.integrations || 'Manual data synchronization between warehouse and sales systems.'}\n\n### Operational Impact\n- **Operational Impact**: ${b.currentChallenges || 'Stock discrepancies and procurement delays.'}`;
+
+    suggestions.push({
+      title: 'Inventory Data Visibility Review',
+      category: 'document_review',
+      content: content
+    });
+  }
+
+  // Rule 4: Systems Integration
+  const systemsText = getSectionText('systems');
+  if (containsKeyword(systemsText, ['excel', 'erp', 'power bi', 'integration', 'dashboard', 'duplication'])) {
+    const s = intake.systems || {};
+    const p = intake.process || {};
+    const d = intake.data || {};
+    const content = `### Current Systems & Tooling\n- **Existing Stack**: ${s.currentSystems || 'Multiple disconnected applications.'}\n- **Integration Gaps**: ${s.integrations || 'Lack of automated pipelines.'}\n\n### Duplicated Data Entry & Process Overhead\n- **Manual/Duplicate Work**: ${p.manualWorkAreas || 'Copying data manually between systems.'}\n- **Known Pain Points**: ${s.technologyIssues || 'Inconsistent data across platforms.'}\n\n### Dashboard & KPI Limitations\n- **Reporting Gaps**: ${d.reports || 'Dashboards are manually compiled and lack drill-down capability.'}`;
+
+    suggestions.push({
+      title: 'Systems Integration & Data Flow Review',
+      category: 'document_review',
+      content: content
+    });
+  }
+
+  // Rule 5: Stakeholders
+  const peopleText = getSectionText('people');
+  if (peopleText.replace(/\s/g, '').length > 0) {
+    const pe = intake.people || {};
+    const content = `### Interview Summary & Alignment\n- **Key Decision Makers**: ${pe.decisionMakers || 'Strategic leadership and project sponsors.'}\n- **Affected Teams**: ${pe.affectedTeams || 'End users and system administrators.'}\n- **Key Stakeholders**: ${pe.keyStakeholders || 'Department heads and business analysts.'}\n\n### Suggested Stakeholder Questions\n1. What are the primary expectations and concerns of the affected teams regarding the new solution?\n2. What is the team's readiness for change, and what training support will be required?\n3. Who are the operational champions who should participate in design workshops?`;
+
+    suggestions.push({
+      title: 'Stakeholder Alignment Interview',
+      category: 'interview',
+      content: content
+    });
+  }
+
+  // De-duplicate against existing notes
+  return suggestions.filter(s => !existingTitles.includes(s.title.trim().toLowerCase()));
+}
+
+function openGenerateNotesModal(company, container) {
+  let suggestions = generateSuggestedNotes(company);
+  
+  if (suggestions.length === 0) {
+    openModal(
+      'Suggested Discovery Notes',
+      `<div style="padding: 24px 20px; text-align: center; color: var(--text-muted);">
+         <p style="font-size: 14px; margin-bottom: 0;">No strong Discovery Note suggestions found. Add more intake detail or create notes manually.</p>
+       </div>`,
+      `<button class="btn btn-secondary" id="modal-gen-close">Close</button>`
+    );
+    document.getElementById('modal-gen-close').addEventListener('click', closeModal);
+    return;
+  }
+
+  // Map to local suggestion objects with UI state
+  suggestions = suggestions.map((s, idx) => ({
+    ...s,
+    localId: `suggested_${Date.now()}_${idx}`,
+    checked: true,
+    isEditing: false
+  }));
+
+  function renderModalContent() {
+    const bodyContent = document.getElementById('modal-body-content');
+    const footerContent = document.getElementById('modal-footer-content');
+    if (!bodyContent || !footerContent) return;
+
+    let bodyHTML = `
+      <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+        These are suggested Discovery Notes generated from Discovery Intake. Review before creating.
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px; max-height: 50vh; overflow-y: auto; padding-right: 4px;">
+        ${suggestions.map(note => {
+          if (note.isEditing) {
+            // Edit Mode
+            return `
+              <div class="card" style="margin-bottom: 0; border: 1px solid var(--color-info); background: var(--bg-secondary); padding: 16px;" data-local-id="${note.localId}">
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Title</label>
+                  <input type="text" class="input-control edit-title" value="${escapeHTML(note.title)}" style="font-weight: 600;">
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Category</label>
+                  <select class="select-control edit-category">
+                    <option value="interview" ${note.category === 'interview' ? 'selected' : ''}>Interview</option>
+                    <option value="observation" ${note.category === 'observation' ? 'selected' : ''}>Observation / Shadowing</option>
+                    <option value="document_review" ${note.category === 'document_review' ? 'selected' : ''}>Document/Process Review</option>
+                    <option value="other" ${note.category === 'other' ? 'selected' : ''}>Other</option>
+                  </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 16px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Content</label>
+                  <textarea class="textarea-control edit-content" style="height: 120px; font-size: 13px; line-height: 1.4; resize: vertical;">${escapeHTML(note.content)}</textarea>
+                </div>
+                
+                <div class="flex-row" style="gap: 8px; justify-content: flex-end;">
+                  <button class="btn btn-secondary btn-cancel-edit" style="padding: 6px 12px; font-size: 12px;">Cancel</button>
+                  <button class="btn btn-primary btn-save-edit" style="padding: 6px 12px; font-size: 12px;">Save Changes</button>
+                </div>
+              </div>
+            `;
+          } else {
+            // View Mode
+            const categoryLabels = {
+              interview: 'Interview',
+              observation: 'Observation / Shadowing',
+              document_review: 'Document/Process Review',
+              other: 'Other'
+            };
+            
+            return `
+              <div class="card note-suggestion-card" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 12px; ${note.checked ? '' : 'opacity: 0.6; border-color: var(--bg-tertiary);'}" data-local-id="${note.localId}">
+                <div class="flex-between" style="align-items: flex-start;">
+                  <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1;">
+                    <input type="checkbox" class="note-checkbox" ${note.checked ? 'checked' : ''} style="margin-top: 4px; cursor: pointer; width: 16px; height: 16px;">
+                    <div style="flex: 1;">
+                      <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--text-primary);">${escapeHTML(note.title)}</h4>
+                      <span class="badge badge-info" style="font-size: 10px; margin-top: 4px; display: inline-block;">
+                        ${categoryLabels[note.category] || 'Other'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div class="flex-row" style="gap: 6px;">
+                    <button class="btn-icon btn-edit-note" title="Edit Note">${getIconHTML('edit-3', 'width: 14px; height: 14px;')}</button>
+                    <button class="btn-icon btn-remove-note" title="Remove Note" style="color: var(--color-danger);">${getIconHTML('trash', 'width: 14px; height: 14px;')}</button>
+                  </div>
+                </div>
+                
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; padding: 10px; background: var(--bg-primary); border-radius: var(--radius-sm); border: 1px solid var(--border-color); max-height: 120px; overflow-y: auto;">${escapeHTML(note.content)}</div>
+              </div>
+            `;
+          }
+        }).join('')}
+      </div>
+    `;
+
+    bodyContent.innerHTML = bodyHTML;
+
+    // Bind card level listeners
+    bodyContent.querySelectorAll('[data-local-id]').forEach(element => {
+      const localId = element.getAttribute('data-local-id');
+      const note = suggestions.find(n => n.localId === localId);
+      if (!note) return;
+
+      if (note.isEditing) {
+        const cancelBtn = element.querySelector('.btn-cancel-edit');
+        const saveBtn = element.querySelector('.btn-save-edit');
+
+        cancelBtn.addEventListener('click', () => {
+          note.isEditing = false;
+          renderModalContent();
+        });
+
+        saveBtn.addEventListener('click', () => {
+          const newTitle = element.querySelector('.edit-title').value.trim();
+          const newCategory = element.querySelector('.edit-category').value;
+          const newContent = element.querySelector('.edit-content').value.trim();
+
+          if (!newTitle) {
+            showToast('Note title is required', 'error');
+            return;
+          }
+          if (!newContent) {
+            showToast('Note content is required', 'error');
+            return;
+          }
+
+          note.title = newTitle;
+          note.category = newCategory;
+          note.content = newContent;
+          note.isEditing = false;
+          renderModalContent();
+        });
+      } else {
+        const checkbox = element.querySelector('.note-checkbox');
+        const editBtn = element.querySelector('.btn-edit-note');
+        const removeBtn = element.querySelector('.btn-remove-note');
+
+        checkbox.addEventListener('change', () => {
+          note.checked = checkbox.checked;
+          renderModalContent();
+        });
+
+        editBtn.addEventListener('click', () => {
+          note.isEditing = true;
+          renderModalContent();
+        });
+
+        removeBtn.addEventListener('click', () => {
+          suggestions = suggestions.filter(n => n.localId !== localId);
+          if (suggestions.length === 0) {
+            closeModal();
+            showToast('All suggested notes removed', 'info');
+          } else {
+            renderModalContent();
+          }
+        });
+      }
+    });
+
+    // Render footer buttons
+    const checkedCount = suggestions.filter(n => n.checked).length;
+    footerContent.innerHTML = `
+      <button class="btn btn-secondary" id="modal-gen-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-gen-create" ${checkedCount === 0 ? 'disabled style="opacity: 0.6; cursor: not-allowed;"' : ''}>
+        Create Selected Notes (${checkedCount})
+      </button>
+    `;
+
+    document.getElementById('modal-gen-cancel').addEventListener('click', closeModal);
+    const createBtn = document.getElementById('modal-gen-create');
+    if (createBtn && checkedCount > 0) {
+      createBtn.addEventListener('click', () => {
+        const selectedNotes = suggestions.filter(n => n.checked);
+        if (selectedNotes.length === 0) return;
+
+        selectedNotes.forEach(n => {
+          db.addDiscoveryNote({
+            companyId: company.id,
+            title: n.title,
+            category: n.category,
+            content: n.content,
+            source: 'discovery_intake',
+            generatedFrom: 'Discovery Intake',
+            createdAt: new Date().toISOString()
+          });
+        });
+
+        closeModal();
+        showToast('Discovery Notes generated successfully.', 'success');
+
+        // Navigate to Discovery tab
+        window.location.hash = `#/workspace?id=${company.id}&tab=Discovery`;
+      });
+    }
+
+    refreshIcons();
+  }
+
+  // Open modal initial state
+  openModal('Suggested Discovery Notes', '', '');
+  renderModalContent();
 }
 
 // --- 7. REPORTS TAB ---

@@ -383,6 +383,9 @@ class StateManager {
       date: note.date || new Date().toISOString().split('T')[0],
       category: note.category || 'other'
     };
+    if (note.source) newNote.source = note.source;
+    if (note.generatedFrom) newNote.generatedFrom = note.generatedFrom;
+    if (note.createdAt) newNote.createdAt = note.createdAt;
     this.data.discoveryNotes.push(newNote);
     this.saveData();
     return newNote;
