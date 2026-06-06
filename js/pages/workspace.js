@@ -2164,7 +2164,7 @@ function generateSuggestedInsights(company) {
       category: 'data',
       impact: 'high',
       keywords: ['reporting', 'reports', 'excel', 'duplicate entry', 'dashboard', 'power bi', 'erp', 'sap', 'duplication'],
-      descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes show that reporting, maintenance, and inventory information is spread across Excel, SAP ERP, Power BI, and manual records. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that teams rely on manual consolidation and duplicate data entry instead of a unified operational data flow.\n\nBusiness Impact:\nThis reduces reporting speed, creates risk of inconsistent information, and limits leadership visibility into current operations.`
+      descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes show that reporting, maintenance, and inventory information is spread across Excel, SAP ERP, Power BI, and manual records. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that teams rely on manual consolidation and duplicate data entry instead of a unified operational data flow.\n\nBusiness Impact:\nThis can reduce reporting speed, may increase risk of inconsistent information, and can reduce leadership visibility into current operations.`
     },
     {
       id: 'theme_manual',
@@ -2172,15 +2172,15 @@ function generateSuggestedInsights(company) {
       category: 'process',
       impact: 'high',
       keywords: ['manual work', 'reporting preparation', 'maintenance record updates', 'manual record', 'manually', 'transcribe', 'paper'],
-      descriptionBuilder: (noteTitles) => `Observation:\nShadowing records show that personnel spend substantial hours drafting templates, updating castings, or transcribing maintenance logs manually. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that skilled operational teams perform administrative preparation and manual work updates rather than focusing on high-value tasks.\n\nBusiness Impact:\nThis increases operational overhead, delays the extraction of insights, and creates administrative bottlenecks.`
+      descriptionBuilder: (noteTitles) => `Observation:\nShadowing records show that personnel spend substantial hours drafting templates, updating logs, or transcribing maintenance updates manually. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that skilled operational teams perform administrative preparation and manual work updates rather than focusing on high-value tasks.\n\nBusiness Impact:\nThis can create administrative overhead, may delay strategic decisions, and may increase planning risks.`
     },
     {
       id: 'theme_inventory',
-      title: 'Inventory Visibility Gaps Increase Operational Planning Risk',
+      title: 'Inventory Visibility Gaps May Affect Planning Reliability',
       category: 'data',
       impact: 'medium',
       keywords: ['inventory', 'procurement', 'stock visibility', 'data sources', 'warehouse', 'stock count', 'stock level', 'materials'],
-      descriptionBuilder: (noteTitles) => `Observation:\nWarehouse audits and stock counts highlight discrepancies and lag in tracking critical spares and procurement requirements. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that inventory and procurement data sources are siloed and updated via batch operations rather than real-time visibility.\n\nBusiness Impact:\nThis limits procurement predictability, leads to unexpected stock outs, and increases operational planning risks.`
+      descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes highlight discrepancies and delays in tracking spares, parts, and procurement requirements. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that inventory and procurement data sources are siloed and updated via periodic manual entries rather than real-time visibility.\n\nBusiness Impact:\nThis may affect planning reliability, can limit procurement predictability, and may increase risk of operational delays.`
     },
     {
       id: 'theme_stakeholder',
@@ -2188,7 +2188,7 @@ function generateSuggestedInsights(company) {
       category: 'people',
       impact: 'medium',
       keywords: ['people', 'decision makers', 'affected teams', 'stakeholders', 'stakeholder', 'interview', 'decision-maker'],
-      descriptionBuilder: (noteTitles) => `Observation:\nInterviews with key personnel show differences in priorities between compiler architects, logistics managers, and operations staff. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that technical change initiatives are designed without a unified consensus among all affected teams and decision makers.\n\nBusiness Impact:\nThis increases user adoption risks, introduces organizational friction, and delays implementation timelines.`
+      descriptionBuilder: (noteTitles) => `Observation:\nInterviews with key personnel show differences in priorities across teams and interviewed staff and managers regarding software changes and process workflows. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that technical change initiatives are designed without a unified consensus among all affected teams and decision makers.\n\nBusiness Impact:\nThis may increase user adoption risks, can introduce organizational friction, and may delay implementation timelines.`
     }
   ];
   
@@ -2222,7 +2222,8 @@ function generateSuggestedInsights(company) {
         category: theme.category,
         description: theme.descriptionBuilder(noteTitles),
         impact: theme.impact,
-        sourceNotes: noteIds
+        sourceNotes: noteIds,
+        evidenceConfidence: calcEvidenceConfidence(noteIds)
       });
     }
   });
@@ -2245,14 +2246,22 @@ function generateSuggestedInsights(company) {
     candidates.push({
       title: 'Disconnected Data Sources Reduce Management Confidence',
       category: 'data',
-      description: `Observation:\nProcess observations identify disconnected files, local trackers, and custom logs across operations. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that data sources are isolated without automatic synchronization or shared frameworks.\n\nBusiness Impact:\nThis limits data consistency, increases reporting lag, and reduces management confidence in business intelligence.`,
+      description: `Observation:\nProcess observations identify disconnected files, local trackers, and custom logs across operations. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that data sources are isolated without automatic synchronization or shared frameworks.\n\nBusiness Impact:\nThis may affect planning reliability, can create administrative overhead, and may reduce confidence in reporting.`,
       impact: 'medium',
-      sourceNotes: noteIds
+      sourceNotes: noteIds,
+      evidenceConfidence: calcEvidenceConfidence(noteIds)
     });
   }
   
   // De-duplicate candidate titles against existing insights
   return candidates.filter(c => !existingTitles.includes(c.title.toLowerCase().trim()));
+}
+
+function calcEvidenceConfidence(noteIds) {
+  const count = noteIds.length;
+  if (count >= 4) return 'High';
+  if (count >= 2) return 'Medium';
+  return 'Low';
 }
 
 function openGenerateInsightsModal(company, container) {
@@ -2331,9 +2340,16 @@ function openGenerateInsightsModal(company, container) {
                   </select>
                 </div>
                 
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Evidence Confidence</label>
+                  <div style="font-size: 13px; font-family: var(--font-mono); margin-top: 4px;">
+                    <span class="badge ${ins.evidenceConfidence === 'High' ? 'badge-success' : (ins.evidenceConfidence === 'Medium' ? 'badge-warning' : 'badge-neutral')}">${ins.evidenceConfidence}</span>
+                  </div>
+                </div>
+
                 <div class="form-group" style="margin-bottom: 16px;">
                   <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Description Summary</label>
-                  <textarea class="textarea-control edit-description" style="height: 100px; font-size: 13px; line-height: 1.4; resize: vertical;">${escapeHTML(ins.description)}</textarea>
+                  <textarea class="textarea-control edit-description" style="height: 120px; font-size: 13px; line-height: 1.4; resize: vertical;">${escapeHTML(ins.description)}</textarea>
                 </div>
                 
                 <div class="flex-row" style="gap: 8px; justify-content: flex-end;">
@@ -2358,9 +2374,10 @@ function openGenerateInsightsModal(company, container) {
                     <input type="checkbox" class="insight-checkbox" ${ins.checked ? 'checked' : ''} style="margin-top: 4px; cursor: pointer; width: 16px; height: 16px;">
                     <div style="flex: 1;">
                       <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--text-primary);">${escapeHTML(ins.title)}</h4>
-                      <div class="flex-row" style="gap: 6px; margin-top: 6px;">
+                      <div class="flex-row" style="gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center;">
                         <span class="badge badge-info" style="font-size: 9px;">Pillar: ${ins.category}</span>
                         <span class="badge ${impBadge}" style="font-size: 9px;">Impact: ${ins.impact}</span>
+                        <span class="badge ${ins.evidenceConfidence === 'High' ? 'badge-success' : (ins.evidenceConfidence === 'Medium' ? 'badge-warning' : 'badge-neutral')}" style="font-size: 9px;">Confidence: ${ins.evidenceConfidence}</span>
                         <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-left: 4px;">${ins.sourceNotes.length} linked sources</span>
                       </div>
                     </div>
@@ -2372,7 +2389,7 @@ function openGenerateInsightsModal(company, container) {
                   </div>
                 </div>
                 
-                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; padding: 10px; background: var(--bg-primary); border-radius: var(--radius-sm); border: 1px solid var(--border-color); max-height: 100px; overflow-y: auto;">${escapeHTML(ins.description)}</div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; padding: 10px; background: var(--bg-primary); border-radius: var(--radius-sm); border: 1px solid var(--border-color); max-height: 120px; overflow-y: auto;">${escapeHTML(ins.description)}</div>
                 
                 <div style="font-size: 11px; color: var(--text-muted); background: var(--bg-secondary); padding: 6px 10px; border-radius: var(--radius-sm); border-left: 2px solid var(--color-info);">
                   <strong>Evidence:</strong> ${sourceNamesList || 'None'}
@@ -2473,7 +2490,8 @@ function openGenerateInsightsModal(company, container) {
             description: sug.description,
             sourceNotes: sug.sourceNotes,
             impact: sug.impact,
-            category: sug.category
+            category: sug.category,
+            evidenceConfidence: sug.evidenceConfidence
           });
         });
 

@@ -434,6 +434,9 @@ class StateManager {
       impact: insight.impact || 'medium',
       category: insight.category || 'other'
     };
+    if (insight.evidenceConfidence) {
+      newInsight.evidenceConfidence = insight.evidenceConfidence;
+    }
     this.data.insights.push(newInsight);
     this.saveData();
     return newInsight;
