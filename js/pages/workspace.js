@@ -617,9 +617,14 @@ function renderInsightsTab(company, container) {
       <div style="font-size:13px; color:var(--text-secondary)">
         Grouped by Architect Pillars. Click cards to view source Discovery Notes.
       </div>
-      <button id="btn-add-insight" class="btn btn-primary">
-        ${getIconHTML('plus')} Extract Insight
-      </button>
+      <div class="flex-row" style="gap: 10px;">
+        <button id="btn-generate-insights" class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px;">
+          ${getIconHTML('sparkles', 'width: 14px; height: 14px;')} Generate Insights From Discovery
+        </button>
+        <button id="btn-add-insight" class="btn btn-primary" style="display: flex; align-items: center; gap: 6px;">
+          ${getIconHTML('plus')} Extract Insight
+        </button>
+      </div>
     </div>
 
     <!-- Pillars Board -->
@@ -676,6 +681,11 @@ function renderInsightsTab(company, container) {
     openInsightFormModal(company, null, () => {
       renderInsightsTab(company, container);
     });
+  });
+
+  // Generate Insights Trigger
+  container.querySelector('#btn-generate-insights').addEventListener('click', () => {
+    openGenerateInsightsModal(company, container);
   });
 }
 
@@ -2136,4 +2146,330 @@ function renderReportsTab(company, container) {
       }
     });
   });
+}
+
+// ---- Suggested Insights Gaps & Modal Management ----
+
+function generateSuggestedInsights(company) {
+  const notes = db.getDiscoveryNotes(company.id);
+  if (notes.length === 0) return [];
+  
+  const existingInsights = db.getInsights(company.id);
+  const existingTitles = existingInsights.map(i => i.title.toLowerCase().trim());
+  
+  const themes = [
+    {
+      id: 'theme_tech',
+      title: 'Critical Telemetry & Systems Integration Gaps',
+      category: 'technology',
+      impact: 'high',
+      keywords: ['integration', 'compiler', 'firmware', 'register', 'sensor', 'telemetry', 'deposition', 'doping', 'downtime', 'database', 'erp', 'schema', 'hardware'],
+      descriptionTemplate: (noteTitles) => `Fragmented data pipeline and lack of real-time telemetry updates. Fragmented data streams observed across systems, specifically referenced in: ${noteTitles.join(', ')}.`
+    },
+    {
+      id: 'theme_process',
+      title: 'Manual Reporting Processes & Admin Bottlenecks',
+      category: 'process',
+      impact: 'high',
+      keywords: ['report', 'reporting', 'excel', 'manual', 'proposal', 'proposal creation', 'template', 'shadowing', 'copying', 'tracking'],
+      descriptionTemplate: (noteTitles) => `High manual overhead and administrative bottlenecks identified. Repetitive daily workflows and spreadsheet dependency highlighted in: ${noteTitles.join(', ')}.`
+    },
+    {
+      id: 'theme_data',
+      title: 'Inventory Tracking & Warehouse Gaps',
+      category: 'data',
+      impact: 'medium',
+      keywords: ['inventory', 'warehouse', 'procurement', 'brick', 'stock', 'logistics', 'audit', 'thermal'],
+      descriptionTemplate: (noteTitles) => `Inventory visibility risks and lack of automated warehouse stock counting. Tracking and data reporting limitations noted in: ${noteTitles.join(', ')}.`
+    },
+    {
+      id: 'theme_people',
+      title: 'Stakeholder Alignment & Workflow Friction',
+      category: 'people',
+      impact: 'medium',
+      keywords: ['interview', 'stakeholder', 'team', 'users', 'consultant', 'people', 'communication', 'training', 'onboarding'],
+      descriptionTemplate: (noteTitles) => `Stakeholder communication silos and potential onboarding friction. Key user and management interviews indicate alignment opportunities in: ${noteTitles.join(', ')}.`
+    }
+  ];
+  
+  const candidates = [];
+  const assignedNoteIds = new Set();
+  
+  // Try matching notes to themes
+  themes.forEach(theme => {
+    const matchedNotes = notes.filter(n => {
+      const text = (n.title + ' ' + n.content).toLowerCase();
+      return theme.keywords.some(kw => text.includes(kw));
+    });
+    
+    if (matchedNotes.length > 0) {
+      const noteTitles = matchedNotes.map(n => `"${n.title}"`);
+      const noteIds = matchedNotes.map(n => n.id);
+      noteIds.forEach(id => assignedNoteIds.add(id));
+      
+      candidates.push({
+        title: theme.title,
+        category: theme.category,
+        description: theme.descriptionTemplate(noteTitles),
+        impact: theme.impact,
+        sourceNotes: noteIds
+      });
+    }
+  });
+  
+  // Leftover notes theme
+  const unmatchedNotes = notes.filter(n => !assignedNoteIds.has(n.id));
+  if (unmatchedNotes.length > 0) {
+    const noteTitles = unmatchedNotes.map(n => `"${n.title}"`);
+    const noteIds = unmatchedNotes.map(n => n.id);
+    
+    candidates.push({
+      title: 'General Workflow Observation & Process Gaps',
+      category: 'process',
+      description: `Miscellaneous operational friction points and process workflow challenges referenced in: ${noteTitles.join(', ')}.`,
+      impact: 'medium',
+      sourceNotes: noteIds
+    });
+  }
+  
+  // De-duplicate candidate titles against existing insights
+  return candidates.filter(c => !existingTitles.includes(c.title.toLowerCase().trim()));
+}
+
+function openGenerateInsightsModal(company, container) {
+  const notes = db.getDiscoveryNotes(company.id);
+  
+  if (notes.length === 0) {
+    openModal(
+      'Suggested Insights',
+      `<div style="padding: 24px 20px; text-align: center; color: var(--text-muted);">
+         <p style="font-size: 14px; margin-bottom: 0;">Capture or generate Discovery Notes first before extracting insights.</p>
+       </div>`,
+      `<button class="btn btn-secondary" id="modal-ins-close">Close</button>`
+    );
+    document.getElementById('modal-ins-close').addEventListener('click', closeModal);
+    return;
+  }
+  
+  let suggestions = generateSuggestedInsights(company);
+  
+  if (suggestions.length === 0) {
+    openModal(
+      'Suggested Insights',
+      `<div style="padding: 24px 20px; text-align: center; color: var(--text-muted);">
+         <p style="font-size: 14px; margin-bottom: 0;">No new Insight suggestions found. Add more Discovery Notes or create insights manually.</p>
+       </div>`,
+      `<button class="btn btn-secondary" id="modal-ins-close">Close</button>`
+    );
+    document.getElementById('modal-ins-close').addEventListener('click', closeModal);
+    return;
+  }
+  
+  // Assign local id for UI tracking
+  suggestions = suggestions.map((s, idx) => ({
+    ...s,
+    localId: `sug_ins_${Date.now()}_${idx}`,
+    checked: true,
+    isEditing: false
+  }));
+
+  function renderModalContent() {
+    const bodyContent = document.getElementById('modal-body-content');
+    const footerContent = document.getElementById('modal-footer-content');
+    if (!bodyContent || !footerContent) return;
+
+    let bodyHTML = `
+      <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+        These are suggested Insights generated from your Discovery Notes. Review before creating.
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px; max-height: 50vh; overflow-y: auto; padding-right: 4px;">
+        ${suggestions.map(ins => {
+          if (ins.isEditing) {
+            // Edit Mode
+            return `
+              <div class="card" style="margin-bottom: 0; border: 1px solid var(--color-info); background: var(--bg-secondary); padding: 16px;" data-local-id="${ins.localId}">
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Title</label>
+                  <input type="text" class="input-control edit-title" value="${escapeHTML(ins.title)}" style="font-weight: 600;">
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Pillar (Category)</label>
+                  <select class="select-control edit-category">
+                    <option value="technology" ${ins.category === 'technology' ? 'selected' : ''}>Technology</option>
+                    <option value="process" ${ins.category === 'process' ? 'selected' : ''}>Process</option>
+                    <option value="people" ${ins.category === 'people' ? 'selected' : ''}>People</option>
+                    <option value="data" ${ins.category === 'data' ? 'selected' : ''}>Data</option>
+                  </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 12px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Impact Level</label>
+                  <select class="select-control edit-impact">
+                    <option value="low" ${ins.impact === 'low' ? 'selected' : ''}>Low</option>
+                    <option value="medium" ${ins.impact === 'medium' ? 'selected' : ''}>Medium</option>
+                    <option value="high" ${ins.impact === 'high' ? 'selected' : ''}>High</option>
+                  </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 16px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Description Summary</label>
+                  <textarea class="textarea-control edit-description" style="height: 100px; font-size: 13px; line-height: 1.4; resize: vertical;">${escapeHTML(ins.description)}</textarea>
+                </div>
+                
+                <div class="flex-row" style="gap: 8px; justify-content: flex-end;">
+                  <button class="btn btn-secondary btn-cancel-edit" style="padding: 6px 12px; font-size: 12px;">Cancel</button>
+                  <button class="btn btn-primary btn-save-edit" style="padding: 6px 12px; font-size: 12px;">Save Changes</button>
+                </div>
+              </div>
+            `;
+          } else {
+            // View Mode
+            let impBadge = 'badge-info';
+            if (ins.impact === 'high') impBadge = 'badge-danger';
+            if (ins.impact === 'medium') impBadge = 'badge-warning';
+
+            const sourceNotesMatched = ins.sourceNotes.map(nId => db.getDiscoveryNote(nId)).filter(n => !!n);
+            const sourceNamesList = sourceNotesMatched.map(n => escapeHTML(n.title)).join(', ');
+            
+            return `
+              <div class="card note-suggestion-card" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 12px; ${ins.checked ? '' : 'opacity: 0.6; border-color: var(--bg-tertiary);'}" data-local-id="${ins.localId}">
+                <div class="flex-between" style="align-items: flex-start;">
+                  <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1;">
+                    <input type="checkbox" class="insight-checkbox" ${ins.checked ? 'checked' : ''} style="margin-top: 4px; cursor: pointer; width: 16px; height: 16px;">
+                    <div style="flex: 1;">
+                      <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--text-primary);">${escapeHTML(ins.title)}</h4>
+                      <div class="flex-row" style="gap: 6px; margin-top: 6px;">
+                        <span class="badge badge-info" style="font-size: 9px;">Pillar: ${ins.category}</span>
+                        <span class="badge ${impBadge}" style="font-size: 9px;">Impact: ${ins.impact}</span>
+                        <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-left: 4px;">${ins.sourceNotes.length} linked sources</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="flex-row" style="gap: 6px;">
+                    <button class="btn-icon btn-edit-insight" title="Edit Insight">${getIconHTML('edit-3', 'width: 14px; height: 14px;')}</button>
+                    <button class="btn-icon btn-remove-insight" title="Remove Suggestion" style="color: var(--color-danger);">${getIconHTML('trash', 'width: 14px; height: 14px;')}</button>
+                  </div>
+                </div>
+                
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; padding: 10px; background: var(--bg-primary); border-radius: var(--radius-sm); border: 1px solid var(--border-color); max-height: 100px; overflow-y: auto;">${escapeHTML(ins.description)}</div>
+                
+                <div style="font-size: 11px; color: var(--text-muted); background: var(--bg-secondary); padding: 6px 10px; border-radius: var(--radius-sm); border-left: 2px solid var(--color-info);">
+                  <strong>Evidence:</strong> ${sourceNamesList || 'None'}
+                </div>
+              </div>
+            `;
+          }
+        }).join('')}
+      </div>
+    `;
+
+    bodyContent.innerHTML = bodyHTML;
+
+    // Bind card level listeners
+    bodyContent.querySelectorAll('[data-local-id]').forEach(element => {
+      const localId = element.getAttribute('data-local-id');
+      const ins = suggestions.find(n => n.localId === localId);
+      if (!ins) return;
+
+      if (ins.isEditing) {
+        const cancelBtn = element.querySelector('.btn-cancel-edit');
+        const saveBtn = element.querySelector('.btn-save-edit');
+
+        cancelBtn.addEventListener('click', () => {
+          ins.isEditing = false;
+          renderModalContent();
+        });
+
+        saveBtn.addEventListener('click', () => {
+          const newTitle = element.querySelector('.edit-title').value.trim();
+          const newCategory = element.querySelector('.edit-category').value;
+          const newImpact = element.querySelector('.edit-impact').value;
+          const newDescription = element.querySelector('.edit-description').value.trim();
+
+          if (!newTitle) {
+            showToast('Insight title is required', 'error');
+            return;
+          }
+          if (!newDescription) {
+            showToast('Insight description is required', 'error');
+            return;
+          }
+
+          ins.title = newTitle;
+          ins.category = newCategory;
+          ins.impact = newImpact;
+          ins.description = newDescription;
+          ins.isEditing = false;
+          renderModalContent();
+        });
+      } else {
+        const checkbox = element.querySelector('.insight-checkbox');
+        const editBtn = element.querySelector('.btn-edit-insight');
+        const removeBtn = element.querySelector('.btn-remove-insight');
+
+        checkbox.addEventListener('change', () => {
+          ins.checked = checkbox.checked;
+          renderModalContent();
+        });
+
+        editBtn.addEventListener('click', () => {
+          ins.isEditing = true;
+          renderModalContent();
+        });
+
+        removeBtn.addEventListener('click', () => {
+          suggestions = suggestions.filter(n => n.localId !== localId);
+          if (suggestions.length === 0) {
+            closeModal();
+            showToast('All suggested insights removed', 'info');
+          } else {
+            renderModalContent();
+          }
+        });
+      }
+    });
+
+    // Render footer buttons
+    const checkedCount = suggestions.filter(n => n.checked).length;
+    footerContent.innerHTML = `
+      <button class="btn btn-secondary" id="modal-gen-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-gen-create" ${checkedCount === 0 ? 'disabled style="opacity: 0.6; cursor: not-allowed;"' : ''}>
+        Create Selected Insights (${checkedCount})
+      </button>
+    `;
+
+    document.getElementById('modal-gen-cancel').addEventListener('click', closeModal);
+    const createBtn = document.getElementById('modal-gen-create');
+    if (createBtn && checkedCount > 0) {
+      createBtn.addEventListener('click', () => {
+        const selectedInsights = suggestions.filter(n => n.checked);
+        if (selectedInsights.length === 0) return;
+
+        selectedInsights.forEach(sug => {
+          db.addInsight({
+            companyId: company.id,
+            title: sug.title,
+            description: sug.description,
+            sourceNotes: sug.sourceNotes,
+            impact: sug.impact,
+            category: sug.category
+          });
+        });
+
+        closeModal();
+        showToast('Insights generated successfully.', 'success');
+
+        // Re-render Insights tab
+        renderInsightsTab(company, container);
+      });
+    }
+
+    refreshIcons();
+  }
+
+  // Open modal initial state
+  openModal('Suggested Insights', '', '');
+  renderModalContent();
 }
