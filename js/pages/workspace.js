@@ -1551,26 +1551,95 @@ function openProjectFormModal(company, projId = null, onSavedCallback) {
   // Bind progress range slider number indicator
   const slider = document.getElementById('proj-progress');
   const sliderNum = document.getElementById('proj-progress-num');
-  slider.addEventListener('input', (e) => {
-    sliderNum.innerText = `${e.target.value}%`;
+  if (slider && sliderNum) {
+    slider.addEventListener('input', (e) => {
+      sliderNum.innerText = `${e.target.value}%`;
+    });
+  }
+
+  // Auto-fill logic driven by checked ideas
+  let lastPrefilledTitle = isEdit ? proj.title : '';
+  let lastPrefilledDesc = isEdit ? proj.description : '';
+
+  const checkboxes = document.querySelectorAll('.proj-idea-checkbox');
+  checkboxes.forEach(cb => {
+    cb.addEventListener('change', () => {
+      const checkedIds = [];
+      document.querySelectorAll('.proj-idea-checkbox:checked').forEach(checkedCb => {
+        checkedIds.push(checkedCb.value);
+      });
+
+      const selectedIdeas = checkedIds.map(id => db.getSystemIdea(id)).filter(i => !!i);
+
+      let newTitle = '';
+      let newDesc = '';
+
+      if (selectedIdeas.length === 1) {
+        const idea = selectedIdeas[0];
+        newTitle = `${idea.title} Implementation`;
+        newDesc = `Implement the approved “${idea.title}” system idea. This project will focus on the approved design concept, linked architecture insights, and the practical steps required to move from recommendation to implementation.\n\nApproved System Idea:\n${idea.title}\n\nDesign Concept:\n${idea.description}`;
+      } else if (selectedIdeas.length >= 2) {
+        newTitle = `Operational Systems Implementation Program`;
+        const ideasList = selectedIdeas.map(idea => `- ${idea.title}`).join('\n');
+        const conceptsList = selectedIdeas.map(idea => `${idea.title}:\n${idea.description}`).join('\n\n');
+        newDesc = `Implement the selected approved system ideas as a coordinated implementation program. This project will align multiple approved design proposals into one execution plan, preserving traceability back to the approved System Ideas and their linked Insights.\n\nApproved System Ideas:\n${ideasList}\n\nDesign Concepts:\n${conceptsList}`;
+      }
+
+      const titleInput = document.getElementById('proj-title');
+      const descTextarea = document.getElementById('proj-desc');
+
+      if (titleInput) {
+        titleInput.value = newTitle;
+        lastPrefilledTitle = newTitle;
+      }
+
+      if (descTextarea) {
+        descTextarea.value = newDesc;
+        lastPrefilledDesc = newDesc;
+      }
+    });
   });
 
   document.getElementById('modal-cancel-proj').addEventListener('click', closeModal);
   document.getElementById('modal-save-proj').addEventListener('click', () => {
     const form = document.getElementById('form-project-launch');
-    if (form.reportValidity()) {
-      const selectedIdeas = [];
-      document.querySelectorAll('.proj-idea-checkbox:checked').forEach(cb => {
-        selectedIdeas.push(cb.value);
-      });
+    
+    const selectedIdeas = [];
+    document.querySelectorAll('.proj-idea-checkbox:checked').forEach(cb => {
+      selectedIdeas.push(cb.value);
+    });
 
+    if (selectedIdeas.length === 0) {
+      showToast('Please select at least one approved system idea.', 'error');
+      return;
+    }
+
+    const title = document.getElementById('proj-title').value.trim();
+    if (!title) {
+      showToast('Project Title is required.', 'error');
+      return;
+    }
+
+    const startDate = document.getElementById('proj-start').value;
+    if (!startDate) {
+      showToast('Start Date is required.', 'error');
+      return;
+    }
+
+    const endDate = document.getElementById('proj-end').value;
+    if (!endDate) {
+      showToast('End Date Target is required.', 'error');
+      return;
+    }
+
+    if (form.reportValidity()) {
       const data = {
         companyId: company.id,
-        title: document.getElementById('proj-title').value,
+        title: title,
         status: document.getElementById('proj-status').value,
         progress: parseInt(document.getElementById('proj-progress').value) || 0,
-        startDate: document.getElementById('proj-start').value,
-        endDate: document.getElementById('proj-end').value,
+        startDate: startDate,
+        endDate: endDate,
         description: document.getElementById('proj-desc').value,
         linkedSystemIdeas: selectedIdeas
       };
