@@ -2320,29 +2320,36 @@ function generateSuggestedInsights(company) {
           else if (n.title === 'Stakeholder Alignment Interview') type = 'stakeholder';
         }
 
+        // Restrict theme_stakeholder exclusively to generatedNoteType === 'stakeholder'
+        if (theme.id === 'theme_stakeholder') {
+          if (type !== 'stakeholder') {
+            return; // Skip matching this note to the stakeholder theme
+          }
+        }
+
         let allowed = false;
         if (type === 'reporting') {
           if (theme.id === 'theme_reporting') {
             allowed = true;
-          } else if (theme.id === 'theme_manual' || theme.id === 'theme_stakeholder' || theme.id === 'theme_inventory') {
+          } else if (theme.id === 'theme_manual' || theme.id === 'theme_inventory') {
             allowed = (strongCount >= 1);
           }
         } else if (type === 'systems') {
           if (theme.id === 'theme_reporting') {
             allowed = true;
-          } else if (theme.id === 'theme_inventory' || theme.id === 'theme_stakeholder' || theme.id === 'theme_manual') {
+          } else if (theme.id === 'theme_inventory' || theme.id === 'theme_manual') {
             allowed = (strongCount >= 1);
           }
         } else if (type === 'manual') {
           if (theme.id === 'theme_manual') {
             allowed = true;
-          } else if (theme.id === 'theme_reporting' || theme.id === 'theme_stakeholder' || theme.id === 'theme_inventory') {
+          } else if (theme.id === 'theme_reporting' || theme.id === 'theme_inventory') {
             allowed = (strongCount >= 1);
           }
         } else if (type === 'inventory') {
           if (theme.id === 'theme_inventory') {
             allowed = true;
-          } else if (theme.id === 'theme_stakeholder' || theme.id === 'theme_reporting' || theme.id === 'theme_manual') {
+          } else if (theme.id === 'theme_reporting' || theme.id === 'theme_manual') {
             allowed = (strongCount >= 1);
           }
         } else if (type === 'stakeholder') {
