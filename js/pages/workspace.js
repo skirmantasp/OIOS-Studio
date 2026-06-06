@@ -2,6 +2,199 @@
 
 import { db } from '../state.js';
 import { getIconHTML, formatDate, escapeHTML, parseMarkdown, showToast, openModal, closeModal, openDrawer, closeDrawer } from '../utils.js';
+import { NavigationHistory } from '../navigation.js';
+
+const navHistory = new NavigationHistory();
+
+/**
+ * Automatically reconstructs the parent breadcrumb path using the database relationships.
+ */
+function reconstructPath(company, entityType, entityId) {
+  const path = [];
+  if (entityType === 'project') {
+    const proj = db.getProject(entityId);
+    if (proj) {
+      path.push({ type: 'tab', tab: 'Projects', label: 'Projects' });
+      path.push({ type: 'project', id: proj.id, label: proj.title });
+    }
+  } else if (entityType === 'systemIdea') {
+    const idea = db.getSystemIdea(entityId);
+    if (idea) {
+      const parentProject = db.getProjects(company.id).find(p => p.linkedSystemIdeas && p.linkedSystemIdeas.includes(idea.id));
+      if (parentProject) {
+        path.push({ type: 'tab', tab: 'Projects', label: 'Projects' });
+        path.push({ type: 'project', id: parentProject.id, label: parentProject.title });
+      } else {
+        path.push({ type: 'tab', tab: 'System Ideas', label: 'System Ideas' });
+      }
+      path.push({ type: 'systemIdea', id: idea.id, label: idea.title });
+    }
+  } else if (entityType === 'insight') {
+    const ins = db.getInsight(entityId);
+    if (ins) {
+      const parentIdea = db.getSystemIdeas(company.id).find(s => s.linkedInsights && s.linkedInsights.includes(ins.id));
+      if (parentIdea) {
+        const parentProject = db.getProjects(company.id).find(p => p.linkedSystemIdeas && p.linkedSystemIdeas.includes(parentIdea.id));
+        if (parentProject) {
+          path.push({ type: 'tab', tab: 'Projects', label: 'Projects' });
+          path.push({ type: 'project', id: parentProject.id, label: parentProject.title });
+        } else {
+          path.push({ type: 'tab', tab: 'System Ideas', label: 'System Ideas' });
+        }
+        path.push({ type: 'systemIdea', id: parentIdea.id, label: parentIdea.title });
+      } else {
+        path.push({ type: 'tab', tab: 'Insights', label: 'Insights' });
+      }
+      path.push({ type: 'insight', id: ins.id, label: ins.title });
+    }
+  } else if (entityType === 'discoveryNote') {
+    const note = db.getDiscoveryNote(entityId);
+    if (note) {
+      const parentInsight = db.getInsights(company.id).find(i => i.sourceNotes && i.sourceNotes.includes(note.id));
+      if (parentInsight) {
+        const parentIdea = db.getSystemIdeas(company.id).find(s => s.linkedInsights && s.linkedInsights.includes(parentInsight.id));
+        if (parentIdea) {
+          const parentProject = db.getProjects(company.id).find(p => p.linkedSystemIdeas && p.linkedSystemIdeas.includes(parentIdea.id));
+          if (parentProject) {
+            path.push({ type: 'tab', tab: 'Projects', label: 'Projects' });
+            path.push({ type: 'project', id: parentProject.id, label: parentProject.title });
+          } else {
+            path.push({ type: 'tab', tab: 'System Ideas', label: 'System Ideas' });
+          }
+          path.push({ type: 'systemIdea', id: parentIdea.id, label: parentIdea.title });
+        } else {
+          path.push({ type: 'tab', tab: 'Insights', label: 'Insights' });
+        }
+        path.push({ type: 'insight', id: parentInsight.id, label: parentInsight.title });
+      } else {
+        path.push({ type: 'tab', tab: 'Discovery', label: 'Discovery' });
+      }
+      path.push({ type: 'discoveryNote', id: note.id, label: note.title });
+    }
+  }
+  return path;
+}
+
+/**
+ * Renders the breadcrumbs and back/forward navigation header.
+ */
+function renderDrawerNavigation(company, entityType, entityId) {
+  const path = reconstructPath(company, entityType, entityId);
+  const canGoBack = navHistory.canGoBack();
+  const canGoForward = navHistory.canGoForward();
+
+  const breadcrumbsHTML = path.map((item, idx) => {
+    const isLast = idx === path.length - 1;
+    let iconName = 'folder';
+    if (item.type === 'systemIdea') iconName = 'lightbulb';
+    if (item.type === 'insight') iconName = 'sparkles';
+    if (item.type === 'discoveryNote') iconName = 'file-text';
+
+    const icon = item.type === 'tab' ? '' : getIconHTML(iconName, 'width: 12px; height: 12px; margin-right: 4px; display: inline-block; vertical-align: middle;');
+    
+    const linkStyle = `color: var(--color-info); text-decoration: none; font-weight: 500; font-size: 11px; cursor: pointer; transition: color var(--transition-fast); display: inline-flex; align-items: center;`;
+    const lastStyle = `color: var(--text-primary); font-weight: 600; font-size: 11px; display: inline-flex; align-items: center;`;
+
+    const labelHTML = isLast 
+      ? `<span style="${lastStyle}">${escapeHTML(item.label)}</span>` 
+      : `<span class="breadcrumb-link" data-type="${item.type}" data-id="${item.id || ''}" data-tab="${item.tab || ''}" style="${linkStyle}">${escapeHTML(item.label)}</span>`;
+      
+    const separator = isLast ? '' : `<span style="margin: 0 4px; color: var(--text-muted); font-size: 10px; display: inline-flex; align-items: center; opacity: 0.6;">&gt;</span>`;
+    
+    return `<span style="display: inline-flex; align-items: center; gap: 2px;">${icon}${labelHTML}</span>${separator}`;
+  }).join('');
+
+  return `
+    <div class="drawer-nav-header" style="margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+      <!-- History Navigation (Back / Forward) -->
+      <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+        <div style="display: flex; gap: 6px;">
+          <button class="btn btn-secondary btn-nav-back" ${canGoBack ? '' : 'disabled style="opacity: 0.4; cursor: not-allowed;"'} style="padding: 4px 8px; font-size: 11px; height: 24px; display: flex; align-items: center; gap: 4px; line-height: 1;">
+            ${getIconHTML('chevron-left', 'width: 12px; height: 12px;')} Back
+          </button>
+          <button class="btn btn-secondary btn-nav-forward" ${canGoForward ? '' : 'disabled style="opacity: 0.4; cursor: not-allowed;"'} style="padding: 4px 8px; font-size: 11px; height: 24px; display: flex; align-items: center; gap: 4px; line-height: 1;">
+            Forward ${getIconHTML('chevron-right', 'width: 12px; height: 12px;')}
+          </button>
+        </div>
+      </div>
+      
+      <!-- Breadcrumbs Trail -->
+      <div class="breadcrumbs-trail" style="font-size: 11px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; line-height: 1.4; color: var(--text-muted); font-family: var(--font-sans);">
+        ${breadcrumbsHTML}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Binds navigation controls event listeners in the drawer.
+ */
+function bindDrawerNavigationListeners(company, container) {
+  const drawerBody = document.getElementById('drawer-body-content');
+  if (!drawerBody) return;
+
+  // Back button
+  const backBtn = drawerBody.querySelector('.btn-nav-back');
+  if (backBtn && !backBtn.disabled) {
+    backBtn.addEventListener('click', () => {
+      const state = navHistory.back();
+      if (state) {
+        navigateToState(company, state, container);
+      }
+    });
+  }
+
+  // Forward button
+  const forwardBtn = drawerBody.querySelector('.btn-nav-forward');
+  if (forwardBtn && !forwardBtn.disabled) {
+    forwardBtn.addEventListener('click', () => {
+      const state = navHistory.forward();
+      if (state) {
+        navigateToState(company, state, container);
+      }
+    });
+  }
+
+  // Breadcrumb links
+  drawerBody.querySelectorAll('.breadcrumb-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const type = link.getAttribute('data-type');
+      if (type === 'tab') {
+        const tab = link.getAttribute('data-tab');
+        window.location.hash = `#/workspace?id=${company.id}&tab=${encodeURIComponent(tab)}`;
+        closeDrawer();
+      } else {
+        const id = link.getAttribute('data-id');
+        if (type === 'project') {
+          openProjectDrawer(company, id, container, false);
+        } else if (type === 'systemIdea') {
+          openIdeaDrawer(company, id, container, false);
+        } else if (type === 'insight') {
+          openInsightDrawer(company, id, container, false);
+        } else if (type === 'discoveryNote') {
+          openDiscoveryNoteDrawer(company, id, container, false);
+        }
+      }
+    });
+  });
+}
+
+/**
+ * Routes drawer view to a specific history state.
+ */
+function navigateToState(company, state, container) {
+  if (state.entityType === 'project') {
+    openProjectDrawer(company, state.entityId, container, true);
+  } else if (state.entityType === 'systemIdea') {
+    openIdeaDrawer(company, state.entityId, container, true);
+  } else if (state.entityType === 'insight') {
+    openInsightDrawer(company, state.entityId, container, true);
+  } else if (state.entityType === 'discoveryNote') {
+    openDiscoveryNoteDrawer(company, state.entityId, container, true);
+  }
+}
+
 
 /**
  * Main renderer for Company Workspace page
@@ -502,11 +695,22 @@ function renderDiscoveryTab(company, container) {
   });
 }
 
-function openDiscoveryNoteDrawer(company, noteId, container) {
+function openDiscoveryNoteDrawer(company, noteId, container, skipHistoryPush = false) {
   const note = db.getDiscoveryNote(noteId);
   if (!note) return;
 
+  if (!skipHistoryPush) {
+    const isDrawerActive = document.getElementById('app-drawer').classList.contains('active');
+    if (!isDrawerActive) {
+      navHistory.clear();
+    }
+    navHistory.push('discoveryNote', noteId, note.title);
+  }
+
+  const navHTML = renderDrawerNavigation(company, 'discoveryNote', noteId);
+
   const bodyHTML = `
+    ${navHTML}
     <div class="flex-column" style="gap:16px;">
       <div class="flex-between" style="font-family: var(--font-mono); font-size:12px; color: var(--text-muted);">
         <span>Category: <span class="badge badge-info">${note.category}</span></span>
@@ -525,9 +729,11 @@ function openDiscoveryNoteDrawer(company, noteId, container) {
     openNoteFormModal(company, note.id, () => {
       renderDiscoveryTab(company, container);
       // Re-open updated drawer
-      openDiscoveryNoteDrawer(company, note.id, container);
+      openDiscoveryNoteDrawer(company, note.id, container, true);
     });
   });
+
+  bindDrawerNavigationListeners(company, container);
 }
 
 function openNoteFormModal(company, noteId = null, onSavedCallback) {
@@ -689,10 +895,19 @@ function renderInsightsTab(company, container) {
   });
 }
 
-function openInsightDrawer(company, insId, container) {
+function openInsightDrawer(company, insId, container, skipHistoryPush = false) {
   const insight = db.getInsight(insId);
   if (!insight) return;
 
+  if (!skipHistoryPush) {
+    const isDrawerActive = document.getElementById('app-drawer').classList.contains('active');
+    if (!isDrawerActive) {
+      navHistory.clear();
+    }
+    navHistory.push('insight', insId, insight.title);
+  }
+
+  const navHTML = renderDrawerNavigation(company, 'insight', insId);
   const sourceNotes = insight.sourceNotes.map(nId => db.getDiscoveryNote(nId)).filter(n => !!n);
 
   let impBadge = 'badge-info';
@@ -700,6 +915,7 @@ function openInsightDrawer(company, insId, container) {
   if (insight.impact === 'medium') impBadge = 'badge-warning';
 
   const bodyHTML = `
+    ${navHTML}
     <div class="flex-column" style="gap:16px;">
       <div class="flex-between" style="font-family: var(--font-mono); font-size:12px; color: var(--text-muted);">
         <span>Impact Level: <span class="badge ${impBadge}">${insight.impact}</span></span>
@@ -738,17 +954,18 @@ function openInsightDrawer(company, insId, container) {
     closeDrawer();
     openInsightFormModal(company, insight.id, () => {
       renderInsightsTab(company, container);
-      openInsightDrawer(company, insight.id, container);
+      openInsightDrawer(company, insight.id, container, true);
     });
   });
 
-  // Action links inside Drawer: Click source note -> open note drawer
   const drawerBody = document.getElementById('drawer-body-content');
+  bindDrawerNavigationListeners(company, container);
+
+  // Action links inside Drawer: Click source note -> open note drawer
   drawerBody.querySelectorAll('.btn-goto-note').forEach(btn => {
     btn.addEventListener('click', () => {
       const noteId = btn.getAttribute('data-note-id');
-      closeDrawer();
-      openDiscoveryNoteDrawer(company, noteId, container);
+      openDiscoveryNoteDrawer(company, noteId, container, false);
     });
   });
 
@@ -952,10 +1169,19 @@ function renderSystemIdeasTab(company, container) {
   });
 }
 
-function openIdeaDrawer(company, ideaId, container) {
+function openIdeaDrawer(company, ideaId, container, skipHistoryPush = false) {
   const idea = db.getSystemIdea(ideaId);
   if (!idea) return;
 
+  if (!skipHistoryPush) {
+    const isDrawerActive = document.getElementById('app-drawer').classList.contains('active');
+    if (!isDrawerActive) {
+      navHistory.clear();
+    }
+    navHistory.push('systemIdea', ideaId, idea.title);
+  }
+
+  const navHTML = renderDrawerNavigation(company, 'systemIdea', ideaId);
   const linkedInsights = idea.linkedInsights.map(iId => db.getInsight(iId)).filter(i => !!i);
 
   let priBadge = 'badge-info';
@@ -963,6 +1189,7 @@ function openIdeaDrawer(company, ideaId, container) {
   if (idea.priority === 'medium') priBadge = 'badge-warning';
 
   const bodyHTML = `
+    ${navHTML}
     <div class="flex-column" style="gap:16px;">
       <div class="grid-cols-3" style="font-family: var(--font-mono); font-size:11px; text-align:center;">
         <div style="border: 1px solid var(--border-color); padding: 4px; border-radius: 4px;">
@@ -1021,11 +1248,12 @@ function openIdeaDrawer(company, ideaId, container) {
     closeDrawer();
     openIdeaFormModal(company, idea.id, () => {
       renderSystemIdeasTab(company, container);
-      openIdeaDrawer(company, idea.id, container);
+      openIdeaDrawer(company, idea.id, container, true);
     });
   });
 
   const drawerBody = document.getElementById('drawer-body-content');
+  bindDrawerNavigationListeners(company, container);
 
   // Bind lifecycle status dropdown listener
   const statusSelect = drawerBody.querySelector('#idea-drawer-status');
@@ -1055,8 +1283,7 @@ function openIdeaDrawer(company, ideaId, container) {
   drawerBody.querySelectorAll('.btn-goto-insight').forEach(btn => {
     btn.addEventListener('click', () => {
       const insId = btn.getAttribute('data-insight-id');
-      closeDrawer();
-      openInsightDrawer(company, insId, container);
+      openInsightDrawer(company, insId, container, false);
     });
   });
 
@@ -1257,7 +1484,7 @@ function renderProjectsTab(company, container) {
   });
 }
 
-function openProjectDrawer(company, projId, container) {
+function openProjectDrawer(company, projId, container, skipHistoryPush = false) {
   let proj = db.getProject(projId);
   if (!proj) return;
 
@@ -1265,6 +1492,15 @@ function openProjectDrawer(company, projId, container) {
     proj = db.ensureProjectMilestones(projId) || proj;
   }
 
+  if (!skipHistoryPush) {
+    const isDrawerActive = document.getElementById('app-drawer').classList.contains('active');
+    if (!isDrawerActive) {
+      navHistory.clear();
+    }
+    navHistory.push('project', projId, proj.title);
+  }
+
+  const navHTML = renderDrawerNavigation(company, 'project', projId);
   const progress = (db && typeof db.calcProjectProgress === 'function') ? db.calcProjectProgress(proj) : proj.progress;
   const linkedIdeas = proj.linkedSystemIdeas.map(idId => db.getSystemIdea(idId)).filter(i => !!i);
 
@@ -1365,6 +1601,7 @@ function openProjectDrawer(company, projId, container) {
   ` : '';
 
   const bodyHTML = `
+    ${navHTML}
     <div class="flex-column" style="gap:16px;">
       <div class="flex-between" style="font-family: var(--font-mono); font-size:11px;">
         <span>Status: <span class="badge ${statusBadge}">${proj.status.replace('_', ' ')}</span></span>
@@ -1409,11 +1646,12 @@ function openProjectDrawer(company, projId, container) {
     closeDrawer();
     openProjectFormModal(company, proj.id, () => {
       renderProjectsTab(company, container);
-      openProjectDrawer(company, proj.id, container);
+      openProjectDrawer(company, proj.id, container, true);
     });
   });
 
   const drawerBody = document.getElementById('drawer-body-content');
+  bindDrawerNavigationListeners(company, container);
   
   // Bind milestone checkboxes
   drawerBody.querySelectorAll('.ms-checkbox').forEach(cb => {
@@ -1423,7 +1661,7 @@ function openProjectDrawer(company, projId, container) {
         db.toggleMilestone(proj.id, msId);
       }
       renderProjectsTab(company, container);
-      openProjectDrawer(company, proj.id, container);
+      openProjectDrawer(company, proj.id, container, true);
     });
   });
 
@@ -1431,24 +1669,21 @@ function openProjectDrawer(company, projId, container) {
   drawerBody.querySelectorAll('.btn-goto-idea').forEach(btn => {
     btn.addEventListener('click', () => {
       const ideaId = btn.getAttribute('data-idea-id');
-      closeDrawer();
-      openIdeaDrawer(company, ideaId, container);
+      openIdeaDrawer(company, ideaId, container, false);
     });
   });
 
   drawerBody.querySelectorAll('.btn-goto-insight').forEach(btn => {
     btn.addEventListener('click', () => {
       const insId = btn.getAttribute('data-insight-id');
-      closeDrawer();
-      openInsightDrawer(company, insId, container);
+      openInsightDrawer(company, insId, container, false);
     });
   });
 
   drawerBody.querySelectorAll('.btn-goto-note').forEach(btn => {
     btn.addEventListener('click', () => {
       const noteId = btn.getAttribute('data-note-id');
-      closeDrawer();
-      openDiscoveryNoteDrawer(company, noteId, container);
+      openDiscoveryNoteDrawer(company, noteId, container, false);
     });
   });
 

@@ -182,7 +182,7 @@ export function showToast(message, type = 'info') {
 export function openModal(title, bodyHTML, footerHTML) {
   const modal = document.getElementById('app-modal');
   if (!modal) return;
-  document.getElementById('modal-title').innerText = title;
+  document.getElementById('modal-title').textContent = title;
   document.getElementById('modal-body-content').innerHTML = bodyHTML;
   document.getElementById('modal-footer-content').innerHTML = footerHTML;
   
@@ -206,7 +206,8 @@ export function closeModal() {
 export function openDrawer(title, bodyHTML, onEditClick = null) {
   const drawer = document.getElementById('app-drawer');
   if (!drawer) return;
-  document.getElementById('drawer-title').innerText = title;
+  const titleEl = document.getElementById('drawer-title');
+  if (titleEl) titleEl.textContent = title;
   document.getElementById('drawer-body-content').innerHTML = bodyHTML;
   
   const editBtn = document.getElementById('drawer-edit');
