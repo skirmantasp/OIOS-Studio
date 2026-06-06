@@ -2159,36 +2159,36 @@ function generateSuggestedInsights(company) {
   
   const themes = [
     {
-      id: 'theme_tech',
-      title: 'Critical Telemetry & Systems Integration Gaps',
-      category: 'technology',
+      id: 'theme_reporting',
+      title: 'Fragmented System Landscape Limits Real-Time Reporting',
+      category: 'data',
       impact: 'high',
-      keywords: ['integration', 'compiler', 'firmware', 'register', 'sensor', 'telemetry', 'deposition', 'doping', 'downtime', 'database', 'erp', 'schema', 'hardware'],
-      descriptionTemplate: (noteTitles) => `Fragmented data pipeline and lack of real-time telemetry updates. Fragmented data streams observed across systems, specifically referenced in: ${noteTitles.join(', ')}.`
+      keywords: ['reporting', 'reports', 'excel', 'duplicate entry', 'dashboard', 'power bi', 'erp', 'sap', 'duplication'],
+      descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes show that reporting, maintenance, and inventory information is spread across Excel, SAP ERP, Power BI, and manual records. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that teams rely on manual consolidation and duplicate data entry instead of a unified operational data flow.\n\nBusiness Impact:\nThis reduces reporting speed, creates risk of inconsistent information, and limits leadership visibility into current operations.`
     },
     {
-      id: 'theme_process',
-      title: 'Manual Reporting Processes & Admin Bottlenecks',
+      id: 'theme_manual',
+      title: 'Manual Reporting Workflows Create Administrative Bottlenecks',
       category: 'process',
       impact: 'high',
-      keywords: ['report', 'reporting', 'excel', 'manual', 'proposal', 'proposal creation', 'template', 'shadowing', 'copying', 'tracking'],
-      descriptionTemplate: (noteTitles) => `High manual overhead and administrative bottlenecks identified. Repetitive daily workflows and spreadsheet dependency highlighted in: ${noteTitles.join(', ')}.`
+      keywords: ['manual work', 'reporting preparation', 'maintenance record updates', 'manual record', 'manually', 'transcribe', 'paper'],
+      descriptionBuilder: (noteTitles) => `Observation:\nShadowing records show that personnel spend substantial hours drafting templates, updating castings, or transcribing maintenance logs manually. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that skilled operational teams perform administrative preparation and manual work updates rather than focusing on high-value tasks.\n\nBusiness Impact:\nThis increases operational overhead, delays the extraction of insights, and creates administrative bottlenecks.`
     },
     {
-      id: 'theme_data',
-      title: 'Inventory Tracking & Warehouse Gaps',
+      id: 'theme_inventory',
+      title: 'Inventory Visibility Gaps Increase Operational Planning Risk',
       category: 'data',
       impact: 'medium',
-      keywords: ['inventory', 'warehouse', 'procurement', 'brick', 'stock', 'logistics', 'audit', 'thermal'],
-      descriptionTemplate: (noteTitles) => `Inventory visibility risks and lack of automated warehouse stock counting. Tracking and data reporting limitations noted in: ${noteTitles.join(', ')}.`
+      keywords: ['inventory', 'procurement', 'stock visibility', 'data sources', 'warehouse', 'stock count', 'stock level', 'materials'],
+      descriptionBuilder: (noteTitles) => `Observation:\nWarehouse audits and stock counts highlight discrepancies and lag in tracking critical spares and procurement requirements. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that inventory and procurement data sources are siloed and updated via batch operations rather than real-time visibility.\n\nBusiness Impact:\nThis limits procurement predictability, leads to unexpected stock outs, and increases operational planning risks.`
     },
     {
-      id: 'theme_people',
-      title: 'Stakeholder Alignment & Workflow Friction',
+      id: 'theme_stakeholder',
+      title: 'Stakeholder Alignment Is Needed Before Workflow Redesign',
       category: 'people',
       impact: 'medium',
-      keywords: ['interview', 'stakeholder', 'team', 'users', 'consultant', 'people', 'communication', 'training', 'onboarding'],
-      descriptionTemplate: (noteTitles) => `Stakeholder communication silos and potential onboarding friction. Key user and management interviews indicate alignment opportunities in: ${noteTitles.join(', ')}.`
+      keywords: ['people', 'decision makers', 'affected teams', 'stakeholders', 'stakeholder', 'interview', 'decision-maker'],
+      descriptionBuilder: (noteTitles) => `Observation:\nInterviews with key personnel show differences in priorities between compiler architects, logistics managers, and operations staff. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that technical change initiatives are designed without a unified consensus among all affected teams and decision makers.\n\nBusiness Impact:\nThis increases user adoption risks, introduces organizational friction, and delays implementation timelines.`
     }
   ];
   
@@ -2203,14 +2203,24 @@ function generateSuggestedInsights(company) {
     });
     
     if (matchedNotes.length > 0) {
-      const noteTitles = matchedNotes.map(n => `"${n.title}"`);
-      const noteIds = matchedNotes.map(n => n.id);
+      // De-duplicate evidence notes by ID
+      const uniqueMatchedNotes = [];
+      const seenIds = new Set();
+      matchedNotes.forEach(n => {
+        if (!seenIds.has(n.id)) {
+          seenIds.add(n.id);
+          uniqueMatchedNotes.push(n);
+        }
+      });
+      
+      const noteTitles = uniqueMatchedNotes.map(n => `"${n.title}"`);
+      const noteIds = uniqueMatchedNotes.map(n => n.id);
       noteIds.forEach(id => assignedNoteIds.add(id));
       
       candidates.push({
         title: theme.title,
         category: theme.category,
-        description: theme.descriptionTemplate(noteTitles),
+        description: theme.descriptionBuilder(noteTitles),
         impact: theme.impact,
         sourceNotes: noteIds
       });
@@ -2220,13 +2230,22 @@ function generateSuggestedInsights(company) {
   // Leftover notes theme
   const unmatchedNotes = notes.filter(n => !assignedNoteIds.has(n.id));
   if (unmatchedNotes.length > 0) {
-    const noteTitles = unmatchedNotes.map(n => `"${n.title}"`);
-    const noteIds = unmatchedNotes.map(n => n.id);
+    const uniqueUnmatchedNotes = [];
+    const seenIds = new Set();
+    unmatchedNotes.forEach(n => {
+      if (!seenIds.has(n.id)) {
+        seenIds.add(n.id);
+        uniqueUnmatchedNotes.push(n);
+      }
+    });
+    
+    const noteTitles = uniqueUnmatchedNotes.map(n => `"${n.title}"`);
+    const noteIds = uniqueUnmatchedNotes.map(n => n.id);
     
     candidates.push({
-      title: 'General Workflow Observation & Process Gaps',
-      category: 'process',
-      description: `Miscellaneous operational friction points and process workflow challenges referenced in: ${noteTitles.join(', ')}.`,
+      title: 'Disconnected Data Sources Reduce Management Confidence',
+      category: 'data',
+      description: `Observation:\nProcess observations identify disconnected files, local trackers, and custom logs across operations. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that data sources are isolated without automatic synchronization or shared frameworks.\n\nBusiness Impact:\nThis limits data consistency, increases reporting lag, and reduces management confidence in business intelligence.`,
       impact: 'medium',
       sourceNotes: noteIds
     });
@@ -2329,7 +2348,7 @@ function openGenerateInsightsModal(company, container) {
             if (ins.impact === 'high') impBadge = 'badge-danger';
             if (ins.impact === 'medium') impBadge = 'badge-warning';
 
-            const sourceNotesMatched = ins.sourceNotes.map(nId => db.getDiscoveryNote(nId)).filter(n => !!n);
+            const sourceNotesMatched = Array.from(new Set(ins.sourceNotes)).map(nId => db.getDiscoveryNote(nId)).filter(n => !!n);
             const sourceNamesList = sourceNotesMatched.map(n => escapeHTML(n.title)).join(', ');
             
             return `
