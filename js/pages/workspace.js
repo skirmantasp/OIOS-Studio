@@ -2154,6 +2154,20 @@ function generateSuggestedInsights(company) {
   const notes = db.getDiscoveryNotes(company.id);
   if (notes.length === 0) return [];
   
+  const freshCompany = db.ensureDiscoveryIntake(company.id) || company;
+  const intake = freshCompany.discoveryIntake || db._defaultDiscoveryIntake();
+
+  const currentSystemsRaw = intake.systems && intake.systems.currentSystems ? intake.systems.currentSystems.trim() : '';
+  const systemsText = currentSystemsRaw || 'multiple systems (not specified in Discovery Intake)';
+
+  let suffix = '';
+  if (intake.business && intake.business.currentChallenges && intake.business.currentChallenges.trim()) {
+    suffix += `\n\nStated Challenge:\n${intake.business.currentChallenges.trim()}`;
+  }
+  if (intake.process && intake.process.knownBottlenecks && intake.process.knownBottlenecks.trim()) {
+    suffix += `\n\nStated Bottleneck:\n${intake.process.knownBottlenecks.trim()}`;
+  }
+
   const existingInsights = db.getInsights(company.id);
   const existingTitles = existingInsights.map(i => i.title.toLowerCase().trim());
   
@@ -2164,7 +2178,7 @@ function generateSuggestedInsights(company) {
       category: 'data',
       impact: 'high',
       keywords: ['reporting', 'reports', 'excel', 'duplicate entry', 'dashboard', 'power bi', 'erp', 'sap', 'duplication'],
-      descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes show that reporting, maintenance, and inventory information is spread across Excel, SAP ERP, Power BI, and manual records. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that teams rely on manual consolidation and duplicate data entry instead of a unified operational data flow.\n\nBusiness Impact:\nThis can reduce reporting speed, may increase risk of inconsistent information, and can reduce leadership visibility into current operations.`
+      descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes show that reporting, maintenance, and inventory information is spread across ${systemsText}. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that teams rely on manual consolidation and duplicate data entry instead of a unified operational data flow.\n\nBusiness Impact:\nThis can reduce reporting speed, may increase risk of inconsistent information, and can reduce leadership visibility into current operations.`
     },
     {
       id: 'theme_manual',
@@ -2220,7 +2234,7 @@ function generateSuggestedInsights(company) {
       candidates.push({
         title: theme.title,
         category: theme.category,
-        description: theme.descriptionBuilder(noteTitles),
+        description: theme.descriptionBuilder(noteTitles) + suffix,
         impact: theme.impact,
         sourceNotes: noteIds,
         evidenceConfidence: calcEvidenceConfidence(noteIds)
@@ -2246,7 +2260,7 @@ function generateSuggestedInsights(company) {
     candidates.push({
       title: 'Disconnected Data Sources Reduce Management Confidence',
       category: 'data',
-      description: `Observation:\nProcess observations identify disconnected files, local trackers, and custom logs across operations. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that data sources are isolated without automatic synchronization or shared frameworks.\n\nBusiness Impact:\nThis may affect planning reliability, can create administrative overhead, and may reduce confidence in reporting.`,
+      description: `Observation:\nProcess observations identify disconnected files, local trackers, and custom logs across operations. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that data sources are isolated without automatic synchronization or shared frameworks.\n\nBusiness Impact:\nThis may affect planning reliability, can create administrative overhead, and may reduce confidence in reporting.` + suffix,
       impact: 'medium',
       sourceNotes: noteIds,
       evidenceConfidence: calcEvidenceConfidence(noteIds)
