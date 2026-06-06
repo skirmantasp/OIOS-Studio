@@ -258,6 +258,58 @@ const DEFAULT_MOCK_DATA = {
 class StateManager {
   constructor() {
     this.data = this.loadData();
+    this.repairDuplicateInsightIds();
+    this.repairDuplicateDiscoveryNoteIds();
+  }
+
+  generateUniqueId(prefix, collection) {
+    let id;
+    let attempts = 0;
+    do {
+      id = prefix + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      attempts++;
+    } while (collection.some(item => item.id === id) && attempts < 100);
+    return id;
+  }
+
+  repairDuplicateInsightIds() {
+    if (!this.data || !this.data.insights || !Array.isArray(this.data.insights)) return;
+    const seenIds = new Set();
+    let hasDuplicates = false;
+
+    this.data.insights.forEach(insight => {
+      if (!insight.id || seenIds.has(insight.id)) {
+        const newId = this.generateUniqueId('ins', this.data.insights);
+        insight.id = newId;
+        hasDuplicates = true;
+      } else {
+        seenIds.add(insight.id);
+      }
+    });
+
+    if (hasDuplicates) {
+      this.saveData();
+    }
+  }
+
+  repairDuplicateDiscoveryNoteIds() {
+    if (!this.data || !this.data.discoveryNotes || !Array.isArray(this.data.discoveryNotes)) return;
+    const seenIds = new Set();
+    let hasDuplicates = false;
+
+    this.data.discoveryNotes.forEach(note => {
+      if (!note.id || seenIds.has(note.id)) {
+        const newId = this.generateUniqueId('note', this.data.discoveryNotes);
+        note.id = newId;
+        hasDuplicates = true;
+      } else {
+        seenIds.add(note.id);
+      }
+    });
+
+    if (hasDuplicates) {
+      this.saveData();
+    }
   }
 
   loadData() {
@@ -376,7 +428,7 @@ class StateManager {
 
   addDiscoveryNote(note) {
     const newNote = {
-      id: 'note_' + Date.now(),
+      id: this.generateUniqueId('note', this.data.discoveryNotes),
       companyId: note.companyId,
       title: note.title,
       content: note.content,
@@ -427,7 +479,7 @@ class StateManager {
 
   addInsight(insight) {
     const newInsight = {
-      id: 'ins_' + Date.now(),
+      id: this.generateUniqueId('ins', this.data.insights),
       companyId: insight.companyId,
       title: insight.title,
       description: insight.description,
