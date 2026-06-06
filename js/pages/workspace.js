@@ -202,6 +202,16 @@ function navigateToState(company, state, container) {
  * @param {URLSearchParams} params 
  */
 export default function renderWorkspace(viewport, params) {
+  // Auto-cleanup copilot panel when switching tabs or companies
+  const existingPanel = document.getElementById('copilot-panel');
+  if (existingPanel) {
+    existingPanel.remove();
+  }
+  const mainViewport = document.getElementById('app-viewport');
+  if (mainViewport) {
+    mainViewport.classList.remove('copilot-active');
+  }
+
   const companyId = params.get('id');
   const activeTab = params.get('tab') || 'Overview';
   
@@ -2066,6 +2076,15 @@ function renderDiscoveryIntakeTab(company, container) {
   container.innerHTML = `
     <div class="flex-column" style="gap:20px;">
 
+      <!-- Guided Discovery Copilot Banner -->
+      <div class="flex-between" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 4px;">
+        <div>
+          <strong style="color: var(--text-primary); font-size: 14px; display: block;">Guided Discovery Copilot</strong>
+          <span style="font-size: 12px; color: var(--text-muted); margin-top: 4px; display: block;">Step-by-step meeting assistant to gather and analyze operational client requirements.</span>
+        </div>
+        <button id="btn-start-copilot" class="btn btn-primary">Start Guided Discovery</button>
+      </div>
+
       <!-- Completeness + Suggestions row -->
       <div class="grid-cols-2" style="align-items:start;">
         <div id="di-completeness-wrapper">
@@ -2134,6 +2153,28 @@ function renderDiscoveryIntakeTab(company, container) {
       openGenerateNotesModal(company, container);
     }
   });
+
+  // Toggle Copilot Action
+  const btnStartCopilot = container.querySelector('#btn-start-copilot');
+  if (btnStartCopilot) {
+    const isPanelOpen = document.getElementById('copilot-panel');
+    if (isPanelOpen) {
+      btnStartCopilot.textContent = 'Close Guided Discovery';
+      btnStartCopilot.className = 'btn btn-secondary';
+    }
+
+    btnStartCopilot.addEventListener('click', () => {
+      toggleCopilotPanel(company);
+      const activePanel = document.getElementById('copilot-panel');
+      if (activePanel) {
+        btnStartCopilot.textContent = 'Close Guided Discovery';
+        btnStartCopilot.className = 'btn btn-secondary';
+      } else {
+        btnStartCopilot.textContent = 'Start Guided Discovery';
+        btnStartCopilot.className = 'btn btn-primary';
+      }
+    });
+  }
 }
 
 // ---- Discovery Note Generator Helper Functions ----
@@ -3445,3 +3486,687 @@ function openGenerateIdeasModal(company, container) {
   openModal('Suggested System Ideas', '', '');
   renderModalContent();
 }
+
+// ==========================================
+// GUIDED DISCOVERY COPILOT FEATURES
+// ==========================================
+
+const DISCOVERY_QUESTIONS = [
+  {
+    section: 'Business',
+    field: 'primaryGoals',
+    label: 'Business > Primary Goals',
+    question: 'What are the primary strategic and operational goals the client wants to achieve?',
+    goodAnswer: 'Specific goals, High-level business motivation, Timeline/measure of success.',
+    criteria: [
+      { text: 'Has specific business goals', words: ['goal', 'achieve', 'want', 'reduce', 'increase', 'improve', 'save', 'automate'] },
+      { text: 'Mentions motivation or urgency', words: ['motivation', 'why', 'need', 'urgent', 'because', 'demand', 'drive', 'competition'] },
+      { text: 'Includes target timeline or deadline', words: ['by', 'months', 'year', 'weeks', 'timeline', 'deadline', 'target', 'schedule'] }
+    ],
+    followUp: 'Could you specify what success looks like or when you expect to achieve this?'
+  },
+  {
+    section: 'Business',
+    field: 'expectedOutcomes',
+    label: 'Business > Expected Outcomes',
+    question: 'What measurable outcomes or key benefits does the client expect from this engagement?',
+    goodAnswer: 'Quantifiable metrics (e.g. error rate, cycle time), expected dollar/hour savings.',
+    criteria: [
+      { text: 'Includes measurable numbers or targets', words: ['%', 'percent', 'hour', 'day', 'week', 'dollar', 'cost', 'saving', 'kpi', 'target', 'reduction', 'accuracy'] },
+      { text: 'Specifies benefits for users or customers', words: ['user', 'customer', 'client', 'experience', 'satisfaction', 'nps', 'speed', 'quality'] }
+    ],
+    followUp: 'What specific metrics or quantities (e.g., hours/dollars saved, error reduction) will show that this project succeeded?'
+  },
+  {
+    section: 'Business',
+    field: 'currentChallenges',
+    label: 'Business > Current Challenges',
+    question: 'What are the key operational challenges or pain points the client is currently facing?',
+    goodAnswer: 'Clear explanation of the problem, the operational impact, and who is affected.',
+    criteria: [
+      { text: 'Identifies core pain points/problems', words: ['challenge', 'issue', 'problem', 'pain', 'difficulty', 'error', 'defect', 'waste'] },
+      { text: 'Explains impact on operations or costs', words: ['delay', 'cost', 'manual', 'slow', 'lost', 'waste', 'friction', 'bottleneck', 'risk'] }
+    ],
+    followUp: 'Could you describe which teams are most impacted by this challenge and what the direct operational impact is?'
+  },
+  {
+    section: 'People',
+    field: 'decisionMakers',
+    label: 'People > Decision Makers',
+    question: 'Who holds final decision-making authority and budget approval for this initiative?',
+    goodAnswer: 'Specific roles/titles (e.g. CFO, VP Operations) and decision process details.',
+    criteria: [
+      { text: 'Identifies decision-makers by role/title', words: ['sponsor', 'director', 'vp', 'manager', 'head', 'ceo', 'cfo', 'cio', 'cto', 'owner', 'leader', 'board'] },
+      { text: 'Mentions budget or signing authority', words: ['budget', 'approve', 'sign', 'authority', 'fund', 'purchase', 'finance'] }
+    ],
+    followUp: 'Who specifically (by role or title) has the authority to sign off on budget and system changes?'
+  },
+  {
+    section: 'People',
+    field: 'affectedTeams',
+    label: 'People > Affected Teams',
+    question: 'Which specific teams, departments, or roles will be affected by the proposed changes?',
+    goodAnswer: 'Impacted user groups, department names, and daily process participants.',
+    criteria: [
+      { text: 'Names specific teams or business units', words: ['team', 'department', 'unit', 'division', 'operations', 'finance', 'sales', 'engineering', 'warehouse', 'support'] },
+      { text: 'Identifies direct system users', words: ['user', 'operator', 'staff', 'technician', 'analyst', 'worker', 'employee', 'role', 'supervisor'] }
+    ],
+    followUp: 'Which specific business units or daily operators will need to change their day-to-day workflow?'
+  },
+  {
+    section: 'People',
+    field: 'keyStakeholders',
+    label: 'People > Key Stakeholders',
+    question: 'Who are the key stakeholders or subject matter experts that need to be consulted?',
+    goodAnswer: 'Names/roles of subject matter experts, external partners, or internal champions.',
+    criteria: [
+      { text: 'Mentions subject matter experts (SMEs)', words: ['expert', 'sme', 'specialist', 'champion', 'lead', 'adviser', 'consultant'] },
+      { text: 'Identifies other departments to keep informed', words: ['inform', 'consult', 'participate', 'feedback', 'review', 'partner', 'stakeholder'] }
+    ],
+    followUp: 'Are there any subject matter experts or other department heads whose input is critical for design or implementation?'
+  },
+  {
+    section: 'Process',
+    field: 'coreProcesses',
+    label: 'Process > Core Processes',
+    question: 'What are the critical operational processes this engagement touches or redesigns?',
+    goodAnswer: 'Workflow step sequence, triggers, and the primary outputs or deliverables.',
+    criteria: [
+      { text: 'Outlines workflow steps or stages', words: ['process', 'workflow', 'step', 'stage', 'flow', 'sequence', 'task', 'run', 'phase'] },
+      { text: 'Defines the trigger or output', words: ['trigger', 'start', 'output', 'deliverable', 'result', 'end', 'generate', 'send'] }
+    ],
+    followUp: 'Could you briefly trace the main steps of this process from start to finish?'
+  },
+  {
+    section: 'Process',
+    field: 'knownBottlenecks',
+    label: 'Process > Known Bottlenecks',
+    question: 'What process friction points or bottlenecks has the client already identified?',
+    goodAnswer: 'Specific delay causes, hand-off errors, queue build-ups, and frequency of issue.',
+    criteria: [
+      { text: 'Pinpoints specific causes of delay/errors', words: ['delay', 'error', 'wait', 'friction', 'bottleneck', 'slow', 'defect', 'stuck', 'rework', 'hand-off'] },
+      { text: 'Mentions frequency or occurrence rate', words: ['often', 'daily', 'weekly', 'always', 'frequent', 'time', 'percent', 'cycle'] }
+    ],
+    followUp: 'What is the primary cause of these delays or errors, and how often do they occur?'
+  },
+  {
+    section: 'Process',
+    field: 'manualWorkAreas',
+    label: 'Process > Manual Work Areas',
+    question: 'Where does the team perform high-volume manual or repetitive work today?',
+    goodAnswer: 'Specific manual tasks (e.g. data transcription), estimate of hours spent.',
+    criteria: [
+      { text: 'Details repetitive manual tasks', words: ['manual', 're-key', 'copy', 'paste', 'type', 'paper', 'transcribe', 'log', 'export', 'import'] },
+      { text: 'Mentions tools or workarounds used', words: ['excel', 'spreadsheet', 'word', 'email', 'folder', 'sheet', 'file', 'clipboard'] }
+    ],
+    followUp: 'Which specific steps require manually transcribing, copying, or entering data from one system to another?'
+  },
+  {
+    section: 'Systems',
+    field: 'currentSystems',
+    label: 'Systems > Current Systems',
+    question: 'What software systems, platforms, or tools are in active use?',
+    goodAnswer: 'Name and version of tools/platforms, hosting (cloud/on-prem), and primary users.',
+    criteria: [
+      { text: 'Lists names of software programs or databases', words: ['sap', 'excel', 'power bi', 'erp', 'crm', 'database', 'sql', 'system', 'tool', 'software', 'spreadsheet', 'app'] },
+      { text: 'Specifies system roles or deployment', words: ['cloud', 'on-prem', 'server', 'hosting', 'host', 'local', 'desktop', 'web'] }
+    ],
+    followUp: 'Could you list the specific names of the software programs, ERPs, or databases used in this workflow?'
+  },
+  {
+    section: 'Systems',
+    field: 'integrations',
+    label: 'Systems > Integrations',
+    question: 'What integrations or data flows currently exist between these systems?',
+    goodAnswer: 'Type of integration (API, batch, CSV export), data directions, and update frequency.',
+    criteria: [
+      { text: 'Describes how systems connect', words: ['integration', 'api', 'export', 'csv', 'file', 'manual', 'transfer', 'sync', 'connect', 'bridge', 'link', 'ftp'] },
+      { text: 'Specifies data flow direction or frequency', words: ['daily', 'weekly', 'real-time', 'batch', 'one-way', 'two-way', 'send', 'receive', 'pull', 'push'] }
+    ],
+    followUp: 'How is data moved between these systems (e.g., automated API, manual export/import, or re-typing)?'
+  },
+  {
+    section: 'Systems',
+    field: 'technologyIssues',
+    label: 'Systems > Technology Issues',
+    question: 'What known technical pain points or gaps exist in the current stack?',
+    goodAnswer: 'System speed issues, downtime, lack of accessibility, or missing critical features.',
+    criteria: [
+      { text: 'Describes specific technical failures or issues', words: ['performance', 'slow', 'crash', 'bug', 'gap', 'missing', 'outdated', 'limitation', 'issue', 'error', 'failure', 'downtime'] },
+      { text: 'Mentions user frustration or workflow block', words: ['frustrated', 'blocked', 'can\'t', 'unable', 'wait', 'slowdown', 'delay'] }
+    ],
+    followUp: 'What are the main technical frustrations (e.g., slow load times, crashes, lack of access) reported by the team?'
+  },
+  {
+    section: 'Data',
+    field: 'reports',
+    label: 'Data > Reports & Dashboards',
+    question: 'What reports or dashboards does the client currently rely on?',
+    goodAnswer: 'Report names/recipients, generation frequency, and formatting (PDF, Excel).',
+    criteria: [
+      { text: 'Identifies reports or dashboards by name/purpose', words: ['report', 'dashboard', 'power bi', 'excel', 'pdf', 'sheet', 'chart', 'board', 'summary', 'status'] },
+      { text: 'Mentions update frequency or audience', words: ['weekly', 'monthly', 'daily', 'management', 'team', 'executive', 'director', 'meeting'] }
+    ],
+    followUp: 'What specific reports are generated, who receives them, and in what format (e.g., PDF, spreadsheet)?'
+  },
+  {
+    section: 'Data',
+    field: 'kpis',
+    label: 'Data > KPIs',
+    question: 'What key performance indicators are tracked? What are the targets?',
+    goodAnswer: 'Actual KPI definitions, current value, target threshold, and business owner.',
+    criteria: [
+      { text: 'Identifies KPI names or performance metrics', words: ['kpi', 'target', 'threshold', 'metric', 'measure', 'sla', 'turnaround', 'rate', 'cost', 'quality', 'number'] },
+      { text: 'Specifies actual numbers or target thresholds', words: ['%', 'percent', 'days', 'hours', 'under', 'over', 'minimum', 'maximum', 'target', 'sla'] }
+    ],
+    followUp: 'Could you specify the target values or acceptable ranges for these KPIs?'
+  },
+  {
+    section: 'Data',
+    field: 'dataSources',
+    label: 'Data > Data Sources',
+    question: 'What are the primary data sources, databases, or warehouses in use?',
+    goodAnswer: 'Raw source databases, schemas or tables used, and server environment hosting.',
+    criteria: [
+      { text: 'Identifies data servers or warehouses', words: ['database', 'server', 'cloud', 'sql', 'oracle', 'sap', 'postgres', 'mysql', 'warehouse', 'lake', 'storage'] },
+      { text: 'Mentions raw file folders or endpoints', words: ['folder', 'sharepoint', 'drive', 'file', 's3', 'bucket', 'excel', 'csv', 'raw'] }
+    ],
+    followUp: 'Where does the raw data reside before it is consolidated (e.g., SQL server, local drives, ERP database)?'
+  }
+];
+
+function getAssessmentContext(company) {
+  const asm = company.assessment || {};
+  return {
+    businessGoals: asm.businessGoals || '',
+    coreProblems: asm.coreProblems || '',
+    operationalBottlenecks: asm.operationalBottlenecks || '',
+    techStack: asm.techStack || ''
+  };
+}
+
+function getDiscoveryIntakeContext(company) {
+  const di = company.discoveryIntake || {};
+  const context = {};
+  ['business', 'people', 'process', 'systems', 'data'].forEach(sec => {
+    context[sec] = di[sec] || {};
+  });
+  return context;
+}
+
+function buildDiscoveryPlan(company) {
+  const defaultOrder = [...DISCOVERY_QUESTIONS];
+  
+  // Check if assessment context has relevant terms
+  const asm = company.assessment || {};
+  const contextText = [
+    company.industry || '',
+    company.description || '',
+    asm.businessGoals || '',
+    asm.coreProblems || '',
+    asm.operationalBottlenecks || '',
+    asm.techStack || ''
+  ].join(' ').toLowerCase();
+  
+  const hasKeywords = ['reporting', 'manual', 'excel', 'power bi', 'fragmented'].some(kw => contextText.includes(kw));
+  
+  if (hasKeywords) {
+    // Priority: Business goals ➔ Reporting process ➔ Manual work areas ➔ Current systems ➔ Data sources ➔ KPIs ➔ Stakeholders
+    const priorityFieldOrder = [
+      // Business goals
+      'primaryGoals', 'expectedOutcomes', 'currentChallenges',
+      // Reporting process / Core processes
+      'coreProcesses', 'knownBottlenecks', 'reports',
+      // Manual work areas
+      'manualWorkAreas',
+      // Current systems / Integrations / Technology issues
+      'currentSystems', 'integrations', 'technologyIssues',
+      // Data sources
+      'dataSources',
+      // KPIs
+      'kpis',
+      // Stakeholders (People)
+      'decisionMakers', 'affectedTeams', 'keyStakeholders'
+    ];
+    
+    return [...DISCOVERY_QUESTIONS].sort((a, b) => {
+      return priorityFieldOrder.indexOf(a.field) - priorityFieldOrder.indexOf(b.field);
+    });
+  }
+  
+  return defaultOrder;
+}
+
+function getNextDiscoveryQuestion(plan, currentIndex) {
+  if (currentIndex >= 0 && currentIndex < plan.length) {
+    return plan[currentIndex];
+  }
+  return plan[0];
+}
+
+function analyzeDiscoveryAnswer(question, answer) {
+  if (!answer || answer.trim().length < 25) {
+    return {
+      isSufficient: false,
+      missing: ['Answer is too brief or lacks sufficient details (must be at least 25 characters).'],
+      followUpQuestion: question.followUp
+    };
+  }
+  
+  const text = answer.toLowerCase();
+  const missing = [];
+  
+  question.criteria.forEach(criterion => {
+    const matched = criterion.words.some(word => text.includes(word));
+    if (!matched) {
+      missing.push(`Missing detail: ${criterion.text}`);
+    }
+  });
+  
+  const isSufficient = missing.length === 0;
+  
+  return {
+    isSufficient,
+    missing,
+    followUpQuestion: isSufficient ? null : question.followUp
+  };
+}
+
+function generateSuggestedCopy(question, answer) {
+  if (!answer || answer.trim().length === 0) return '';
+  
+  let text = answer.trim();
+  text = text.replace(/^(well|honestly|basically|currently|actually|we have|the client said|the client stated|our team|we currently|we just|so basically|in terms of that,)\s*,?\s*/i, '');
+  
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const bullets = [];
+  
+  for (let s of sentences) {
+    s = s.trim();
+    if (!s) continue;
+    s = s.charAt(0).toUpperCase() + s.slice(1);
+    if (!/[.!?]$/.test(s)) {
+      s += '.';
+    }
+    bullets.push(`- ${s}`);
+  }
+  
+  return bullets.join('\n');
+}
+
+function saveGuidedDiscoverySession(companyId, session) {
+  localStorage.setItem(`oios_studio_copilot_session_${companyId}`, JSON.stringify(session));
+}
+
+function loadGuidedDiscoverySession(companyId) {
+  const stored = localStorage.getItem(`oios_studio_copilot_session_${companyId}`);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch (e) {
+      console.error('Error parsing copilot session state', e);
+    }
+  }
+  return {
+    currentIndex: 0,
+    answeredQuestions: {},
+    skippedQuestions: [],
+    followUpNotes: {},
+    lastAnalysisResult: {}
+  };
+}
+
+function renderGuidedDiscoveryPanel(company, container) {
+  const session = loadGuidedDiscoverySession(company.id);
+  const plan = buildDiscoveryPlan(company);
+  
+  if (session.currentIndex >= plan.length) {
+    session.currentIndex = 0;
+  }
+  
+  const activeQuestion = getNextDiscoveryQuestion(plan, session.currentIndex);
+  
+  // Compute overall completeness
+  const completedCount = plan.filter(item => {
+    return !!(session.answeredQuestions[item.field] || (company.discoveryIntake?.[item.section]?.[item.field] || '').trim());
+  }).length;
+  const progressPct = Math.round((completedCount / plan.length) * 100);
+  
+  let listItemsHTML = plan.map((item, idx) => {
+    const isClosed = !!(session.answeredQuestions[item.field] || (company.discoveryIntake?.[item.section]?.[item.field] || '').trim());
+    const isSkipped = session.skippedQuestions.includes(item.field);
+    const isActive = idx === session.currentIndex;
+    
+    let iconName = 'circle';
+    let iconColor = 'var(--border-color)';
+    let itemClass = '';
+    
+    if (isClosed) {
+      iconName = 'check-circle-2';
+      iconColor = 'var(--color-success)';
+      itemClass = 'closed';
+    } else if (isSkipped) {
+      iconName = 'minus-circle';
+      iconColor = 'var(--text-muted)';
+      itemClass = 'skipped';
+    } else if (isActive) {
+      iconName = 'play-circle';
+      iconColor = 'var(--color-info)';
+      itemClass = 'active';
+    }
+    
+    return `
+      <div class="copilot-plan-item ${itemClass}" data-index="${idx}" style="display:flex; align-items:center; gap:8px; padding:6px 10px; margin-bottom:4px; border-radius:var(--radius-sm); font-size:12px; cursor:pointer;">
+        ${getIconHTML(iconName, `width: 14px; height: 14px; color: ${iconColor}; flex-shrink: 0;`)}
+        <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(item.label)}</span>
+      </div>
+    `;
+  }).join('');
+  
+  container.innerHTML = `
+    <div class="copilot-header">
+      <h3 style="font-size: 14px; margin: 0; display: flex; align-items: center; gap: 8px;">
+        ${getIconHTML('sparkles', 'color: var(--color-info); width: 16px; height: 16px;')} Guided Discovery Copilot
+      </h3>
+      <button id="btn-close-copilot" class="btn-icon" title="Close Copilot">
+        ${getIconHTML('x', 'width: 16px; height: 16px;')}
+      </button>
+    </div>
+    <div class="copilot-body">
+      <!-- Progress Bar -->
+      <div style="margin-bottom: 4px;">
+        <div class="flex-between" style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 4px;">
+          <span>PROGRESS</span>
+          <span>${completedCount}/${plan.length} (${progressPct}%)</span>
+        </div>
+        <div style="height: 4px; background: var(--bg-primary); border-radius: 2px; overflow: hidden; border: 1px solid var(--border-color);">
+          <div style="height: 100%; width: ${progressPct}%; background: var(--color-success); transition: width var(--transition-normal);"></div>
+        </div>
+      </div>
+      
+      <!-- Discovery Plan List -->
+      <div>
+        <h4 style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">Discovery Plan</h4>
+        <div class="copilot-plan-list">
+          ${listItemsHTML}
+        </div>
+      </div>
+      
+      <!-- Active Question Card -->
+      <div class="copilot-card">
+        <div class="flex-between" style="border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 4px;">
+          <span class="badge badge-info" style="font-size: 9px; padding: 1px 6px;">${escapeHTML(activeQuestion.section.toUpperCase())}</span>
+          <span style="font-size: 10px; font-family: var(--font-mono); color: var(--text-muted);">${escapeHTML(activeQuestion.field)}</span>
+        </div>
+        
+        <strong style="font-size: 14px; color: var(--text-primary); line-height: 1.4; display: block;">
+          ${escapeHTML(activeQuestion.question)}
+        </strong>
+        
+        <div style="font-size: 12px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-sm); margin-top: 4px;">
+          <strong style="font-size: 10px; display: block; margin-bottom: 6px; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono);">Good answer should include:</strong>
+          <ul style="padding-left: 16px; margin: 0; display: flex; flex-direction: column; gap: 4px;">
+            ${activeQuestion.criteria.map(c => `<li>${escapeHTML(c.text)}</li>`).join('')}
+          </ul>
+        </div>
+        
+        <div class="form-group" style="margin-top: 8px; margin-bottom: 0;">
+          <label for="copilot-answer-input" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase;">Client Answer / Meeting Note</label>
+          <textarea id="copilot-answer-input" class="textarea-control" style="height: 100px; font-size: 13px; margin-top: 4px;" placeholder="Enter the client's answer here...">${escapeHTML(session.answeredQuestions[activeQuestion.field] || '')}</textarea>
+        </div>
+        
+        <!-- Results Container -->
+        <div id="copilot-result-container"></div>
+        
+        <!-- Action Buttons -->
+        <div class="flex-row" style="justify-content: space-between; margin-top: 8px; flex-wrap: wrap; gap: 8px;">
+          <button id="btn-copilot-analyze" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Analyze Answer</button>
+          <div class="flex-row" style="gap: 6px;">
+            <button id="btn-copilot-skip" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Skip</button>
+            <button id="btn-copilot-mark-closed" class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;">Mark Closed</button>
+            <button id="btn-copilot-next" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Rebind Lucide icons
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+  
+  // Bind close copilot button
+  container.querySelector('#btn-close-copilot').addEventListener('click', () => {
+    toggleCopilotPanel(company);
+    // Update main workspace Start/Close Guided Discovery button
+    const mainBtn = document.getElementById('btn-start-copilot');
+    if (mainBtn) {
+      mainBtn.textContent = 'Start Guided Discovery';
+      mainBtn.className = 'btn btn-primary';
+    }
+  });
+  
+  // Bind plan list jumps
+  container.querySelectorAll('.copilot-plan-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const idx = parseInt(item.getAttribute('data-index'));
+      session.currentIndex = idx;
+      saveGuidedDiscoverySession(company.id, session);
+      renderGuidedDiscoveryPanel(company, container);
+    });
+  });
+  
+  // Textarea change listener to auto-save draft answer
+  const answerInput = container.querySelector('#copilot-answer-input');
+  answerInput.addEventListener('input', () => {
+    session.answeredQuestions[activeQuestion.field] = answerInput.value;
+    saveGuidedDiscoverySession(company.id, session);
+  });
+  
+  // Display cached result if any
+  const cachedResult = session.lastAnalysisResult[activeQuestion.field];
+  if (cachedResult && answerInput.value.trim().length > 0) {
+    showAnalysisResult(activeQuestion, cachedResult, container, session, company);
+  }
+  
+  // Bind Analyze Answer
+  container.querySelector('#btn-copilot-analyze').addEventListener('click', () => {
+    const val = answerInput.value;
+    const res = analyzeDiscoveryAnswer(activeQuestion, val);
+    
+    // Save draft and result
+    session.answeredQuestions[activeQuestion.field] = val;
+    session.lastAnalysisResult[activeQuestion.field] = res;
+    saveGuidedDiscoverySession(company.id, session);
+    
+    showAnalysisResult(activeQuestion, res, container, session, company);
+  });
+  
+  // Bind Skip
+  container.querySelector('#btn-copilot-skip').addEventListener('click', () => {
+    if (!session.skippedQuestions.includes(activeQuestion.field)) {
+      session.skippedQuestions.push(activeQuestion.field);
+    }
+    
+    // Auto-advance
+    advanceQuestion(plan, session, company, container);
+  });
+  
+  // Bind Next
+  container.querySelector('#btn-copilot-next').addEventListener('click', () => {
+    // Just move currentIndex forward
+    session.currentIndex = (session.currentIndex + 1) % plan.length;
+    saveGuidedDiscoverySession(company.id, session);
+    renderGuidedDiscoveryPanel(company, container);
+  });
+  
+  // Bind Mark Closed
+  container.querySelector('#btn-copilot-mark-closed').addEventListener('click', () => {
+    // Save answer
+    session.answeredQuestions[activeQuestion.field] = answerInput.value;
+    // Remove from skipped if there
+    session.skippedQuestions = session.skippedQuestions.filter(f => f !== activeQuestion.field);
+    
+    // Auto-advance
+    advanceQuestion(plan, session, company, container);
+    
+    // Also trigger refresh of Discovery Completeness UI if it is on-screen
+    const currentTab = new URLSearchParams(window.location.hash.split('?')[1] || '').get('tab');
+    if (currentTab === 'Discovery Intake') {
+      // Refresh the workspace completeness UI
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    }
+  });
+}
+
+function advanceQuestion(plan, session, company, container) {
+  let nextIdx = session.currentIndex + 1;
+  let found = false;
+  
+  // Find first question after current that is NOT closed in session or database
+  while (nextIdx < plan.length) {
+    const q = plan[nextIdx];
+    const isQClosed = !!(session.answeredQuestions[q.field] || (company.discoveryIntake?.[q.section]?.[q.field] || '').trim());
+    if (!isQClosed) {
+      session.currentIndex = nextIdx;
+      found = true;
+      break;
+    }
+    nextIdx++;
+  }
+  
+  if (!found) {
+    // Wrap around from beginning
+    nextIdx = 0;
+    while (nextIdx < session.currentIndex) {
+      const q = plan[nextIdx];
+      const isQClosed = !!(session.answeredQuestions[q.field] || (company.discoveryIntake?.[q.section]?.[q.field] || '').trim());
+      if (!isQClosed) {
+        session.currentIndex = nextIdx;
+        found = true;
+        break;
+      }
+      nextIdx++;
+    }
+  }
+  
+  // If still not found (all closed), just keep current or advance to next
+  if (!found) {
+    session.currentIndex = (session.currentIndex + 1) % plan.length;
+  }
+  
+  saveGuidedDiscoverySession(company.id, session);
+  renderGuidedDiscoveryPanel(company, container);
+}
+
+function showAnalysisResult(activeQuestion, res, container, session, company) {
+  const resContainer = container.querySelector('#copilot-result-container');
+  if (!resContainer) return;
+  
+  if (res.isSufficient) {
+    const suggestedCopy = generateSuggestedCopy(activeQuestion, session.answeredQuestions[activeQuestion.field]);
+    
+    resContainer.innerHTML = `
+      <div class="copilot-result-box sufficient" style="margin-top: 8px;">
+        <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+          ${getIconHTML('check', 'width: 14px; height: 14px;')} Answer is sufficient
+        </div>
+      </div>
+      <div class="copilot-suggested-copy-box">
+        <strong style="font-size: 11px; color: var(--text-primary); font-family: var(--font-sans);">
+          Suggested Copy for: ${escapeHTML(activeQuestion.section)} > ${escapeHTML(activeQuestion.field)}
+        </strong>
+        <div id="copilot-suggested-text" style="font-family: var(--font-sans); font-size: 12px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 8px; border-radius: var(--radius-sm); white-space: pre-wrap; margin-top: 4px; line-height: 1.4;">${escapeHTML(suggestedCopy)}</div>
+        <button id="btn-copilot-copy-text" class="btn btn-secondary" style="margin-top: 6px; font-size: 11px; padding: 4px 8px; height: 26px; display: inline-flex; align-items: center; justify-content: center; width: 100%;">
+          ${getIconHTML('copy', 'width: 12px; height: 12px; margin-right: 4px;')} Copy Suggested Text
+        </button>
+      </div>
+    `;
+    
+    // Bind copy text button
+    const copyBtn = resContainer.querySelector('#btn-copilot-copy-text');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(suggestedCopy).then(() => {
+          showToast('Copied suggested text to clipboard!', 'success');
+        }).catch(() => {
+          const textArea = document.createElement("textarea");
+          textArea.value = suggestedCopy;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand("copy");
+          textArea.remove();
+          showToast('Copied suggested text to clipboard!', 'success');
+        });
+      });
+    }
+  } else {
+    resContainer.innerHTML = `
+      <div class="copilot-result-box needs-follow-up" style="margin-top: 8px;">
+        <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
+          ${getIconHTML('alert-circle', 'width: 14px; height: 14px;')} Needs follow-up
+        </div>
+        <ul style="padding-left: 16px; margin: 4px 0 0 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px;">
+          ${res.missing.map(m => `<li>${escapeHTML(m)}</li>`).join('')}
+        </ul>
+        <div style="margin-top: 6px; padding: 8px; background: rgba(251, 191, 36, 0.04); border: 1px dashed rgba(251, 191, 36, 0.2); border-radius: var(--radius-sm); font-size: 12px;">
+          <strong style="display: block; font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px;">Suggested follow-up:</strong>
+          <span style="font-style: italic; color: var(--text-primary);">${escapeHTML(res.followUpQuestion)}</span>
+          <button id="btn-copilot-ask-follow-up" class="btn btn-secondary" style="margin-top: 6px; font-size: 11px; padding: 2px 8px; height: 22px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            ${getIconHTML('plus', 'width: 12px; height: 12px;')} Ask Follow-up
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Bind Ask Follow-up button
+    const askFollowUpBtn = resContainer.querySelector('#btn-copilot-ask-follow-up');
+    if (askFollowUpBtn) {
+      askFollowUpBtn.addEventListener('click', () => {
+        const input = container.querySelector('#copilot-answer-input');
+        if (input) {
+          const separator = input.value.trim().length > 0 ? '\n\n' : '';
+          input.value += `${separator}Follow-up: ${res.followUpQuestion}`;
+          input.dispatchEvent(new Event('input'));
+          // Re-trigger analysis
+          container.querySelector('#btn-copilot-analyze').click();
+        }
+      });
+    }
+  }
+  
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+}
+
+function toggleCopilotPanel(company) {
+  let panel = document.getElementById('copilot-panel');
+  const viewport = document.getElementById('app-viewport');
+  
+  if (panel) {
+    panel.remove();
+    if (viewport) viewport.classList.remove('copilot-active');
+  } else {
+    panel = document.createElement('div');
+    panel.id = 'copilot-panel';
+    panel.className = 'copilot-panel';
+    
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+      mainContent.appendChild(panel);
+    } else {
+      document.body.appendChild(panel);
+    }
+    
+    setTimeout(() => {
+      panel.classList.add('active');
+    }, 10);
+    
+    if (viewport) viewport.classList.add('copilot-active');
+    
+    renderGuidedDiscoveryPanel(company, panel);
+  }
+}
+
