@@ -333,7 +333,8 @@ class StateManager {
         coreProblems: '',
         operationalBottlenecks: '',
         techStack: ''
-      }
+      },
+      discoveryIntake: company.discoveryIntake || this._defaultDiscoveryIntake()
     };
     this.data.companies.push(newCompany);
     this.saveData();
@@ -717,6 +718,56 @@ class StateManager {
     if (!this.data.nextActions) return;
     this.data.nextActions = this.data.nextActions.filter(t => t.id !== id);
     this.saveData();
+  }
+
+  // --- Discovery Intake ---
+
+  /**
+   * Returns the blank Discovery Intake skeleton (5 sections × 3 fields).
+   */
+  _defaultDiscoveryIntake() {
+    return {
+      business: { primaryGoals: '', expectedOutcomes: '', currentChallenges: '' },
+      people:   { decisionMakers: '', affectedTeams: '', keyStakeholders: '' },
+      process:  { coreProcesses: '', knownBottlenecks: '', manualWorkAreas: '' },
+      systems:  { currentSystems: '', integrations: '', technologyIssues: '' },
+      data:     { reports: '', kpis: '', dataSources: '' }
+    };
+  }
+
+  /**
+   * Ensures a company has a discoveryIntake object (migration for existing companies).
+   * Returns the updated company (already persisted to localStorage).
+   */
+  ensureDiscoveryIntake(companyId) {
+    const idx = this.data.companies.findIndex(c => c.id === companyId);
+    if (idx === -1) return null;
+    const company = this.data.companies[idx];
+    if (!company.discoveryIntake) {
+      company.discoveryIntake = this._defaultDiscoveryIntake();
+      this.data.companies[idx] = company;
+      this.saveData();
+    }
+    return this.data.companies[idx];
+  }
+
+  /**
+   * Deep-merges a partial intake object into the stored discoveryIntake and saves.
+   * Example: updateDiscoveryIntake(id, { business: { primaryGoals: 'Grow ARR' } })
+   */
+  updateDiscoveryIntake(companyId, sectionUpdates) {
+    const company = this.ensureDiscoveryIntake(companyId);
+    if (!company) return null;
+    const idx = this.data.companies.findIndex(c => c.id === companyId);
+    const intake = company.discoveryIntake;
+    for (const section of Object.keys(sectionUpdates)) {
+      if (intake[section]) {
+        intake[section] = { ...intake[section], ...sectionUpdates[section] };
+      }
+    }
+    this.data.companies[idx].discoveryIntake = intake;
+    this.saveData();
+    return this.data.companies[idx];
   }
 }
 

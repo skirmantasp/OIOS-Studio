@@ -57,9 +57,9 @@ export default function renderWorkspace(viewport, params) {
 
       <!-- Navigation Tabs -->
       <div class="tabs-container">
-        ${['Overview', 'Assessment', 'Discovery', 'Insights', 'System Ideas', 'Projects', 'Reports'].map(tab => `
+        ${['Overview', 'Assessment', 'Discovery Intake', 'Discovery', 'Insights', 'System Ideas', 'Projects', 'Reports'].map(tab => `
           <a class="tab-btn ${activeTab === tab ? 'active' : ''}" 
-             href="#/workspace?id=${company.id}&tab=${tab}">
+             href="#/workspace?id=${company.id}&tab=${encodeURIComponent(tab)}">
              ${tab}
           </a>
         `).join('')}
@@ -86,6 +86,9 @@ export default function renderWorkspace(viewport, params) {
       break;
     case 'Assessment':
       renderAssessmentTab(company, tabContentContainer);
+      break;
+    case 'Discovery Intake':
+      renderDiscoveryIntakeTab(company, tabContentContainer);
       break;
     case 'Discovery':
       renderDiscoveryTab(company, tabContentContainer);
@@ -1511,6 +1514,228 @@ function openProjectFormModal(company, projId = null, onSavedCallback) {
       closeModal();
       if (onSavedCallback) onSavedCallback();
     }
+  });
+}
+
+// --- 6b. DISCOVERY INTAKE TAB ---
+function renderDiscoveryIntakeTab(company, container) {
+  // Ensure the intake data structure exists (migration for existing companies)
+  const freshCompany = db.ensureDiscoveryIntake(company.id);
+  const intake = (freshCompany && freshCompany.discoveryIntake) ? freshCompany.discoveryIntake : db._defaultDiscoveryIntake();
+
+  // ---- Completeness Engine ----
+  const SECTION_FIELDS = {
+    business: ['primaryGoals', 'expectedOutcomes', 'currentChallenges'],
+    people:   ['decisionMakers', 'affectedTeams', 'keyStakeholders'],
+    process:  ['coreProcesses', 'knownBottlenecks', 'manualWorkAreas'],
+    systems:  ['currentSystems', 'integrations', 'technologyIssues'],
+    data:     ['reports', 'kpis', 'dataSources']
+  };
+
+  function calcCompleteness(intakeData) {
+    const result = {};
+    let totalFilled = 0;
+    const totalFields = 15; // 5 sections × 3 fields
+    for (const [section, fields] of Object.entries(SECTION_FIELDS)) {
+      const sectionData = intakeData[section] || {};
+      const filled = fields.filter(f => (sectionData[f] || '').trim().length > 0).length;
+      result[section] = Math.round((filled / fields.length) * 100);
+      totalFilled += filled;
+    }
+    result.overall = Math.round((totalFilled / totalFields) * 100);
+    return result;
+  }
+
+  function completenessBarColor(pct) {
+    if (pct >= 70) return 'var(--color-success)';
+    if (pct >= 40) return 'var(--color-warning)';
+    return 'var(--color-info)';
+  }
+
+  function renderCompletenessCard(intakeData) {
+    const c = calcCompleteness(intakeData);
+    const isReady = c.overall >= 70;
+    const sectionLabels = { business: 'Business', people: 'People', process: 'Process', systems: 'Systems', data: 'Data' };
+
+    return `
+      <div class="card" id="di-completeness-card" style="margin-bottom:0;">
+        <div class="flex-between" style="margin-bottom:16px;">
+          <h3 class="card-title" style="margin-bottom:0;">Discovery Completeness</h3>
+          <span class="badge ${isReady ? 'badge-success' : 'badge-neutral'}" style="font-size:12px; padding: 4px 10px;">
+            ${isReady ? '&#10003; Ready for Insight Extraction' : 'Discovery In Progress'}
+          </span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; margin-bottom:16px;">
+          ${Object.entries(sectionLabels).map(([key, label]) => `
+            <div style="text-align:center; padding:10px; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:var(--radius-sm);">
+              <div style="font-size:10px; font-family:var(--font-mono); color:var(--text-muted); text-transform:uppercase; margin-bottom:6px;">${label}</div>
+              <div style="font-size:22px; font-weight:700; font-family:var(--font-mono); color:${completenessBarColor(c[key])};">${c[key]}%</div>
+              <div style="margin-top:6px; height:3px; background:var(--bg-tertiary); border-radius:2px; overflow:hidden;">
+                <div style="height:100%; width:${c[key]}%; background:${completenessBarColor(c[key])}; border-radius:2px; transition:width 0.3s ease;"></div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="border-top:1px solid var(--border-color); padding-top:12px; display:flex; align-items:center; gap:16px;">
+          <span style="font-size:12px; color:var(--text-muted); font-family:var(--font-mono);">OVERALL</span>
+          <div style="flex:1; height:6px; background:var(--bg-tertiary); border-radius:3px; overflow:hidden;">
+            <div style="height:100%; width:${c.overall}%; background:${completenessBarColor(c.overall)}; border-radius:3px; transition:width 0.3s ease;"></div>
+          </div>
+          <span style="font-size:16px; font-weight:700; font-family:var(--font-mono); color:${completenessBarColor(c.overall)};">${c.overall}%</span>
+        </div>
+      </div>
+    `;
+  }
+
+  // ---- Suggested Next Actions ----
+  const SUGGESTIONS = {
+    business: 'Conduct a strategic alignment session to define primary goals and expected business outcomes.',
+    people:   'Interview key decision makers and map the affected teams and stakeholder network.',
+    process:  'Walk through core operational workflows and identify manual, high-friction work areas.',
+    systems:  'Map current technology stack and document integration points and known technical issues.',
+    data:     'Request existing KPI dashboards, operational reports, and identify primary data sources.'
+  };
+
+  function renderSuggestionsCard(intakeData) {
+    const c = calcCompleteness(intakeData);
+    const incomplete = Object.keys(SECTION_FIELDS).filter(s => c[s] < 100);
+    if (incomplete.length === 0) {
+      return `
+        <div class="card" style="margin-bottom:0; border-color:var(--color-success);">
+          <h3 class="card-title" style="margin-bottom:8px; color:var(--color-success);">Discovery Complete</h3>
+          <p style="font-size:13px; color:var(--text-secondary);">All intake sections are fully completed. You are ready to proceed to Insight Extraction.</p>
+        </div>
+      `;
+    }
+    const shown = incomplete.slice(0, 5);
+    return `
+      <div class="card" style="margin-bottom:0;">
+        <h3 class="card-title" style="margin-bottom:12px;">Suggested Next Discovery Actions</h3>
+        <div class="flex-column" style="gap:10px;">
+          ${shown.map((section, i) => {
+            const label = { business:'Business', people:'People', process:'Process', systems:'Systems', data:'Data' }[section];
+            return `
+              <div style="display:flex; align-items:flex-start; gap:12px; padding:10px 14px; background:var(--bg-primary); border:1px solid var(--border-color); border-radius:var(--radius-sm);">
+                <span style="font-family:var(--font-mono); font-size:10px; font-weight:700; background:var(--bg-tertiary); border:1px solid var(--border-color); padding:2px 6px; border-radius:4px; color:var(--text-muted); white-space:nowrap; margin-top:1px;">${label}</span>
+                <span style="font-size:13px; color:var(--text-secondary); line-height:1.4;">${SUGGESTIONS[section]}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // ---- Section Form Renderer ----
+  const SECTION_CONFIG = [
+    {
+      key: 'business', label: 'Business', icon: 'briefcase',
+      fields: [
+        { key: 'primaryGoals',       label: 'Primary Goals',       placeholder: 'What are the primary strategic goals the client wants to achieve?' },
+        { key: 'expectedOutcomes',   label: 'Expected Outcomes',   placeholder: 'What measurable outcomes does the client expect from this engagement?' },
+        { key: 'currentChallenges',  label: 'Current Challenges',  placeholder: 'What are the key challenges or blockers the client is currently facing?' }
+      ]
+    },
+    {
+      key: 'people', label: 'People', icon: 'users',
+      fields: [
+        { key: 'decisionMakers',  label: 'Decision Makers',  placeholder: 'Who holds decision-making authority for this initiative?' },
+        { key: 'affectedTeams',   label: 'Affected Teams',   placeholder: 'Which teams or departments will be impacted by the proposed changes?' },
+        { key: 'keyStakeholders', label: 'Key Stakeholders', placeholder: 'Who are the key stakeholders to involve or keep informed?' }
+      ]
+    },
+    {
+      key: 'process', label: 'Process', icon: 'git-branch',
+      fields: [
+        { key: 'coreProcesses',    label: 'Core Processes',    placeholder: 'What are the critical operational processes this engagement touches?' },
+        { key: 'knownBottlenecks', label: 'Known Bottlenecks', placeholder: 'What process friction points or bottlenecks has the client already identified?' },
+        { key: 'manualWorkAreas',  label: 'Manual Work Areas', placeholder: 'Where does the team perform high-volume manual or repetitive work?' }
+      ]
+    },
+    {
+      key: 'systems', label: 'Systems', icon: 'server',
+      fields: [
+        { key: 'currentSystems',   label: 'Current Systems',   placeholder: 'What software systems, platforms, or tools are in active use?' },
+        { key: 'integrations',     label: 'Integrations',      placeholder: 'What integrations or data flows exist between systems?' },
+        { key: 'technologyIssues', label: 'Technology Issues', placeholder: 'What known technical pain points or gaps exist in the current stack?' }
+      ]
+    },
+    {
+      key: 'data', label: 'Data', icon: 'database',
+      fields: [
+        { key: 'reports',     label: 'Reports & Dashboards', placeholder: 'What reports or dashboards does the client currently rely on?' },
+        { key: 'kpis',        label: 'KPIs',                 placeholder: 'What key performance indicators are tracked? What are the targets?' },
+        { key: 'dataSources', label: 'Data Sources',         placeholder: 'What are the primary data sources, databases, or warehouses in use?' }
+      ]
+    }
+  ];
+
+  // ---- Full Page Render ----
+  container.innerHTML = `
+    <div class="flex-column" style="gap:20px;">
+
+      <!-- Completeness + Suggestions row -->
+      <div class="grid-cols-2" style="align-items:start;">
+        <div id="di-completeness-wrapper">
+          ${renderCompletenessCard(intake)}
+        </div>
+        <div id="di-suggestions-wrapper">
+          ${renderSuggestionsCard(intake)}
+        </div>
+      </div>
+
+      <!-- Intake Form Sections -->
+      ${SECTION_CONFIG.map(section => `
+        <div class="card" style="margin-bottom:0;">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid var(--border-color);">
+            ${getIconHTML(section.icon, 'width:16px; height:16px; color:var(--color-info);')}
+            <h3 class="card-title" style="margin-bottom:0;">${section.label}</h3>
+          </div>
+          <div class="grid-cols-3" style="gap:16px;">
+            ${section.fields.map(field => `
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="di-${section.key}-${field.key}">${field.label}</label>
+                <textarea
+                  id="di-${section.key}-${field.key}"
+                  class="textarea-control di-field"
+                  style="height:120px; resize:vertical;"
+                  data-section="${section.key}"
+                  data-field="${field.key}"
+                  placeholder="${field.placeholder}"
+                >${escapeHTML((intake[section.key] && intake[section.key][field.key]) ? intake[section.key][field.key] : '')}</textarea>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+
+    </div>
+  `;
+
+  // ---- Autosave with debounce ----
+  let _diDebounceTimer = null;
+
+  function refreshCompletenessUI() {
+    const currentCompany = db.ensureDiscoveryIntake(company.id);
+    const currentIntake = currentCompany ? currentCompany.discoveryIntake : intake;
+    const completenessWrapper = container.querySelector('#di-completeness-wrapper');
+    const suggestionsWrapper = container.querySelector('#di-suggestions-wrapper');
+    if (completenessWrapper) completenessWrapper.innerHTML = renderCompletenessCard(currentIntake);
+    if (suggestionsWrapper) suggestionsWrapper.innerHTML = renderSuggestionsCard(currentIntake);
+  }
+
+  container.querySelectorAll('.di-field').forEach(textarea => {
+    textarea.addEventListener('input', () => {
+      clearTimeout(_diDebounceTimer);
+      _diDebounceTimer = setTimeout(() => {
+        const section = textarea.getAttribute('data-section');
+        const field = textarea.getAttribute('data-field');
+        db.updateDiscoveryIntake(company.id, { [section]: { [field]: textarea.value } });
+        refreshCompletenessUI();
+      }, 300);
+    });
   });
 }
 
