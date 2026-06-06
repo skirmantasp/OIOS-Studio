@@ -975,8 +975,18 @@ function openIdeaDrawer(company, ideaId, container) {
         </div>
         <div style="border: 1px solid var(--border-color); padding: 4px; border-radius: 4px;">
           <div style="color:var(--text-muted)">Status</div>
-          <span style="display:inline-block; font-weight:600; margin-top:2px; text-transform:uppercase;">${idea.status}</span>
+          <span id="idea-drawer-status-badge" style="display:inline-block; font-weight:600; margin-top:2px; text-transform:uppercase;">${idea.status}</span>
         </div>
+      </div>
+
+      <div style="border-top: 1px solid var(--border-color); padding-top: 12px;">
+        <label for="idea-drawer-status" style="font-size:11px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:600; display:block; margin-bottom:6px;">Lifecycle Status Control</label>
+        <select id="idea-drawer-status" class="select-control" style="width:100%;">
+          <option value="backlog" ${idea.status === 'backlog' ? 'selected' : ''}>Backlog</option>
+          <option value="refining" ${idea.status === 'refining' ? 'selected' : ''}>Refining</option>
+          <option value="approved" ${idea.status === 'approved' ? 'selected' : ''}>Approved</option>
+          <option value="rejected" ${idea.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+        </select>
       </div>
 
       <div>
@@ -1016,6 +1026,24 @@ function openIdeaDrawer(company, ideaId, container) {
   });
 
   const drawerBody = document.getElementById('drawer-body-content');
+
+  // Bind lifecycle status dropdown listener
+  const statusSelect = drawerBody.querySelector('#idea-drawer-status');
+  if (statusSelect) {
+    statusSelect.addEventListener('change', (e) => {
+      const newStatus = e.target.value;
+      db.updateSystemIdea(idea.id, { status: newStatus });
+      showToast(`Lifecycle status updated to: ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`, 'success');
+      
+      const badge = drawerBody.querySelector('#idea-drawer-status-badge');
+      if (badge) {
+        badge.textContent = newStatus.toUpperCase();
+      }
+      
+      renderSystemIdeasTab(company, container);
+    });
+  }
+
   drawerBody.querySelectorAll('.btn-goto-insight').forEach(btn => {
     btn.addEventListener('click', () => {
       const insId = btn.getAttribute('data-insight-id');
@@ -1429,7 +1457,19 @@ function openProjectDrawer(company, projId, container) {
 function openProjectFormModal(company, projId = null, onSavedCallback) {
   const proj = projId ? db.getProject(projId) : null;
   const isEdit = !!proj;
-  const ideas = db.getSystemIdeas(company.id).filter(id => id.status === 'approved' || id.status === 'refining');
+  const ideas = db.getSystemIdeas(company.id).filter(id => id.status === 'approved');
+
+  if (ideas.length === 0) {
+    openModal(
+      isEdit ? 'Modify Project Parameters' : 'Launch System Project',
+      `<div style="padding: 24px 20px; text-align: center; color: var(--text-muted);">
+         <p style="font-size: 14px; margin-bottom: 0;">No approved system ideas available. Approve at least one system idea before launching a project.</p>
+       </div>`,
+      `<button class="btn btn-secondary" id="modal-cancel-proj">Close</button>`
+    );
+    document.getElementById('modal-cancel-proj').addEventListener('click', closeModal);
+    return;
+  }
 
   const modalBody = `
     <form id="form-project-launch" class="flex-column">
