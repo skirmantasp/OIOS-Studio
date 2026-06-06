@@ -2150,6 +2150,14 @@ function renderReportsTab(company, container) {
 
 // ---- Suggested Insights Gaps & Modal Management ----
 
+function matchesKeyword(text, keyword) {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const startBoundary = /^[a-zA-Z0-9]/.test(keyword) ? '\\b' : '';
+  const endBoundary = /[a-zA-Z0-9]$/.test(keyword) ? '\\b' : '';
+  const regex = new RegExp(startBoundary + escaped + endBoundary, 'i');
+  return regex.test(text);
+}
+
 function generateSuggestedInsights(company) {
   const notes = db.getDiscoveryNotes(company.id);
   if (notes.length === 0) return [];
@@ -2177,7 +2185,29 @@ function generateSuggestedInsights(company) {
       title: 'Fragmented System Landscape Limits Real-Time Reporting',
       category: 'data',
       impact: 'high',
-      keywords: ['reporting', 'reports', 'excel', 'duplicate entry', 'dashboard', 'power bi', 'erp', 'sap', 'duplication'],
+      affinityCategory: 'document_review',
+      keywords: {
+        strong: [
+          'manual consolidation',
+          'duplicate data entry',
+          'limited integration',
+          'no centralized dashboard',
+          'maintenance reports',
+          'maintenance record updates',
+          'maintenance systems'
+        ],
+        normal: [
+          'reporting',
+          'reports',
+          'excel',
+          'duplicate entry',
+          'dashboard',
+          'power bi',
+          'erp',
+          'sap',
+          'duplication'
+        ]
+      },
       descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes show that reporting, maintenance, and inventory information is spread across ${systemsText}. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that teams rely on manual consolidation and duplicate data entry instead of a unified operational data flow.\n\nBusiness Impact:\nThis can reduce reporting speed, may increase risk of inconsistent information, and can reduce leadership visibility into current operations.`
     },
     {
@@ -2185,7 +2215,21 @@ function generateSuggestedInsights(company) {
       title: 'Manual Reporting Workflows Create Administrative Bottlenecks',
       category: 'process',
       impact: 'high',
-      keywords: ['manual work', 'reporting preparation', 'maintenance record updates', 'manual record', 'manually', 'transcribe', 'paper'],
+      affinityCategory: 'observation',
+      keywords: {
+        strong: [
+          'manual work',
+          'reporting preparation',
+          'maintenance record updates',
+          'manual record',
+          'manually transcribe'
+        ],
+        normal: [
+          'manually',
+          'transcribe',
+          'paper'
+        ]
+      },
       descriptionBuilder: (noteTitles) => `Observation:\nShadowing records show that personnel spend substantial hours drafting templates, updating logs, or transcribing maintenance updates manually. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that skilled operational teams perform administrative preparation and manual work updates rather than focusing on high-value tasks.\n\nBusiness Impact:\nThis can create administrative overhead, may delay strategic decisions, and may increase planning risks.`
     },
     {
@@ -2193,7 +2237,23 @@ function generateSuggestedInsights(company) {
       title: 'Inventory Visibility Gaps May Affect Planning Reliability',
       category: 'data',
       impact: 'medium',
-      keywords: ['inventory', 'procurement', 'stock visibility', 'data sources', 'warehouse', 'stock count', 'stock level', 'materials'],
+      affinityCategory: 'document_review',
+      keywords: {
+        strong: [
+          'stock visibility',
+          'stock count',
+          'stock level',
+          'inventory visibility'
+        ],
+        normal: [
+          'inventory',
+          'procurement',
+          'warehouse',
+          'materials',
+          'stock',
+          'parts'
+        ]
+      },
       descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes highlight discrepancies and delays in tracking spares, parts, and procurement requirements. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that inventory and procurement data sources are siloed and updated via periodic manual entries rather than real-time visibility.\n\nBusiness Impact:\nThis may affect planning reliability, can limit procurement predictability, and may increase risk of operational delays.`
     },
     {
@@ -2201,7 +2261,25 @@ function generateSuggestedInsights(company) {
       title: 'Stakeholder Alignment Is Needed Before Workflow Redesign',
       category: 'people',
       impact: 'medium',
-      keywords: ['people', 'decision makers', 'affected teams', 'stakeholders', 'stakeholder', 'interview', 'decision-maker'],
+      affinityCategory: 'interview',
+      keywords: {
+        strong: [
+          'decision makers',
+          'decision maker',
+          'affected teams',
+          'workflow redesign',
+          'stakeholder alignment',
+          'department managers',
+          'executive leadership',
+          'reporting analysts'
+        ],
+        normal: [
+          'people',
+          'stakeholders',
+          'stakeholder',
+          'decision-maker'
+        ]
+      },
       descriptionBuilder: (noteTitles) => `Observation:\nInterviews with key personnel show differences in priorities across teams and interviewed staff and managers regarding software changes and process workflows. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that technical change initiatives are designed without a unified consensus among all affected teams and decision makers.\n\nBusiness Impact:\nThis may increase user adoption risks, can introduce organizational friction, and may delay implementation timelines.`
     }
   ];
@@ -2211,24 +2289,46 @@ function generateSuggestedInsights(company) {
   
   // Try matching notes to themes
   themes.forEach(theme => {
-    const matchedNotes = notes.filter(n => {
+    const matchedNotesWithInfo = [];
+    
+    notes.forEach(n => {
       const text = (n.title + ' ' + n.content).toLowerCase();
-      return theme.keywords.some(kw => text.includes(kw));
+      
+      const matchedStrong = theme.keywords.strong.filter(kw => matchesKeyword(text, kw));
+      const matchedNormal = theme.keywords.normal.filter(kw => matchesKeyword(text, kw));
+      
+      const strongCount = matchedStrong.length;
+      const normalCount = matchedNormal.length;
+      const totalKeywordsMatched = strongCount + normalCount;
+      const categoryAffinityMatched = (n.category === theme.affinityCategory);
+      
+      const isRelevant = (totalKeywordsMatched >= 2) || 
+                         (strongCount >= 1) || 
+                         (categoryAffinityMatched && totalKeywordsMatched >= 1);
+                         
+      if (isRelevant) {
+        matchedNotesWithInfo.push({
+          note: n,
+          strongCount,
+          normalCount,
+          score: (strongCount * 2) + (normalCount * 1)
+        });
+      }
     });
     
-    if (matchedNotes.length > 0) {
+    if (matchedNotesWithInfo.length > 0) {
       // De-duplicate evidence notes by ID
-      const uniqueMatchedNotes = [];
+      const uniqueMatchedNotesInfo = [];
       const seenIds = new Set();
-      matchedNotes.forEach(n => {
-        if (!seenIds.has(n.id)) {
-          seenIds.add(n.id);
-          uniqueMatchedNotes.push(n);
+      matchedNotesWithInfo.forEach(info => {
+        if (!seenIds.has(info.note.id)) {
+          seenIds.add(info.note.id);
+          uniqueMatchedNotesInfo.push(info);
         }
       });
       
-      const noteTitles = uniqueMatchedNotes.map(n => `"${n.title}"`);
-      const noteIds = uniqueMatchedNotes.map(n => n.id);
+      const noteTitles = uniqueMatchedNotesInfo.map(info => `"${info.note.title}"`);
+      const noteIds = uniqueMatchedNotesInfo.map(info => info.note.id);
       noteIds.forEach(id => assignedNoteIds.add(id));
       
       candidates.push({
@@ -2237,7 +2337,7 @@ function generateSuggestedInsights(company) {
         description: theme.descriptionBuilder(noteTitles) + suffix,
         impact: theme.impact,
         sourceNotes: noteIds,
-        evidenceConfidence: calcEvidenceConfidence(noteIds)
+        evidenceConfidence: calcEvidenceConfidence(noteIds, uniqueMatchedNotesInfo)
       });
     }
   });
@@ -2271,8 +2371,18 @@ function generateSuggestedInsights(company) {
   return candidates.filter(c => !existingTitles.includes(c.title.toLowerCase().trim()));
 }
 
-function calcEvidenceConfidence(noteIds) {
+function calcEvidenceConfidence(noteIds, relevanceInfo) {
   const count = noteIds.length;
+  if (relevanceInfo && Array.isArray(relevanceInfo)) {
+    const strongMatchNotesCount = relevanceInfo.filter(info => info.strongCount >= 1).length;
+    if (count >= 4 || (count === 3 && strongMatchNotesCount >= 1)) {
+      return 'High';
+    }
+    if (count >= 2) {
+      return 'Medium';
+    }
+    return 'Low';
+  }
   if (count >= 4) return 'High';
   if (count >= 2) return 'Medium';
   return 'Low';
