@@ -260,6 +260,7 @@ class StateManager {
     this.data = this.loadData();
     this.repairDuplicateInsightIds();
     this.repairDuplicateDiscoveryNoteIds();
+    this.repairDuplicateSystemIdeaIds();
   }
 
   generateUniqueId(prefix, collection) {
@@ -304,6 +305,55 @@ class StateManager {
         hasDuplicates = true;
       } else {
         seenIds.add(note.id);
+      }
+    });
+
+    if (hasDuplicates) {
+      this.saveData();
+    }
+  }
+
+  repairDuplicateSystemIdeaIds() {
+    if (!this.data || !this.data.systemIdeas || !Array.isArray(this.data.systemIdeas)) return;
+    
+    const idCounts = {};
+    this.data.systemIdeas.forEach(idea => {
+      if (idea.id) {
+        idCounts[idea.id] = (idCounts[idea.id] || 0) + 1;
+      }
+    });
+
+    const seenIds = new Set();
+    let hasDuplicates = false;
+
+    this.data.systemIdeas.forEach(idea => {
+      if (!idea.id || seenIds.has(idea.id)) {
+        const oldId = idea.id;
+        const newId = this.generateUniqueId('idea', this.data.systemIdeas);
+        idea.id = newId;
+        hasDuplicates = true;
+
+        if (oldId) {
+          const count = idCounts[oldId] || 0;
+          if (count === 1) {
+            // Unambiguous: update project references
+            if (this.data.projects) {
+              this.data.projects.forEach(project => {
+                if (project.linkedSystemIdeas && Array.isArray(project.linkedSystemIdeas)) {
+                  const idx = project.linkedSystemIdeas.indexOf(oldId);
+                  if (idx !== -1) {
+                    project.linkedSystemIdeas[idx] = newId;
+                  }
+                }
+              });
+            }
+          } else if (count > 1) {
+            // Ambiguous: log warning and leave project reference unchanged
+            console.warn(`[Self-Healing] Ambiguous duplicate system idea ID reference skipped for projects: ${oldId}`);
+          }
+        }
+      } else {
+        seenIds.add(idea.id);
       }
     });
 
@@ -530,7 +580,7 @@ class StateManager {
 
   addSystemIdea(idea) {
     const newIdea = {
-      id: 'idea_' + Date.now(),
+      id: this.generateUniqueId('idea', this.data.systemIdeas),
       companyId: idea.companyId,
       title: idea.title,
       description: idea.description,

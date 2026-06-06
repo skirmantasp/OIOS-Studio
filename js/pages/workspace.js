@@ -1031,7 +1031,15 @@ function openIdeaDrawer(company, ideaId, container) {
   const statusSelect = drawerBody.querySelector('#idea-drawer-status');
   if (statusSelect) {
     statusSelect.addEventListener('change', (e) => {
+      const oldStatus = db.getSystemIdea(idea.id).status;
       const newStatus = e.target.value;
+      console.log(
+        '[Lifecycle Update]',
+        idea.id,
+        oldStatus,
+        newStatus
+      );
+      
       db.updateSystemIdea(idea.id, { status: newStatus });
       showToast(`Lifecycle status updated to: ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`, 'success');
       
