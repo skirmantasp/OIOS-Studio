@@ -2208,7 +2208,7 @@ function generateSuggestedInsights(company) {
           'duplication'
         ]
       },
-      descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes show that reporting, maintenance, and inventory information is spread across ${systemsText}. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that teams rely on manual consolidation and duplicate data entry instead of a unified operational data flow.\n\nBusiness Impact:\nThis can reduce reporting speed, may increase risk of inconsistent information, and can reduce leadership visibility into current operations.`
+      descriptionBuilder: () => `Observation:\nDiscovery notes show that reporting, maintenance, and inventory information is spread across ${systemsText}.\n\nPattern:\nThe repeated pattern is that teams rely on manual consolidation and duplicate data entry instead of a unified operational data flow.\n\nBusiness Impact:\nThis can reduce reporting speed, may increase risk of inconsistent information, and can reduce leadership visibility into current operations.`
     },
     {
       id: 'theme_manual',
@@ -2230,7 +2230,7 @@ function generateSuggestedInsights(company) {
           'paper'
         ]
       },
-      descriptionBuilder: (noteTitles) => `Observation:\nShadowing records show that personnel spend substantial hours drafting templates, updating logs, or transcribing maintenance updates manually. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that skilled operational teams perform administrative preparation and manual work updates rather than focusing on high-value tasks.\n\nBusiness Impact:\nThis can create administrative overhead, may delay strategic decisions, and may increase planning risks.`
+      descriptionBuilder: () => `Observation:\nShadowing records show that personnel spend substantial hours drafting templates, updating logs, or transcribing maintenance updates manually.\n\nPattern:\nThe repeated pattern is that skilled operational teams perform administrative preparation and manual work updates rather than focusing on high-value tasks.\n\nBusiness Impact:\nThis can create administrative overhead, may delay strategic decisions, and may increase planning risks.`
     },
     {
       id: 'theme_inventory',
@@ -2254,7 +2254,7 @@ function generateSuggestedInsights(company) {
           'parts'
         ]
       },
-      descriptionBuilder: (noteTitles) => `Observation:\nDiscovery notes highlight discrepancies and delays in tracking spares, parts, and procurement requirements. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that inventory and procurement data sources are siloed and updated via periodic manual entries rather than real-time visibility.\n\nBusiness Impact:\nThis may affect planning reliability, can limit procurement predictability, and may increase risk of operational delays.`
+      descriptionBuilder: () => `Observation:\nDiscovery notes highlight discrepancies and delays in tracking spares, parts, and procurement requirements.\n\nPattern:\nThe repeated pattern is that inventory and procurement data sources are siloed and updated via periodic manual entries rather than real-time visibility.\n\nBusiness Impact:\nThis may affect planning reliability, can limit procurement predictability, and may increase risk of operational delays.`
     },
     {
       id: 'theme_stakeholder',
@@ -2280,7 +2280,7 @@ function generateSuggestedInsights(company) {
           'decision-maker'
         ]
       },
-      descriptionBuilder: (noteTitles) => `Observation:\nInterviews with key personnel show differences in priorities across teams and interviewed staff and managers regarding software changes and process workflows. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that technical change initiatives are designed without a unified consensus among all affected teams and decision makers.\n\nBusiness Impact:\nThis may increase user adoption risks, can introduce organizational friction, and may delay implementation timelines.`
+      descriptionBuilder: () => `Observation:\nInterviews with key personnel show differences in priorities across teams and interviewed staff and managers regarding software changes and process workflows.\n\nPattern:\nThe repeated pattern is that technical change initiatives are designed without a unified consensus among all affected teams and decision makers.\n\nBusiness Impact:\nThis may increase user adoption risks, can introduce organizational friction, and may delay implementation timelines.`
     }
   ];
   
@@ -2327,14 +2327,13 @@ function generateSuggestedInsights(company) {
         }
       });
       
-      const noteTitles = uniqueMatchedNotesInfo.map(info => `"${info.note.title}"`);
       const noteIds = uniqueMatchedNotesInfo.map(info => info.note.id);
       noteIds.forEach(id => assignedNoteIds.add(id));
       
       candidates.push({
         title: theme.title,
         category: theme.category,
-        description: theme.descriptionBuilder(noteTitles) + suffix,
+        description: theme.descriptionBuilder() + suffix,
         impact: theme.impact,
         sourceNotes: noteIds,
         evidenceConfidence: calcEvidenceConfidence(noteIds, uniqueMatchedNotesInfo)
@@ -2354,13 +2353,12 @@ function generateSuggestedInsights(company) {
       }
     });
     
-    const noteTitles = uniqueUnmatchedNotes.map(n => `"${n.title}"`);
     const noteIds = uniqueUnmatchedNotes.map(n => n.id);
     
     candidates.push({
       title: 'Disconnected Data Sources Reduce Management Confidence',
       category: 'data',
-      description: `Observation:\nProcess observations identify disconnected files, local trackers, and custom logs across operations. Matched logs include: ${noteTitles.join(', ')}.\n\nPattern:\nThe repeated pattern is that data sources are isolated without automatic synchronization or shared frameworks.\n\nBusiness Impact:\nThis may affect planning reliability, can create administrative overhead, and may reduce confidence in reporting.` + suffix,
+      description: `Observation:\nProcess observations identify disconnected files, local trackers, and custom logs across operations.\n\nPattern:\nThe repeated pattern is that data sources are isolated without automatic synchronization or shared frameworks.\n\nBusiness Impact:\nThis may affect planning reliability, can create administrative overhead, and may reduce confidence in reporting.` + suffix,
       impact: 'medium',
       sourceNotes: noteIds,
       evidenceConfidence: calcEvidenceConfidence(noteIds)
