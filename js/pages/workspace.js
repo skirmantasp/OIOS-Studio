@@ -3828,31 +3828,149 @@ function getQuestionText(q, company) {
   return q.question;
 }
 
+function getFriendlyCriterionLabel(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes('specific business goals') || lower.includes('priority goal')) {
+    return 'Priority Goal';
+  }
+  if (lower.includes('motivation') || lower.includes('urgency') || lower.includes('driver')) {
+    return 'Business Driver';
+  }
+  if (lower.includes('timeline') || lower.includes('deadline')) {
+    return 'Timeline';
+  }
+  if (lower.includes('measurable numbers') || lower.includes('success metrics')) {
+    return 'Expected Outcome';
+  }
+  if (lower.includes('benefits for users') || lower.includes('user/customer benefits')) {
+    return 'User/Customer Benefits';
+  }
+  
+  return text
+    .replace(/^has\s+/i, '')
+    .replace(/^includes\s+/i, '')
+    .replace(/^mentions\s+/i, '')
+    .replace(/^specifies\s+/i, '')
+    .replace(/^identifies\s+/i, '')
+    .replace(/^names\s+/i, '')
+    .replace(/^outlines\s+/i, '')
+    .replace(/^defines\s+/i, '')
+    .replace(/^pinpoints\s+/i, '')
+    .replace(/^details\s+/i, '')
+    .replace(/^lists\s+/i, '')
+    .replace(/^describes\s+/i, '')
+    .replace(/^contains\s+/i, '')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 function analyzeDiscoveryAnswer(question, answer) {
-  if (!answer || answer.trim().length < 25) {
+  if (!answer || answer.trim().length < 10) {
     return {
       isSufficient: false,
-      missing: ['Answer is too brief or lacks sufficient details (must be at least 25 characters).'],
+      status: 'Insufficient',
+      statusColor: '🔴',
+      confidence: 0,
+      captured: [],
+      missing: ['Answer is too brief or lacks sufficient details.'],
       followUpQuestion: question.followUp
     };
   }
   
   const text = answer.toLowerCase();
+  const captured = [];
   const missing = [];
   
+  // Timeline indicators
+  const hasTimeline = 
+    /next\s+(\d+|[a-zA-Z]+)\s+months?/i.test(text) ||
+    /next\s+(\d+|[a-zA-Z]+)\s+weeks?/i.test(text) ||
+    /next\s+(\d+|[a-zA-Z]+)\s+years?/i.test(text) ||
+    /\bby\s+q[1-4]\b/i.test(text) ||
+    /\bthis\s+year\b/i.test(text) ||
+    /\bnext\s+year\b/i.test(text) ||
+    /within\s+(\d+|[a-zA-Z]+)\s+months?/i.test(text) ||
+    /within\s+(\d+|[a-zA-Z]+)\s+weeks?/i.test(text) ||
+    /\b(by|months|year|weeks|timeline|deadline|target|schedule)\b/i.test(text);
+
+  // Urgency indicators
+  const hasUrgency = 
+    /\bpriority\b/i.test(text) ||
+    /\burgent\b/i.test(text) ||
+    /\bcritical\b/i.test(text) ||
+    /\bimportant\b/i.test(text) ||
+    /\bneed\s+to\b/i.test(text) ||
+    /\bmust\b/i.test(text) ||
+    /\brequired\b/i.test(text) ||
+    /\b(motivation|why|need|because|demand|drive|competition)\b/i.test(text);
+  
   question.criteria.forEach(criterion => {
-    const matched = criterion.words.some(word => text.includes(word));
-    if (!matched) {
-      missing.push(`Missing detail: ${criterion.text}`);
+    let matched = false;
+    const cTextLower = criterion.text.toLowerCase();
+    
+    if (cTextLower.includes('timeline') || cTextLower.includes('deadline')) {
+      matched = hasTimeline || hasUrgency;
+    } else if (cTextLower.includes('motivation') || cTextLower.includes('urgency') || cTextLower.includes('driver')) {
+      matched = hasUrgency || hasTimeline;
+    } else {
+      matched = criterion.words.some(word => text.includes(word));
+    }
+    
+    if (matched) {
+      captured.push(criterion.text);
+    } else {
+      missing.push(criterion.text);
     }
   });
   
-  const isSufficient = missing.length === 0;
+  const numCriteria = question.criteria.length;
+  const metCriteria = captured.length;
+  let baseConf = numCriteria > 0 ? (metCriteria / numCriteria) * 100 : 100;
+  
+  // Adjust based on answer quality/length
+  let lengthModifier = 0;
+  const len = answer.trim().length;
+  if (len < 40) {
+    lengthModifier = -15;
+  } else if (len < 80) {
+    lengthModifier = -5;
+  } else if (len > 150) {
+    lengthModifier = 10;
+  } else if (len > 100) {
+    lengthModifier = 5;
+  }
+  
+  let confidence = Math.round(baseConf + lengthModifier);
+  
+  // Bound confidence based on status
+  let status = 'Insufficient';
+  let statusColor = '🔴';
+  
+  if (metCriteria === numCriteria) {
+    status = 'Sufficient';
+    statusColor = '🟢';
+    confidence = Math.max(80, Math.min(100, confidence));
+  } else if (metCriteria > 0) {
+    status = 'Partial';
+    statusColor = '🟡';
+    confidence = Math.max(40, Math.min(79, confidence));
+  } else {
+    status = 'Insufficient';
+    statusColor = '🔴';
+    confidence = Math.max(0, Math.min(39, confidence));
+  }
+  
+  const isSufficient = status === 'Sufficient';
   
   return {
     isSufficient,
+    status,
+    statusColor,
+    confidence,
+    captured,
     missing,
-    followUpQuestion: isSufficient ? null : question.followUp
+    followUpQuestion: question.followUp
   };
 }
 
@@ -3902,10 +4020,12 @@ function loadGuidedDiscoverySession(companyId) {
           analysisResults: parsed.analysisResults || {},
           completedQuestions: completedQuestions,
           skippedQuestions: Array.isArray(parsed.skippedQuestions) ? parsed.skippedQuestions : [],
-          minimized: typeof parsed.minimized === 'boolean' ? parsed.minimized : false
+          minimized: typeof parsed.minimized === 'boolean' ? parsed.minimized : false,
+          whyExpanded: typeof parsed.whyExpanded === 'boolean' ? parsed.whyExpanded : false,
+          criteriaExpanded: typeof parsed.criteriaExpanded === 'boolean' ? parsed.criteriaExpanded : false
         };
         
-        if (needsAnswersMigration || needsCompletedMigration || needsSkippedMigration || !('minimized' in parsed)) {
+        if (needsAnswersMigration || needsCompletedMigration || needsSkippedMigration || !('minimized' in parsed) || !('whyExpanded' in parsed) || !('criteriaExpanded' in parsed)) {
           localStorage.setItem(`oios_studio_copilot_session_${companyId}`, JSON.stringify(migrated));
         }
         return migrated;
@@ -3921,7 +4041,9 @@ function loadGuidedDiscoverySession(companyId) {
     analysisResults: {},
     completedQuestions: [],
     skippedQuestions: [],
-    minimized: false
+    minimized: false,
+    whyExpanded: false,
+    criteriaExpanded: false
   };
 }
 
@@ -3975,7 +4097,7 @@ function extractDetectedInformation(answer, question) {
   return detected;
 }
 
-function renderDiscoveryMapProgress(plan, session, company) {
+function renderDiscoveryMapProgress(plan, session, company, activeQuestion) {
   const pillars = ['Business', 'People', 'Process', 'Systems', 'Data'];
   return pillars.map(pillar => {
     const pillarQuestions = plan.filter(q => q.section.toLowerCase() === pillar.toLowerCase());
@@ -3984,12 +4106,14 @@ function renderDiscoveryMapProgress(plan, session, company) {
       return session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[secKey]?.[q.field] || '').trim();
     }).length;
     
+    const isActive = activeQuestion && activeQuestion.section.toLowerCase() === pillar.toLowerCase();
+    
     let statusText = '';
     let statusStyle = '';
     if (completedCount === 3) {
       statusText = '✓ Completed';
       statusStyle = 'color: var(--color-success); font-weight: 600;';
-    } else if (completedCount > 0) {
+    } else if (completedCount > 0 || isActive) {
       statusText = '⏳ In Progress';
       statusStyle = 'color: var(--color-warning); font-weight: 600;';
     } else {
@@ -4069,18 +4193,25 @@ function renderMeetingMode(company, overlay) {
             ${escapeHTML(questionText)}
           </div>
           
-          <!-- Contextual info blocks in two columns -->
+          <!-- Contextual info blocks (Accordions collapsed by default) -->
           <div class="grid-cols-2" style="gap: 16px;">
-            <div class="meeting-info-block">
-              <div class="meeting-info-title">Why am I asking this?</div>
-              <div style="color: var(--text-secondary);">${escapeHTML(activeQuestion.why)}</div>
-            </div>
-            <div class="meeting-info-block">
-              <div class="meeting-info-title">A good answer should include</div>
-              <ul style="padding-left: 16px; margin: 0; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
+            <details id="details-meeting-why" style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; background: var(--bg-primary);" ${session.whyExpanded ? 'open' : ''}>
+              <summary style="font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-primary); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none;">
+                <span class="accordion-arrow" style="font-size: 10px; width: 12px; display: inline-block;">${session.whyExpanded ? '▼' : '▶'}</span> Why am I asking this?
+              </summary>
+              <div style="margin-top: 8px; color: var(--text-secondary); line-height: 1.4; font-size: 13px;">
+                ${escapeHTML(activeQuestion.why)}
+              </div>
+            </details>
+            
+            <details id="details-meeting-criteria" style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; background: var(--bg-primary);" ${session.criteriaExpanded ? 'open' : ''}>
+              <summary style="font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-primary); list-style: none; display: flex; align-items: center; gap: 6px; user-select: none;">
+                <span class="accordion-arrow" style="font-size: 10px; width: 12px; display: inline-block;">${session.criteriaExpanded ? '▼' : '▶'}</span> What should a good answer include?
+              </summary>
+              <ul style="margin-top: 8px; padding-left: 16px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.4; margin-bottom: 0;">
                 ${activeQuestion.criteria.map(c => `<li>${escapeHTML(c.text)}</li>`).join('')}
               </ul>
-            </div>
+            </details>
           </div>
           
           <!-- Large Textarea -->
@@ -4125,7 +4256,7 @@ function renderMeetingMode(company, overlay) {
           <div class="meeting-sidebar-card">
             <h3 style="font-size: 13px; margin: 0; color: var(--text-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Discovery Progress Map</h3>
             <div style="font-size: 12px; display: flex; flex-direction: column; gap: 8px;">
-              ${renderDiscoveryMapProgress(plan, session, company)}
+              ${renderDiscoveryMapProgress(plan, session, company, activeQuestion)}
             </div>
           </div>
           
@@ -4153,6 +4284,27 @@ function renderMeetingMode(company, overlay) {
     session.answers[activeQuestion.field] = textarea.value;
     saveGuidedDiscoverySession(company.id, session);
   });
+  
+  // Bind toggle listeners for accordions to persist expand/collapse state
+  const detailsWhy = overlay.querySelector('#details-meeting-why');
+  if (detailsWhy) {
+    detailsWhy.addEventListener('toggle', () => {
+      session.whyExpanded = detailsWhy.open;
+      saveGuidedDiscoverySession(company.id, session);
+      const arrow = detailsWhy.querySelector('.accordion-arrow');
+      if (arrow) arrow.textContent = detailsWhy.open ? '▼' : '▶';
+    });
+  }
+  
+  const detailsCriteria = overlay.querySelector('#details-meeting-criteria');
+  if (detailsCriteria) {
+    detailsCriteria.addEventListener('toggle', () => {
+      session.criteriaExpanded = detailsCriteria.open;
+      saveGuidedDiscoverySession(company.id, session);
+      const arrow = detailsCriteria.querySelector('.accordion-arrow');
+      if (arrow) arrow.textContent = detailsCriteria.open ? '▼' : '▶';
+    });
+  }
   
   // Display cached result if any
   const cachedResult = session.analysisResults[activeQuestion.field];
@@ -4323,19 +4475,45 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
     </div>
   `;
 
-  if (res.isSufficient) {
-    const suggestedCopy = session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, session.answers[activeQuestion.field]);
-    session.suggestedCopies[activeQuestion.field] = suggestedCopy;
-    saveGuidedDiscoverySession(company.id, session);
+  const statusColorMap = {
+    'Sufficient': 'var(--color-success)',
+    'Partial': 'var(--color-warning)',
+    'Insufficient': 'var(--color-danger)'
+  };
+  const statusBadgeColor = statusColorMap[res.status] || 'var(--text-muted)';
+  
+  // Build Captured details list
+  const capturedListHTML = res.captured.length > 0
+    ? res.captured.map(c => `<li style="color: var(--text-secondary); display: flex; align-items: center; gap: 6px;"><span style="color: var(--color-success);">✓</span> ${escapeHTML(getFriendlyCriterionLabel(c))}</li>`).join('')
+    : `<li style="color: var(--text-muted); font-style: italic;">None detected</li>`;
     
-    container.innerHTML = `
-      <div class="meeting-result-card sufficient" style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
-        ${getIconHTML('check-circle', 'width: 16px; height: 16px;')}
-        <span style="font-weight: 600;">Answer is sufficient.</span>
+  // Build Missing details list
+  const missingListHTML = res.missing.length > 0
+    ? res.missing.map(m => `<li style="color: var(--text-secondary); display: flex; align-items: center; gap: 6px;"><span style="color: var(--text-muted);">•</span> ${escapeHTML(getFriendlyCriterionLabel(m))}</li>`).join('')
+    : `<li style="color: var(--text-muted); font-style: italic;">None missing</li>`;
+
+  // Follow-up Card (Optional)
+  let followUpCardHTML = '';
+  if (res.status !== 'Sufficient') {
+    followUpCardHTML = `
+      <div class="meeting-suggested-follow-up-box" style="margin-top: 12px; padding: 12px; background: var(--bg-primary); border: 1px dashed rgba(251, 191, 36, 0.2); border-radius: var(--radius-md); font-size: 13px;">
+        <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-mono);">Suggested Follow-up (Optional):</strong>
+        <span style="font-style: italic; color: var(--text-primary); line-height: 1.4; display: block; margin-bottom: 8px;">${escapeHTML(res.followUpQuestion)}</span>
+        <button id="btn-use-follow-up" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 4px; height: 26px;">
+          ${getIconHTML('plus', 'width: 12px; height: 12px;')} Use Follow-up Question
+        </button>
       </div>
-      
-      ${detectedHTML}
-      
+    `;
+  }
+
+  // Suggested Copy Card
+  let suggestedCopy = session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, session.answers[activeQuestion.field]);
+  session.suggestedCopies[activeQuestion.field] = suggestedCopy;
+  saveGuidedDiscoverySession(company.id, session);
+  
+  let copyCardHTML = '';
+  if (res.status === 'Sufficient') {
+    copyCardHTML = `
       <div class="meeting-suggested-copy-box" style="margin-top: 12px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
         <strong style="font-size: 12px; color: var(--text-primary); display: block; margin-bottom: 6px;">
           Suggested Copy for: ${escapeHTML(activeQuestion.section)} > ${escapeHTML(activeQuestion.field)}
@@ -4346,58 +4524,67 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         </button>
       </div>
     `;
-    
-    const copyBtn = container.querySelector('#btn-meeting-copy-text');
-    if (copyBtn) {
-      copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(suggestedCopy).then(() => {
-          showToast('Copied suggested text to clipboard!', 'success');
-        }).catch(() => {
-          const textArea = document.createElement("textarea");
-          textArea.value = suggestedCopy;
-          document.body.appendChild(textArea);
-          textArea.select();
-          document.execCommand("copy");
-          textArea.remove();
-          showToast('Copied suggested text to clipboard!', 'success');
-        });
-      });
-    }
-  } else {
-    container.innerHTML = `
-      <div class="meeting-result-card needs-follow-up" style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
-        <div style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
-          ${getIconHTML('alert-triangle', 'width: 16px; height: 16px;')}
-          <span>Needs follow-up.</span>
+  }
+
+  container.innerHTML = `
+    <div class="meeting-result-card" style="margin-top: 12px; padding: 16px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: 12px;">
+      <div style="font-size: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+        <strong style="font-size: 15px; color: var(--text-primary); display: block; margin-bottom: 6px;">Analysis Result</strong>
+        <div style="margin-bottom: 4px;">Status: <span style="font-weight: 600; color: ${statusBadgeColor};">${res.statusColor} ${res.status}${res.status === 'Sufficient' ? ' (Answer is sufficient)' : ''}</span></div>
+        <div>Confidence: <span style="font-weight: 600; color: var(--text-primary);">${res.confidence}%</span></div>
+      </div>
+      
+      <div class="grid-cols-2" style="gap: 16px;">
+        <div>
+          <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; font-family: var(--font-mono);">Captured:</strong>
+          <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px;">
+            ${capturedListHTML}
+          </ul>
         </div>
-        <ul style="padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 4px;">
-          ${res.missing.map(m => `<li>${escapeHTML(m)}</li>`).join('')}
-        </ul>
+        <div>
+          <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; font-family: var(--font-mono);">Missing (Optional):</strong>
+          <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px;">
+            ${missingListHTML}
+          </ul>
+        </div>
       </div>
-      
-      ${detectedHTML}
-      
-      <div class="meeting-suggested-follow-up-box" style="margin-top: 12px; padding: 12px; background: var(--bg-primary); border: 1px dashed rgba(251, 191, 36, 0.2); border-radius: var(--radius-md); font-size: 13px;">
-        <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-mono);">Suggested follow-up question:</strong>
-        <span style="font-style: italic; color: var(--text-primary); line-height: 1.4; display: block; margin-bottom: 8px;">${escapeHTML(res.followUpQuestion)}</span>
-        <button id="btn-use-follow-up" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 4px; height: 26px;">
-          ${getIconHTML('plus', 'width: 12px; height: 12px;')} Use Follow-up Question
-        </button>
-      </div>
-    `;
+    </div>
     
-    const useFollowUpBtn = container.querySelector('#btn-use-follow-up');
-    if (useFollowUpBtn) {
-      useFollowUpBtn.addEventListener('click', () => {
-        const input = overlay.querySelector('#meeting-answer-input');
-        if (input) {
-          const separator = input.value.trim().length > 0 ? '\n\n' : '';
-          input.value += `${separator}Follow-up: ${res.followUpQuestion}`;
-          input.dispatchEvent(new Event('input'));
-          overlay.querySelector('#btn-meeting-analyze').click();
-        }
+    ${detectedHTML}
+    ${followUpCardHTML}
+    ${copyCardHTML}
+  `;
+
+  // Bind copy button if it exists
+  const copyBtn = container.querySelector('#btn-meeting-copy-text');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(suggestedCopy).then(() => {
+        showToast('Copied suggested text to clipboard!', 'success');
+      }).catch(() => {
+        const textArea = document.createElement("textarea");
+        textArea.value = suggestedCopy;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        textArea.remove();
+        showToast('Copied suggested text to clipboard!', 'success');
       });
-    }
+    });
+  }
+
+  // Bind follow-up button if it exists
+  const useFollowUpBtn = container.querySelector('#btn-use-follow-up');
+  if (useFollowUpBtn) {
+    useFollowUpBtn.addEventListener('click', () => {
+      const input = overlay.querySelector('#meeting-answer-input');
+      if (input) {
+        const separator = input.value.trim().length > 0 ? '\n\n' : '';
+        input.value += `${separator}Follow-up: ${res.followUpQuestion}`;
+        input.dispatchEvent(new Event('input'));
+        overlay.querySelector('#btn-meeting-analyze').click();
+      }
+    });
   }
   
   if (window.lucide) {
