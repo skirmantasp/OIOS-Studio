@@ -877,9 +877,14 @@ function renderSystemIdeasTab(company, container) {
       <div style="font-size:13px; color:var(--text-secondary)">
         Grouped by Solution Lifecycle. Click to review linked Justifications.
       </div>
-      <button id="btn-add-idea" class="btn btn-primary">
-        ${getIconHTML('plus')} Formulate System Idea
-      </button>
+      <div style="display:flex; gap:10px;">
+        <button id="btn-generate-ideas" class="btn btn-secondary">
+          ${getIconHTML('sparkles')} Generate System Ideas From Insights
+        </button>
+        <button id="btn-add-idea" class="btn btn-primary">
+          ${getIconHTML('plus')} Formulate System Idea
+        </button>
+      </div>
     </div>
 
     <!-- Solutions Board -->
@@ -930,6 +935,14 @@ function renderSystemIdeasTab(company, container) {
       openIdeaDrawer(company, ideaId, container);
     });
   });
+
+  // Trigger Generate System Ideas From Insights Modal
+  const genBtn = container.querySelector('#btn-generate-ideas');
+  if (genBtn) {
+    genBtn.addEventListener('click', () => {
+      openGenerateIdeasModal(company, container);
+    });
+  }
 
   // Trigger Formulate System Idea Modal
   container.querySelector('#btn-add-idea').addEventListener('click', () => {
@@ -2694,5 +2707,324 @@ function openGenerateInsightsModal(company, container) {
 
   // Open modal initial state
   openModal('Suggested Insights', '', '');
+  renderModalContent();
+}
+
+function openGenerateIdeasModal(company, container) {
+  const insights = db.getInsights(company.id);
+
+  if (insights.length === 0) {
+    openModal(
+      'Suggested System Ideas',
+      `<div style="padding: 24px 20px; text-align: center; color: var(--text-muted);">
+         <p style="font-size: 14px; margin-bottom: 0;">Create or generate Insights first before formulating system ideas.</p>
+       </div>`,
+      `<button class="btn btn-secondary" id="modal-ideas-close">Close</button>`
+    );
+    document.getElementById('modal-ideas-close').addEventListener('click', closeModal);
+    return;
+  }
+
+  // Retrieve existing ideas to prevent duplicate titles
+  const existingIdeas = db.getSystemIdeas(company.id);
+  const existingTitles = new Set(existingIdeas.map(idea => idea.title.trim().toLowerCase()));
+
+  // Prepare grounding context for system names
+  const freshCompany = db.ensureDiscoveryIntake(company.id) || company;
+  const intake = freshCompany.discoveryIntake || db._defaultDiscoveryIntake();
+  const intakeText = JSON.stringify(intake).toLowerCase();
+  const insightsText = insights.map(ins => ins.title + ' ' + (ins.description || '')).join(' ').toLowerCase();
+  const combinedText = intakeText + ' ' + insightsText;
+
+  // Helper to ground systems in the description based on actual text
+  function getGroundedSystems(text) {
+    const systemsMap = [
+      { key: 'sap', label: 'SAP ERP' },
+      { key: 'excel', label: 'Excel reporting files' },
+      { key: 'power bi', label: 'Power BI dashboards' },
+      { key: 'maintenance', label: 'maintenance records' },
+      { key: 'inventory', label: 'inventory sources' }
+    ];
+
+    const matchedLabels = [];
+    systemsMap.forEach(sys => {
+      if (text.includes(sys.key)) {
+        matchedLabels.push(sys.label);
+      }
+    });
+
+    if (matchedLabels.length === 0) {
+      return 'the various disconnected operational systems and files';
+    } else if (matchedLabels.length === 1) {
+      return matchedLabels[0];
+    } else if (matchedLabels.length === 2) {
+      return `${matchedLabels[0]} and ${matchedLabels[1]}`;
+    } else {
+      const last = matchedLabels.pop();
+      return `${matchedLabels.join(', ')}, and ${last}`;
+    }
+  }
+
+  // Define deterministic suggestions and keywords
+  const possibleSuggestions = [
+    {
+      title: 'Unified Operations Data Hub',
+      priority: 'high',
+      feasibility: 'moderate',
+      status: 'backlog',
+      descriptionTemplate: (text) => `Create a centralized operational data layer that consolidates key information from ${getGroundedSystems(text)}. The goal is to reduce fragmented reporting, improve data consistency, and provide a reliable foundation for operational dashboards.`,
+      keywords: ['Fragmented System Landscape', 'Real-Time Reporting', 'disconnected systems', 'fragmented data', 'dashboard visibility']
+    },
+    {
+      title: 'Automated Reporting & KPI Pipeline',
+      priority: 'high',
+      feasibility: 'easy',
+      status: 'backlog',
+      descriptionTemplate: () => `Automate the weekly reporting process by reducing manual exports, copy-paste work, duplicate data entry, and manual KPI preparation. The goal is to reduce reporting preparation time and improve consistency across management reports.`,
+      keywords: ['Manual Reporting Workflows', 'Administrative Bottlenecks', 'manual consolidation', 'duplicate data entry', 'reporting preparation']
+    },
+    {
+      title: 'Inventory Visibility & Planning Dashboard',
+      priority: 'medium',
+      feasibility: 'moderate',
+      status: 'backlog',
+      descriptionTemplate: () => `Create a focused inventory visibility dashboard that connects inventory status, procurement lead times, and operational planning indicators. The goal is to improve planning reliability and reduce uncertainty around stock, parts, and procurement needs.`,
+      keywords: ['Inventory Visibility', 'procurement', 'inventory accuracy', 'planning reliability']
+    },
+    {
+      title: 'Stakeholder Alignment & Adoption Plan',
+      priority: 'medium',
+      feasibility: 'easy',
+      status: 'backlog',
+      descriptionTemplate: () => `Create a structured stakeholder alignment plan before technical implementation. This should clarify decision makers, affected teams, operational champions, concerns, training needs, and adoption risks.`,
+      keywords: ['Stakeholder Alignment', 'workflow redesign', 'adoption', 'change management', 'affected teams']
+    }
+  ];
+
+  // Helper to filter matching insights for a given set of keywords
+  function getMatchingInsights(keywords) {
+    return insights.filter(ins => {
+      const text = (ins.title + ' ' + (ins.description || '')).toLowerCase();
+      return keywords.some(kw => text.includes(kw.toLowerCase()));
+    });
+  }
+
+  let suggestions = [];
+  possibleSuggestions.forEach((sugDef, idx) => {
+    // De-duplication safeguard
+    if (existingTitles.has(sugDef.title.trim().toLowerCase())) return;
+
+    // Retrieve ONLY insights that actually trigger this specific suggestion
+    const matched = getMatchingInsights(sugDef.keywords);
+    if (matched.length > 0) {
+      suggestions.push({
+        localId: `sug_idea_${Date.now()}_${idx}`,
+        title: sugDef.title,
+        priority: sugDef.priority,
+        feasibility: sugDef.feasibility,
+        status: sugDef.status,
+        description: sugDef.descriptionTemplate(combinedText),
+        linkedInsights: matched.map(ins => ins.id),
+        linkedInsightObjects: matched,
+        checked: true
+      });
+    }
+  });
+
+  if (suggestions.length === 0) {
+    openModal(
+      'Suggested System Ideas',
+      `<div style="padding: 24px 20px; text-align: center; color: var(--text-muted);">
+         <p style="font-size: 14px; margin-bottom: 0;">No new System Idea suggestions found. All suggested ideas are already created, or no matching insights were found.</p>
+       </div>`,
+      `<button class="btn btn-secondary" id="modal-ideas-close">Close</button>`
+    );
+    document.getElementById('modal-ideas-close').addEventListener('click', closeModal);
+    return;
+  }
+
+  function renderModalContent() {
+    const bodyContent = document.getElementById('modal-body-content');
+    const footerContent = document.getElementById('modal-footer-content');
+    if (!bodyContent || !footerContent) return;
+
+    let bodyHTML = `
+      <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+        Review and customize the suggested system design proposals generated from existing insights.
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px; max-height: 50vh; overflow-y: auto; padding-right: 4px;">
+        ${suggestions.map(sug => {
+          return `
+            <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 12px; border: 1px solid var(--border-color); padding: 16px; ${sug.checked ? '' : 'opacity: 0.6; border-color: var(--bg-tertiary);'}" data-local-id="${sug.localId}">
+              <div class="flex-between" style="align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <input type="checkbox" class="idea-checkbox" ${sug.checked ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+                  <strong style="font-size: 14px; color: var(--text-primary);">Suggested System Idea</strong>
+                </div>
+                <button class="btn-icon btn-remove-suggestion" title="Remove Suggestion" style="color: var(--color-danger);">${getIconHTML('trash', 'width: 14px; height: 14px;')}</button>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 8px;">
+                <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight:600;">Title</label>
+                <input type="text" class="input-control idea-title-input" value="${escapeHTML(sug.title)}" style="font-weight: 600;">
+              </div>
+
+              <div class="grid-cols-3" style="gap: 10px;">
+                <div class="form-group" style="margin-bottom: 8px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight:600;">Priority</label>
+                  <select class="select-control idea-priority-select">
+                    <option value="high" ${sug.priority === 'high' ? 'selected' : ''}>High</option>
+                    <option value="medium" ${sug.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                    <option value="low" ${sug.priority === 'low' ? 'selected' : ''}>Low</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 8px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight:600;">Feasibility</label>
+                  <select class="select-control idea-feasibility-select">
+                    <option value="easy" ${sug.feasibility === 'easy' ? 'selected' : ''}>Easy</option>
+                    <option value="moderate" ${sug.feasibility === 'moderate' ? 'selected' : ''}>Moderate</option>
+                    <option value="complex" ${sug.feasibility === 'complex' ? 'selected' : ''}>Complex</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 8px;">
+                  <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight:600;">Lifecycle Status</label>
+                  <select class="select-control idea-status-select">
+                    <option value="backlog" ${sug.status === 'backlog' ? 'selected' : ''}>Backlog</option>
+                    <option value="refining" ${sug.status === 'refining' ? 'selected' : ''}>Refining</option>
+                    <option value="approved" ${sug.status === 'approved' ? 'selected' : ''}>Approved</option>
+                    <option value="rejected" ${sug.status === 'rejected' ? 'selected' : ''}>Rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 8px;">
+                <label style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight:600;">Description</label>
+                <textarea class="textarea-control idea-description-textarea" style="height: 80px; font-size: 13px; line-height: 1.4; resize: vertical;">${escapeHTML(sug.description)}</textarea>
+              </div>
+
+              <div style="font-size: 11px; color: var(--text-muted); background: var(--bg-secondary); padding: 8px 10px; border-radius: var(--radius-sm); border-left: 2px solid var(--color-info);">
+                <strong style="color:var(--text-primary); display:block; margin-bottom: 4px;">Justified by Insights:</strong>
+                <ul style="margin: 0 0 0 16px; padding: 0; list-style-type: disc;">
+                  ${sug.linkedInsightObjects.map(ins => `
+                    <li>${escapeHTML(ins.title)} (<span style="font-family:var(--font-mono)">${ins.category}</span>)</li>
+                  `).join('')}
+                </ul>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    bodyContent.innerHTML = bodyHTML;
+
+    // Bind card level listeners for real-time memory synchronization
+    bodyContent.querySelectorAll('[data-local-id]').forEach(element => {
+      const localId = element.getAttribute('data-local-id');
+      const sug = suggestions.find(n => n.localId === localId);
+      if (!sug) return;
+
+      const checkbox = element.querySelector('.idea-checkbox');
+      const titleInput = element.querySelector('.idea-title-input');
+      const prioritySelect = element.querySelector('.idea-priority-select');
+      const feasibilitySelect = element.querySelector('.idea-feasibility-select');
+      const statusSelect = element.querySelector('.idea-status-select');
+      const descTextarea = element.querySelector('.idea-description-textarea');
+      const removeBtn = element.querySelector('.btn-remove-suggestion');
+
+      checkbox.addEventListener('change', () => {
+        sug.checked = checkbox.checked;
+        element.style.opacity = sug.checked ? '1' : '0.6';
+        element.style.borderColor = sug.checked ? 'var(--border-color)' : 'var(--bg-tertiary)';
+        updateFooterCount();
+      });
+
+      titleInput.addEventListener('input', () => {
+        sug.title = titleInput.value;
+      });
+
+      prioritySelect.addEventListener('change', () => {
+        sug.priority = prioritySelect.value;
+      });
+
+      feasibilitySelect.addEventListener('change', () => {
+        sug.feasibility = feasibilitySelect.value;
+      });
+
+      statusSelect.addEventListener('change', () => {
+        sug.status = statusSelect.value;
+      });
+
+      descTextarea.addEventListener('input', () => {
+        sug.description = descTextarea.value;
+      });
+
+      removeBtn.addEventListener('click', () => {
+        suggestions = suggestions.filter(n => n.localId !== localId);
+        if (suggestions.length === 0) {
+          closeModal();
+          showToast('All suggested system ideas removed', 'info');
+        } else {
+          renderModalContent();
+        }
+      });
+    });
+
+    updateFooterCount();
+  }
+
+  function updateFooterCount() {
+    const footerContent = document.getElementById('modal-footer-content');
+    if (!footerContent) return;
+
+    const checkedCount = suggestions.filter(n => n.checked).length;
+    footerContent.innerHTML = `
+      <button class="btn btn-secondary" id="modal-gen-ideas-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-gen-ideas-create" ${checkedCount === 0 ? 'disabled style="opacity: 0.6; cursor: not-allowed;"' : ''}>
+        Create Selected System Ideas (${checkedCount})
+      </button>
+    `;
+
+    document.getElementById('modal-gen-ideas-cancel').addEventListener('click', closeModal);
+    const createBtn = document.getElementById('modal-gen-ideas-create');
+    if (createBtn && checkedCount > 0) {
+      createBtn.addEventListener('click', () => {
+        const selected = suggestions.filter(n => n.checked);
+        if (selected.length === 0) return;
+
+        let valid = true;
+        selected.forEach(sug => {
+          if (!sug.title.trim()) {
+            showToast('Title is required for all selected suggestions.', 'error');
+            valid = false;
+          }
+          if (!sug.description.trim()) {
+            showToast('Description is required for all selected suggestions.', 'error');
+            valid = false;
+          }
+        });
+
+        if (!valid) return;
+
+        selected.forEach(sug => {
+          db.addSystemIdea({
+            companyId: company.id,
+            title: sug.title.trim(),
+            description: sug.description.trim(),
+            priority: sug.priority,
+            feasibility: sug.feasibility,
+            status: sug.status,
+            linkedInsights: sug.linkedInsights
+          });
+        });
+
+        closeModal();
+        showToast('System design proposals generated successfully.', 'success');
+        renderSystemIdeasTab(company, container);
+      });
+    }
+  }
+
+  openModal('Suggested System Ideas', '', '');
   renderModalContent();
 }
