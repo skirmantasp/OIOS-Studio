@@ -84,6 +84,18 @@ const testDb = {
 };
 localStorage.setItem('oios_studio_db_v1', JSON.stringify(testDb));
 
+// Seed legacy copilot session in localStorage to verify robust migration
+const legacySession = {
+  currentIndex: 0,
+  answeredQuestions: {
+    expectedOutcomes: "This is expected outcome from previous version."
+  },
+  skippedQuestions: ["currentChallenges"],
+  followUpNotes: {},
+  lastAnalysisResult: {}
+};
+localStorage.setItem('oios_studio_copilot_session_nordic_precision', JSON.stringify(legacySession));
+
 async function runTest() {
   console.log('Importing modules...');
   const { db } = await import('file:///c:/Users/skirm/Desktop/OIOS Studio/js/state.js');
@@ -106,6 +118,19 @@ async function runTest() {
   // Click start copilot
   console.log('Clicking "Start Guided Discovery"...');
   banner.click();
+
+  // Assert legacy session migration occurred successfully
+  const migratedSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  console.log('Migrated session answers:', migratedSession.answers);
+  console.log('Migrated session completed questions:', migratedSession.completedQuestions);
+  console.log('Migrated session skipped questions:', migratedSession.skippedQuestions);
+  if (!migratedSession.answers || migratedSession.answers.expectedOutcomes !== "This is expected outcome from previous version." ||
+      !migratedSession.completedQuestions.includes("expectedOutcomes") ||
+      !migratedSession.skippedQuestions.includes("currentChallenges")) {
+    console.error('FAIL: Legacy session migration failed!');
+    process.exit(1);
+  }
+  console.log('PASS: Legacy session migration verified successfully.');
 
   // Check if meeting mode overlay is created
   const overlay = document.getElementById('meeting-mode-overlay');

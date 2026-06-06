@@ -3856,7 +3856,29 @@ function loadGuidedDiscoverySession(companyId) {
   const stored = localStorage.getItem(`oios_studio_copilot_session_${companyId}`);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === 'object') {
+        const needsAnswersMigration = !parsed.answers && parsed.answeredQuestions;
+        const needsCompletedMigration = !parsed.completedQuestions && (parsed.answers || parsed.answeredQuestions);
+        const needsSkippedMigration = !Array.isArray(parsed.skippedQuestions);
+        
+        const answers = parsed.answers || parsed.answeredQuestions || {};
+        const completedQuestions = parsed.completedQuestions || Object.keys(answers).filter(k => !!answers[k]);
+        
+        const migrated = {
+          currentIndex: typeof parsed.currentIndex === 'number' ? parsed.currentIndex : 0,
+          answers: answers,
+          suggestedCopies: parsed.suggestedCopies || {},
+          analysisResults: parsed.analysisResults || {},
+          completedQuestions: completedQuestions,
+          skippedQuestions: Array.isArray(parsed.skippedQuestions) ? parsed.skippedQuestions : []
+        };
+        
+        if (needsAnswersMigration || needsCompletedMigration || needsSkippedMigration) {
+          localStorage.setItem(`oios_studio_copilot_session_${companyId}`, JSON.stringify(migrated));
+        }
+        return migrated;
+      }
     } catch (e) {
       console.error('Error parsing copilot session state', e);
     }
