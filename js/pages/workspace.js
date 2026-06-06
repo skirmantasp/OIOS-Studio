@@ -202,14 +202,10 @@ function navigateToState(company, state, container) {
  * @param {URLSearchParams} params 
  */
 export default function renderWorkspace(viewport, params) {
-  // Auto-cleanup copilot panel when switching tabs or companies
-  const existingPanel = document.getElementById('copilot-panel');
-  if (existingPanel) {
-    existingPanel.remove();
-  }
-  const mainViewport = document.getElementById('app-viewport');
-  if (mainViewport) {
-    mainViewport.classList.remove('copilot-active');
+  // Auto-cleanup meeting mode overlay when switching tabs or companies
+  const meetingOverlay = document.getElementById('meeting-mode-overlay');
+  if (meetingOverlay) {
+    meetingOverlay.remove();
   }
 
   const companyId = params.get('id');
@@ -2154,25 +2150,11 @@ function renderDiscoveryIntakeTab(company, container) {
     }
   });
 
-  // Toggle Copilot Action
+  // Toggle Meeting Mode
   const btnStartCopilot = container.querySelector('#btn-start-copilot');
   if (btnStartCopilot) {
-    const isPanelOpen = document.getElementById('copilot-panel');
-    if (isPanelOpen) {
-      btnStartCopilot.textContent = 'Close Guided Discovery';
-      btnStartCopilot.className = 'btn btn-secondary';
-    }
-
     btnStartCopilot.addEventListener('click', () => {
-      toggleCopilotPanel(company);
-      const activePanel = document.getElementById('copilot-panel');
-      if (activePanel) {
-        btnStartCopilot.textContent = 'Close Guided Discovery';
-        btnStartCopilot.className = 'btn btn-secondary';
-      } else {
-        btnStartCopilot.textContent = 'Start Guided Discovery';
-        btnStartCopilot.className = 'btn btn-primary';
-      }
+      toggleMeetingMode(company);
     });
   }
 }
@@ -3488,7 +3470,7 @@ function openGenerateIdeasModal(company, container) {
 }
 
 // ==========================================
-// GUIDED DISCOVERY COPILOT FEATURES
+// FULLSCREEN DISCOVERY MEETING MODE FEATURES
 // ==========================================
 
 const DISCOVERY_QUESTIONS = [
@@ -3497,6 +3479,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'primaryGoals',
     label: 'Business > Primary Goals',
     question: 'What are the primary strategic and operational goals the client wants to achieve?',
+    why: 'To align the system design with the client\'s high-level business goals and strategic timeline.',
     goodAnswer: 'Specific goals, High-level business motivation, Timeline/measure of success.',
     criteria: [
       { text: 'Has specific business goals', words: ['goal', 'achieve', 'want', 'reduce', 'increase', 'improve', 'save', 'automate'] },
@@ -3510,6 +3493,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'expectedOutcomes',
     label: 'Business > Expected Outcomes',
     question: 'What measurable outcomes or key benefits does the client expect from this engagement?',
+    why: 'To establish success criteria and identify what savings or efficiencies must be measured.',
     goodAnswer: 'Quantifiable metrics (e.g. error rate, cycle time), expected dollar/hour savings.',
     criteria: [
       { text: 'Includes measurable numbers or targets', words: ['%', 'percent', 'hour', 'day', 'week', 'dollar', 'cost', 'saving', 'kpi', 'target', 'reduction', 'accuracy'] },
@@ -3522,6 +3506,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'currentChallenges',
     label: 'Business > Current Challenges',
     question: 'What are the key operational challenges or pain points the client is currently facing?',
+    why: 'To identify the root causes of business friction and target systems to alleviate them.',
     goodAnswer: 'Clear explanation of the problem, the operational impact, and who is affected.',
     criteria: [
       { text: 'Identifies core pain points/problems', words: ['challenge', 'issue', 'problem', 'pain', 'difficulty', 'error', 'defect', 'waste'] },
@@ -3534,6 +3519,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'decisionMakers',
     label: 'People > Decision Makers',
     question: 'Who holds final decision-making authority and budget approval for this initiative?',
+    why: 'To identify key decision-makers who will sign off on budgets, architecture, and deployment.',
     goodAnswer: 'Specific roles/titles (e.g. CFO, VP Operations) and decision process details.',
     criteria: [
       { text: 'Identifies decision-makers by role/title', words: ['sponsor', 'director', 'vp', 'manager', 'head', 'ceo', 'cfo', 'cio', 'cto', 'owner', 'leader', 'board'] },
@@ -3546,6 +3532,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'affectedTeams',
     label: 'People > Affected Teams',
     question: 'Which specific teams, departments, or roles will be affected by the proposed changes?',
+    why: 'To gauge the impact on human processes and plan training or change management.',
     goodAnswer: 'Impacted user groups, department names, and daily process participants.',
     criteria: [
       { text: 'Names specific teams or business units', words: ['team', 'department', 'unit', 'division', 'operations', 'finance', 'sales', 'engineering', 'warehouse', 'support'] },
@@ -3558,6 +3545,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'keyStakeholders',
     label: 'People > Key Stakeholders',
     question: 'Who are the key stakeholders or subject matter experts that need to be consulted?',
+    why: 'To capture workflow details from SMEs and ensure buy-in across all involved departments.',
     goodAnswer: 'Names/roles of subject matter experts, external partners, or internal champions.',
     criteria: [
       { text: 'Mentions subject matter experts (SMEs)', words: ['expert', 'sme', 'specialist', 'champion', 'lead', 'adviser', 'consultant'] },
@@ -3570,6 +3558,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'coreProcesses',
     label: 'Process > Core Processes',
     question: 'What are the critical operational processes this engagement touches or redesigns?',
+    why: 'To map out the start-to-finish steps of the processes we are automating or improving.',
     goodAnswer: 'Workflow step sequence, triggers, and the primary outputs or deliverables.',
     criteria: [
       { text: 'Outlines workflow steps or stages', words: ['process', 'workflow', 'step', 'stage', 'flow', 'sequence', 'task', 'run', 'phase'] },
@@ -3582,6 +3571,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'knownBottlenecks',
     label: 'Process > Known Bottlenecks',
     question: 'What process friction points or bottlenecks has the client already identified?',
+    why: 'To focus automation efforts on parts of the process where delays or errors occur most frequently.',
     goodAnswer: 'Specific delay causes, hand-off errors, queue build-ups, and frequency of issue.',
     criteria: [
       { text: 'Pinpoints specific causes of delay/errors', words: ['delay', 'error', 'wait', 'friction', 'bottleneck', 'slow', 'defect', 'stuck', 'rework', 'hand-off'] },
@@ -3594,6 +3584,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'manualWorkAreas',
     label: 'Process > Manual Work Areas',
     question: 'Where does the team perform high-volume manual or repetitive work today?',
+    why: 'To target the highest-value areas for direct system integration and data pipeline automation.',
     goodAnswer: 'Specific manual tasks (e.g. data transcription), estimate of hours spent.',
     criteria: [
       { text: 'Details repetitive manual tasks', words: ['manual', 're-key', 'copy', 'paste', 'type', 'paper', 'transcribe', 'log', 'export', 'import'] },
@@ -3606,6 +3597,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'currentSystems',
     label: 'Systems > Current Systems',
     question: 'What software systems, platforms, or tools are in active use?',
+    why: 'To understand the existing software stack, hosting choices, and tool compatibility.',
     goodAnswer: 'Name and version of tools/platforms, hosting (cloud/on-prem), and primary users.',
     criteria: [
       { text: 'Lists names of software programs or databases', words: ['sap', 'excel', 'power bi', 'erp', 'crm', 'database', 'sql', 'system', 'tool', 'software', 'spreadsheet', 'app'] },
@@ -3618,6 +3610,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'integrations',
     label: 'Systems > Integrations',
     question: 'What integrations or data flows currently exist between these systems?',
+    why: 'To map the existing data architecture and find broken links or manual transfer steps.',
     goodAnswer: 'Type of integration (API, batch, CSV export), data directions, and update frequency.',
     criteria: [
       { text: 'Describes how systems connect', words: ['integration', 'api', 'export', 'csv', 'file', 'manual', 'transfer', 'sync', 'connect', 'bridge', 'link', 'ftp'] },
@@ -3630,6 +3623,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'technologyIssues',
     label: 'Systems > Technology Issues',
     question: 'What known technical pain points or gaps exist in the current stack?',
+    why: 'To address technical frustrations, performance lags, software limitations, or bugs.',
     goodAnswer: 'System speed issues, downtime, lack of accessibility, or missing critical features.',
     criteria: [
       { text: 'Describes specific technical failures or issues', words: ['performance', 'slow', 'crash', 'bug', 'gap', 'missing', 'outdated', 'limitation', 'issue', 'error', 'failure', 'downtime'] },
@@ -3642,6 +3636,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'reports',
     label: 'Data > Reports & Dashboards',
     question: 'What reports or dashboards does the client currently rely on?',
+    why: 'To verify what operational data is delivered to stakeholders and management today.',
     goodAnswer: 'Report names/recipients, generation frequency, and formatting (PDF, Excel).',
     criteria: [
       { text: 'Identifies reports or dashboards by name/purpose', words: ['report', 'dashboard', 'power bi', 'excel', 'pdf', 'sheet', 'chart', 'board', 'summary', 'status'] },
@@ -3654,6 +3649,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'kpis',
     label: 'Data > KPIs',
     question: 'What key performance indicators are tracked? What are the targets?',
+    why: 'To align system outputs with the operational targets and SLAs of the business.',
     goodAnswer: 'Actual KPI definitions, current value, target threshold, and business owner.',
     criteria: [
       { text: 'Identifies KPI names or performance metrics', words: ['kpi', 'target', 'threshold', 'metric', 'measure', 'sla', 'turnaround', 'rate', 'cost', 'quality', 'number'] },
@@ -3666,6 +3662,7 @@ const DISCOVERY_QUESTIONS = [
     field: 'dataSources',
     label: 'Data > Data Sources',
     question: 'What are the primary data sources, databases, or warehouses in use?',
+    why: 'To locate the authoritative raw data repositories for our pipeline architecture.',
     goodAnswer: 'Raw source databases, schemas or tables used, and server environment hosting.',
     criteria: [
       { text: 'Identifies data servers or warehouses', words: ['database', 'server', 'cloud', 'sql', 'oracle', 'sap', 'postgres', 'mysql', 'warehouse', 'lake', 'storage'] },
@@ -3744,6 +3741,63 @@ function getNextDiscoveryQuestion(plan, currentIndex) {
   return plan[0];
 }
 
+function getQuestionText(q, company) {
+  const asm = company.assessment || {};
+  
+  const extractItems = (text) => {
+    if (!text) return [];
+    return text.split(/[\n;]+/)
+      .map(line => line.replace(/^[\s*\-•+]+/, '').trim())
+      .filter(line => line.length > 5 && line.length < 80)
+      .slice(0, 3);
+  };
+
+  if (q.field === 'primaryGoals' && asm.businessGoals) {
+    const items = extractItems(asm.businessGoals);
+    if (items.length > 0) {
+      return `Based on your assessment, you mentioned goals like: "${items.join(', ')}". Which of these is the highest priority for the next 6–12 months, and why?`;
+    }
+  }
+  if (q.field === 'expectedOutcomes' && asm.businessGoals) {
+    const items = extractItems(asm.businessGoals);
+    if (items.length > 0) {
+      return `You outlined goals such as: "${items.join(', ')}". What specific, measurable outcomes or metrics do you expect will show these goals are met?`;
+    }
+  }
+  if (q.field === 'currentChallenges' && asm.coreProblems) {
+    const items = extractItems(asm.coreProblems);
+    if (items.length > 0) {
+      return `You mentioned core problems: "${items.join(', ')}". Could you describe how these pain points affect your day-to-day operations?`;
+    }
+  }
+  if (q.field === 'coreProcesses' && asm.operationalBottlenecks) {
+    const items = extractItems(asm.operationalBottlenecks);
+    if (items.length > 0) {
+      return `You identified operational bottlenecks in: "${items.join(', ')}". What are the core processes or workflows that contain these bottlenecks?`;
+    }
+  }
+  if (q.field === 'knownBottlenecks' && asm.operationalBottlenecks) {
+    const items = extractItems(asm.operationalBottlenecks);
+    if (items.length > 0) {
+      return `Based on your assessment, you noted bottlenecks like: "${items.join(', ')}". Where exactly do these delays or errors occur, and how often?`;
+    }
+  }
+  if (q.field === 'currentSystems' && asm.techStack) {
+    const items = extractItems(asm.techStack);
+    if (items.length > 0) {
+      return `Your current tech stack includes: "${items.join(', ')}". Are these platforms deployed on-premises or in the cloud, and who are the primary users?`;
+    }
+  }
+  if (q.field === 'technologyIssues' && asm.techStack) {
+    const items = extractItems(asm.techStack);
+    if (items.length > 0) {
+      return `Regarding your tech stack ("${items.join(', ')}"), what are the most critical performance issues, crashes, or missing features the team faces?`;
+    }
+  }
+  
+  return q.question;
+}
+
 function analyzeDiscoveryAnswer(question, answer) {
   if (!answer || answer.trim().length < 25) {
     return {
@@ -3809,14 +3863,15 @@ function loadGuidedDiscoverySession(companyId) {
   }
   return {
     currentIndex: 0,
-    answeredQuestions: {},
-    skippedQuestions: [],
-    followUpNotes: {},
-    lastAnalysisResult: {}
+    answers: {},
+    suggestedCopies: {},
+    analysisResults: {},
+    completedQuestions: [],
+    skippedQuestions: []
   };
 }
 
-function renderGuidedDiscoveryPanel(company, container) {
+function renderMeetingMode(company, overlay) {
   const session = loadGuidedDiscoverySession(company.id);
   const plan = buildDiscoveryPlan(company);
   
@@ -3825,209 +3880,170 @@ function renderGuidedDiscoveryPanel(company, container) {
   }
   
   const activeQuestion = getNextDiscoveryQuestion(plan, session.currentIndex);
+  const questionText = getQuestionText(activeQuestion, company);
   
-  // Compute overall completeness
-  const completedCount = plan.filter(item => {
-    return !!(session.answeredQuestions[item.field] || (company.discoveryIntake?.[item.section]?.[item.field] || '').trim());
-  }).length;
-  const progressPct = Math.round((completedCount / plan.length) * 100);
+  // Progress counter
+  const qNum = session.currentIndex + 1;
+  const totalQ = plan.length;
   
-  let listItemsHTML = plan.map((item, idx) => {
-    const isClosed = !!(session.answeredQuestions[item.field] || (company.discoveryIntake?.[item.section]?.[item.field] || '').trim());
-    const isSkipped = session.skippedQuestions.includes(item.field);
-    const isActive = idx === session.currentIndex;
-    
-    let iconName = 'circle';
-    let iconColor = 'var(--border-color)';
-    let itemClass = '';
-    
-    if (isClosed) {
-      iconName = 'check-circle-2';
-      iconColor = 'var(--color-success)';
-      itemClass = 'closed';
-    } else if (isSkipped) {
-      iconName = 'minus-circle';
-      iconColor = 'var(--text-muted)';
-      itemClass = 'skipped';
-    } else if (isActive) {
-      iconName = 'play-circle';
-      iconColor = 'var(--color-info)';
-      itemClass = 'active';
-    }
-    
-    return `
-      <div class="copilot-plan-item ${itemClass}" data-index="${idx}" style="display:flex; align-items:center; gap:8px; padding:6px 10px; margin-bottom:4px; border-radius:var(--radius-sm); font-size:12px; cursor:pointer;">
-        ${getIconHTML(iconName, `width: 14px; height: 14px; color: ${iconColor}; flex-shrink: 0;`)}
-        <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(item.label)}</span>
-      </div>
-    `;
-  }).join('');
-  
-  container.innerHTML = `
-    <div class="copilot-header">
-      <h3 style="font-size: 14px; margin: 0; display: flex; align-items: center; gap: 8px;">
-        ${getIconHTML('sparkles', 'color: var(--color-info); width: 16px; height: 16px;')} Guided Discovery Copilot
-      </h3>
-      <button id="btn-close-copilot" class="btn-icon" title="Close Copilot">
-        ${getIconHTML('x', 'width: 16px; height: 16px;')}
-      </button>
-    </div>
-    <div class="copilot-body">
-      <!-- Progress Bar -->
-      <div style="margin-bottom: 4px;">
-        <div class="flex-between" style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 4px;">
-          <span>PROGRESS</span>
-          <span>${completedCount}/${plan.length} (${progressPct}%)</span>
-        </div>
-        <div style="height: 4px; background: var(--bg-primary); border-radius: 2px; overflow: hidden; border: 1px solid var(--border-color);">
-          <div style="height: 100%; width: ${progressPct}%; background: var(--color-success); transition: width var(--transition-normal);"></div>
-        </div>
-      </div>
-      
-      <!-- Discovery Plan List -->
+  overlay.innerHTML = `
+    <div class="meeting-topbar">
       <div>
-        <h4 style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">Discovery Plan</h4>
-        <div class="copilot-plan-list">
-          ${listItemsHTML}
-        </div>
+        <strong style="font-size: 16px; color: var(--text-primary);">${escapeHTML(company.name)}</strong>
+        <span style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 2px;">Discovery Session</span>
       </div>
-      
-      <!-- Active Question Card -->
-      <div class="copilot-card">
-        <div class="flex-between" style="border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 4px;">
-          <span class="badge badge-info" style="font-size: 9px; padding: 1px 6px;">${escapeHTML(activeQuestion.section.toUpperCase())}</span>
-          <span style="font-size: 10px; font-family: var(--font-mono); color: var(--text-muted);">${escapeHTML(activeQuestion.field)}</span>
+      <div style="font-size: 14px; font-weight: 600; color: var(--color-info); font-family: var(--font-mono);">
+        Question ${qNum} of ${totalQ}
+      </div>
+      <div>
+        <button id="btn-exit-meeting" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; height: 32px; display: inline-flex; align-items: center;">
+          ${getIconHTML('log-out', 'width: 14px; height: 14px; margin-right: 4px;')} Exit Session
+        </button>
+      </div>
+    </div>
+    
+    <div class="meeting-container">
+      <div class="meeting-card">
+        <!-- Section metadata -->
+        <div class="meeting-question-header">
+          <span class="badge badge-info" style="font-size: 10px; padding: 2px 8px;">${escapeHTML(activeQuestion.section.toUpperCase())}</span>
+          <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">${escapeHTML(activeQuestion.field)}</span>
         </div>
         
-        <strong style="font-size: 14px; color: var(--text-primary); line-height: 1.4; display: block;">
-          ${escapeHTML(activeQuestion.question)}
-        </strong>
-        
-        <div style="font-size: 12px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-sm); margin-top: 4px;">
-          <strong style="font-size: 10px; display: block; margin-bottom: 6px; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono);">Good answer should include:</strong>
-          <ul style="padding-left: 16px; margin: 0; display: flex; flex-direction: column; gap: 4px;">
-            ${activeQuestion.criteria.map(c => `<li>${escapeHTML(c.text)}</li>`).join('')}
-          </ul>
+        <!-- Large readable question -->
+        <div class="meeting-question-text" id="meeting-question-display">
+          ${escapeHTML(questionText)}
         </div>
         
-        <div class="form-group" style="margin-top: 8px; margin-bottom: 0;">
-          <label for="copilot-answer-input" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase;">Client Answer / Meeting Note</label>
-          <textarea id="copilot-answer-input" class="textarea-control" style="height: 100px; font-size: 13px; margin-top: 4px;" placeholder="Enter the client's answer here...">${escapeHTML(session.answeredQuestions[activeQuestion.field] || '')}</textarea>
+        <!-- Contextual info blocks in two columns -->
+        <div class="grid-cols-2" style="gap: 16px;">
+          <div class="meeting-info-block">
+            <div class="meeting-info-title">Why am I asking this?</div>
+            <div style="color: var(--text-secondary);">${escapeHTML(activeQuestion.why)}</div>
+          </div>
+          <div class="meeting-info-block">
+            <div class="meeting-info-title">A good answer should include</div>
+            <ul style="padding-left: 16px; margin: 0; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
+              ${activeQuestion.criteria.map(c => `<li>${escapeHTML(c.text)}</li>`).join('')}
+            </ul>
+          </div>
         </div>
         
-        <!-- Results Container -->
-        <div id="copilot-result-container"></div>
+        <!-- Large Textarea -->
+        <div>
+          <label for="meeting-answer-input" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 6px;">Client Answer / Meeting Note</label>
+          <textarea id="meeting-answer-input" class="meeting-textarea" placeholder="Type the client's response here...">${escapeHTML(session.answers[activeQuestion.field] || '')}</textarea>
+        </div>
         
-        <!-- Action Buttons -->
-        <div class="flex-row" style="justify-content: space-between; margin-top: 8px; flex-wrap: wrap; gap: 8px;">
-          <button id="btn-copilot-analyze" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Analyze Answer</button>
-          <div class="flex-row" style="gap: 6px;">
-            <button id="btn-copilot-skip" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Skip</button>
-            <button id="btn-copilot-mark-closed" class="btn btn-primary" style="padding: 6px 12px; font-size: 12px;">Mark Closed</button>
-            <button id="btn-copilot-next" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">Next</button>
+        <!-- Results Card container -->
+        <div id="meeting-result-container"></div>
+        
+        <!-- Action Bar -->
+        <div class="meeting-action-bar">
+          <div>
+            <button id="btn-meeting-analyze" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Analyze Answer</button>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <button id="btn-meeting-skip" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Skip</button>
+            <button id="btn-meeting-complete" class="btn btn-primary" style="padding: 8px 16px; height: 38px;">Mark Question Complete</button>
+            <button id="btn-meeting-next" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Next Question</button>
+            <button id="btn-meeting-finish" class="btn btn-danger" style="padding: 8px 16px; height: 38px;">Finish Session</button>
           </div>
         </div>
       </div>
     </div>
   `;
   
-  // Rebind Lucide icons
   if (window.lucide) {
     window.lucide.createIcons();
   }
   
-  // Bind close copilot button
-  container.querySelector('#btn-close-copilot').addEventListener('click', () => {
-    toggleCopilotPanel(company);
-    // Update main workspace Start/Close Guided Discovery button
-    const mainBtn = document.getElementById('btn-start-copilot');
-    if (mainBtn) {
-      mainBtn.textContent = 'Start Guided Discovery';
-      mainBtn.className = 'btn btn-primary';
-    }
-  });
+  const textarea = overlay.querySelector('#meeting-answer-input');
   
-  // Bind plan list jumps
-  container.querySelectorAll('.copilot-plan-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const idx = parseInt(item.getAttribute('data-index'));
-      session.currentIndex = idx;
-      saveGuidedDiscoverySession(company.id, session);
-      renderGuidedDiscoveryPanel(company, container);
-    });
-  });
-  
-  // Textarea change listener to auto-save draft answer
-  const answerInput = container.querySelector('#copilot-answer-input');
-  answerInput.addEventListener('input', () => {
-    session.answeredQuestions[activeQuestion.field] = answerInput.value;
+  // Save answer on input
+  textarea.addEventListener('input', () => {
+    session.answers[activeQuestion.field] = textarea.value;
     saveGuidedDiscoverySession(company.id, session);
   });
   
   // Display cached result if any
-  const cachedResult = session.lastAnalysisResult[activeQuestion.field];
-  if (cachedResult && answerInput.value.trim().length > 0) {
-    showAnalysisResult(activeQuestion, cachedResult, container, session, company);
+  const cachedResult = session.analysisResults[activeQuestion.field];
+  if (cachedResult && textarea.value.trim().length > 0) {
+    showMeetingAnalysisResult(activeQuestion, cachedResult, overlay, session, company);
   }
   
-  // Bind Analyze Answer
-  container.querySelector('#btn-copilot-analyze').addEventListener('click', () => {
-    const val = answerInput.value;
+  // Analyze button handler
+  overlay.querySelector('#btn-meeting-analyze').addEventListener('click', () => {
+    const val = textarea.value;
     const res = analyzeDiscoveryAnswer(activeQuestion, val);
     
-    // Save draft and result
-    session.answeredQuestions[activeQuestion.field] = val;
-    session.lastAnalysisResult[activeQuestion.field] = res;
-    saveGuidedDiscoverySession(company.id, session);
+    session.answers[activeQuestion.field] = val;
+    session.analysisResults[activeQuestion.field] = res;
     
-    showAnalysisResult(activeQuestion, res, container, session, company);
+    if (res.isSufficient) {
+      session.suggestedCopies[activeQuestion.field] = generateSuggestedCopy(activeQuestion, val);
+    }
+    
+    saveGuidedDiscoverySession(company.id, session);
+    showMeetingAnalysisResult(activeQuestion, res, overlay, session, company);
   });
   
-  // Bind Skip
-  container.querySelector('#btn-copilot-skip').addEventListener('click', () => {
+  // Skip button handler
+  overlay.querySelector('#btn-meeting-skip').addEventListener('click', () => {
     if (!session.skippedQuestions.includes(activeQuestion.field)) {
       session.skippedQuestions.push(activeQuestion.field);
     }
+    session.completedQuestions = session.completedQuestions.filter(f => f !== activeQuestion.field);
     
-    // Auto-advance
-    advanceQuestion(plan, session, company, container);
+    advanceMeetingQuestion(plan, session, company, overlay);
   });
   
-  // Bind Next
-  container.querySelector('#btn-copilot-next').addEventListener('click', () => {
-    // Just move currentIndex forward
-    session.currentIndex = (session.currentIndex + 1) % plan.length;
-    saveGuidedDiscoverySession(company.id, session);
-    renderGuidedDiscoveryPanel(company, container);
-  });
-  
-  // Bind Mark Closed
-  container.querySelector('#btn-copilot-mark-closed').addEventListener('click', () => {
-    // Save answer
-    session.answeredQuestions[activeQuestion.field] = answerInput.value;
-    // Remove from skipped if there
+  // Complete button handler
+  overlay.querySelector('#btn-meeting-complete').addEventListener('click', () => {
+    const val = textarea.value;
+    session.answers[activeQuestion.field] = val;
+    
+    // Automatically generate suggested copy if not already generated
+    if (!session.suggestedCopies[activeQuestion.field]) {
+      session.suggestedCopies[activeQuestion.field] = generateSuggestedCopy(activeQuestion, val);
+    }
+    
+    if (!session.completedQuestions.includes(activeQuestion.field)) {
+      session.completedQuestions.push(activeQuestion.field);
+    }
     session.skippedQuestions = session.skippedQuestions.filter(f => f !== activeQuestion.field);
     
-    // Auto-advance
-    advanceQuestion(plan, session, company, container);
-    
-    // Also trigger refresh of Discovery Completeness UI if it is on-screen
-    const currentTab = new URLSearchParams(window.location.hash.split('?')[1] || '').get('tab');
-    if (currentTab === 'Discovery Intake') {
-      // Refresh the workspace completeness UI
+    advanceMeetingQuestion(plan, session, company, overlay);
+  });
+  
+  // Next button handler
+  overlay.querySelector('#btn-meeting-next').addEventListener('click', () => {
+    session.currentIndex = (session.currentIndex + 1) % plan.length;
+    saveGuidedDiscoverySession(company.id, session);
+    renderMeetingMode(company, overlay);
+  });
+  
+  // Exit session handler
+  overlay.querySelector('#btn-exit-meeting').addEventListener('click', () => {
+    if (confirm('Are you sure you want to exit the discovery session? Your draft answers will be saved.')) {
+      overlay.remove();
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     }
   });
+  
+  // Finish session handler
+  overlay.querySelector('#btn-meeting-finish').addEventListener('click', () => {
+    renderMeetingReview(company, overlay);
+  });
 }
 
-function advanceQuestion(plan, session, company, container) {
+function advanceMeetingQuestion(plan, session, company, overlay) {
   let nextIdx = session.currentIndex + 1;
   let found = false;
   
-  // Find first question after current that is NOT closed in session or database
   while (nextIdx < plan.length) {
     const q = plan[nextIdx];
-    const isQClosed = !!(session.answeredQuestions[q.field] || (company.discoveryIntake?.[q.section]?.[q.field] || '').trim());
+    const isQClosed = session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[q.section]?.[q.field] || '').trim();
     if (!isQClosed) {
       session.currentIndex = nextIdx;
       found = true;
@@ -4037,11 +4053,10 @@ function advanceQuestion(plan, session, company, container) {
   }
   
   if (!found) {
-    // Wrap around from beginning
     nextIdx = 0;
     while (nextIdx < session.currentIndex) {
       const q = plan[nextIdx];
-      const isQClosed = !!(session.answeredQuestions[q.field] || (company.discoveryIntake?.[q.section]?.[q.field] || '').trim());
+      const isQClosed = session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[q.section]?.[q.field] || '').trim();
       if (!isQClosed) {
         session.currentIndex = nextIdx;
         found = true;
@@ -4051,41 +4066,41 @@ function advanceQuestion(plan, session, company, container) {
     }
   }
   
-  // If still not found (all closed), just keep current or advance to next
   if (!found) {
-    session.currentIndex = (session.currentIndex + 1) % plan.length;
+    renderMeetingReview(company, overlay);
+    return;
   }
   
   saveGuidedDiscoverySession(company.id, session);
-  renderGuidedDiscoveryPanel(company, container);
+  renderMeetingMode(company, overlay);
 }
 
-function showAnalysisResult(activeQuestion, res, container, session, company) {
-  const resContainer = container.querySelector('#copilot-result-container');
-  if (!resContainer) return;
+function showMeetingAnalysisResult(activeQuestion, res, overlay, session, company) {
+  const container = overlay.querySelector('#meeting-result-container');
+  if (!container) return;
   
   if (res.isSufficient) {
-    const suggestedCopy = generateSuggestedCopy(activeQuestion, session.answeredQuestions[activeQuestion.field]);
+    const suggestedCopy = session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, session.answers[activeQuestion.field]);
+    session.suggestedCopies[activeQuestion.field] = suggestedCopy;
+    saveGuidedDiscoverySession(company.id, session);
     
-    resContainer.innerHTML = `
-      <div class="copilot-result-box sufficient" style="margin-top: 8px;">
-        <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
-          ${getIconHTML('check', 'width: 14px; height: 14px;')} Answer is sufficient
-        </div>
+    container.innerHTML = `
+      <div class="meeting-result-card sufficient" style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+        ${getIconHTML('check-circle', 'width: 16px; height: 16px;')}
+        <span style="font-weight: 600;">Answer is sufficient.</span>
       </div>
-      <div class="copilot-suggested-copy-box">
-        <strong style="font-size: 11px; color: var(--text-primary); font-family: var(--font-sans);">
+      <div class="meeting-suggested-copy-box">
+        <strong style="font-size: 12px; color: var(--text-primary);">
           Suggested Copy for: ${escapeHTML(activeQuestion.section)} > ${escapeHTML(activeQuestion.field)}
         </strong>
-        <div id="copilot-suggested-text" style="font-family: var(--font-sans); font-size: 12px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 8px; border-radius: var(--radius-sm); white-space: pre-wrap; margin-top: 4px; line-height: 1.4;">${escapeHTML(suggestedCopy)}</div>
-        <button id="btn-copilot-copy-text" class="btn btn-secondary" style="margin-top: 6px; font-size: 11px; padding: 4px 8px; height: 26px; display: inline-flex; align-items: center; justify-content: center; width: 100%;">
-          ${getIconHTML('copy', 'width: 12px; height: 12px; margin-right: 4px;')} Copy Suggested Text
+        <div id="meeting-suggested-text" style="font-family: var(--font-sans); font-size: 13px; color: var(--text-secondary); background: var(--bg-primary); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-md); white-space: pre-wrap; margin-top: 6px; line-height: 1.5;">${escapeHTML(suggestedCopy)}</div>
+        <button id="btn-meeting-copy-text" class="btn btn-secondary" style="margin-top: 8px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px;">
+          ${getIconHTML('copy', 'width: 14px; height: 14px;')} Copy Suggested Text
         </button>
       </div>
     `;
     
-    // Bind copy text button
-    const copyBtn = resContainer.querySelector('#btn-copilot-copy-text');
+    const copyBtn = container.querySelector('#btn-meeting-copy-text');
     if (copyBtn) {
       copyBtn.addEventListener('click', () => {
         navigator.clipboard.writeText(suggestedCopy).then(() => {
@@ -4102,35 +4117,34 @@ function showAnalysisResult(activeQuestion, res, container, session, company) {
       });
     }
   } else {
-    resContainer.innerHTML = `
-      <div class="copilot-result-box needs-follow-up" style="margin-top: 8px;">
-        <div style="font-weight: 600; display: flex; align-items: center; gap: 6px;">
-          ${getIconHTML('alert-circle', 'width: 14px; height: 14px;')} Needs follow-up
+    container.innerHTML = `
+      <div class="meeting-result-card needs-follow-up" style="margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="font-weight: 600; display: flex; align-items: center; gap: 8px;">
+          ${getIconHTML('alert-triangle', 'width: 16px; height: 16px;')}
+          <span>Needs follow-up.</span>
         </div>
-        <ul style="padding-left: 16px; margin: 4px 0 0 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px;">
+        <ul style="padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 4px;">
           ${res.missing.map(m => `<li>${escapeHTML(m)}</li>`).join('')}
         </ul>
-        <div style="margin-top: 6px; padding: 8px; background: rgba(251, 191, 36, 0.04); border: 1px dashed rgba(251, 191, 36, 0.2); border-radius: var(--radius-sm); font-size: 12px;">
-          <strong style="display: block; font-size: 10px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 2px;">Suggested follow-up:</strong>
-          <span style="font-style: italic; color: var(--text-primary);">${escapeHTML(res.followUpQuestion)}</span>
-          <button id="btn-copilot-ask-follow-up" class="btn btn-secondary" style="margin-top: 6px; font-size: 11px; padding: 2px 8px; height: 22px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 4px;">
-            ${getIconHTML('plus', 'width: 12px; height: 12px;')} Ask Follow-up
+        <div style="margin-top: 8px; padding: 12px; background: rgba(251, 191, 36, 0.03); border: 1px dashed rgba(251, 191, 36, 0.2); border-radius: var(--radius-md); font-size: 13px;">
+          <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-mono);">Suggested follow-up question:</strong>
+          <span style="font-style: italic; color: var(--text-primary); line-height: 1.4; display: block; margin-bottom: 8px;">${escapeHTML(res.followUpQuestion)}</span>
+          <button id="btn-meeting-ask-follow-up" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 4px; height: 26px;">
+            ${getIconHTML('plus', 'width: 12px; height: 12px;')} Append Suggested Follow-up
           </button>
         </div>
       </div>
     `;
     
-    // Bind Ask Follow-up button
-    const askFollowUpBtn = resContainer.querySelector('#btn-copilot-ask-follow-up');
+    const askFollowUpBtn = container.querySelector('#btn-meeting-ask-follow-up');
     if (askFollowUpBtn) {
       askFollowUpBtn.addEventListener('click', () => {
-        const input = container.querySelector('#copilot-answer-input');
+        const input = overlay.querySelector('#meeting-answer-input');
         if (input) {
           const separator = input.value.trim().length > 0 ? '\n\n' : '';
           input.value += `${separator}Follow-up: ${res.followUpQuestion}`;
           input.dispatchEvent(new Event('input'));
-          // Re-trigger analysis
-          container.querySelector('#btn-copilot-analyze').click();
+          overlay.querySelector('#btn-meeting-analyze').click();
         }
       });
     }
@@ -4141,32 +4155,175 @@ function showAnalysisResult(activeQuestion, res, container, session, company) {
   }
 }
 
-function toggleCopilotPanel(company) {
-  let panel = document.getElementById('copilot-panel');
-  const viewport = document.getElementById('app-viewport');
+function renderMeetingReview(company, overlay) {
+  const session = loadGuidedDiscoverySession(company.id);
+  const plan = buildDiscoveryPlan(company);
   
-  if (panel) {
-    panel.remove();
-    if (viewport) viewport.classList.remove('copilot-active');
-  } else {
-    panel = document.createElement('div');
-    panel.id = 'copilot-panel';
-    panel.className = 'copilot-panel';
-    
-    const mainContent = document.getElementById('main-content');
-    if (mainContent) {
-      mainContent.appendChild(panel);
-    } else {
-      document.body.appendChild(panel);
+  const completedCount = session.completedQuestions.length;
+  const skippedCount = session.skippedQuestions.length;
+  
+  // Prepare Copy All Content
+  let allContentText = '';
+  const sections = ['Business', 'People', 'Process', 'Systems', 'Data'];
+  sections.forEach(secName => {
+    const secQuestions = plan.filter(q => q.section === secName);
+    let secText = '';
+    secQuestions.forEach(q => {
+      const suggested = session.suggestedCopies[q.field] || '';
+      if (suggested) {
+        secText += `--- ${q.label} ---\n${suggested}\n\n`;
+      }
+    });
+    if (secText) {
+      allContentText += `=== ${secName.toUpperCase()} ===\n\n${secText}`;
     }
+  });
+  allContentText = allContentText.trim();
+  
+  overlay.innerHTML = `
+    <div class="meeting-topbar">
+      <div>
+        <strong style="font-size: 16px; color: var(--text-primary);">${escapeHTML(company.name)}</strong>
+        <span style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 2px;">Session Review Summary</span>
+      </div>
+      <div style="font-size: 14px; font-weight: 600; color: var(--color-success); font-family: var(--font-mono);">
+        Completed: ${completedCount} | Skipped: ${skippedCount}
+      </div>
+      <div>
+        <button id="btn-close-review" class="btn btn-primary" style="padding: 6px 12px; font-size: 12px; height: 32px; display: inline-flex; align-items: center;">
+          ${getIconHTML('check', 'width: 14px; height: 14px; margin-right: 4px;')} Close & Return
+        </button>
+      </div>
+    </div>
     
-    setTimeout(() => {
-      panel.classList.add('active');
-    }, 10);
+    <div class="meeting-container">
+      <div class="meeting-review-screen">
+        <div class="flex-between" style="border-bottom: 1px solid var(--border-color); padding-bottom: 16px; margin-bottom: 8px;">
+          <div>
+            <h3 style="font-size: 18px; margin: 0; color: var(--text-primary);">Suggested Discovery Content</h3>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px; margin-bottom: 0;">Copy suggested text blocks to paste into the Discovery Intake fields manually.</p>
+          </div>
+          ${allContentText ? `
+            <button id="btn-copy-all-review" class="btn btn-secondary" style="padding: 8px 16px; display: inline-flex; align-items: center; gap: 6px; height: 38px;">
+              ${getIconHTML('copy', 'width: 14px; height: 14px;')} Copy All Suggested Content
+            </button>
+          ` : ''}
+        </div>
+        
+        <div class="meeting-review-grid">
+          ${sections.map(secName => {
+            const secQuestions = plan.filter(q => q.section === secName);
+            const fieldsHTML = secQuestions.map(q => {
+              const suggested = session.suggestedCopies[q.field] || '';
+              const clientAnswer = session.answers[q.field] || '';
+              
+              if (!suggested && !clientAnswer) return '';
+              
+              return `
+                <div class="meeting-review-field">
+                  <div class="flex-between" style="margin-bottom: 6px;">
+                    <strong style="font-size: 13px; color: var(--color-info);">${escapeHTML(q.label)}</strong>
+                    ${suggested ? `
+                      <button class="btn btn-secondary btn-copy-field-suggested" data-field="${escapeHTML(q.field)}" style="padding: 2px 8px; font-size: 11px; height: 22px; display: inline-flex; align-items: center; gap: 4px;">
+                        ${getIconHTML('copy', 'width: 10px; height: 10px;')} Copy suggested
+                      </button>
+                    ` : '<span style="font-size: 11px; color: var(--text-muted); font-style: italic;">No suggested copy</span>'}
+                  </div>
+                  
+                  ${clientAnswer ? `
+                    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px; font-style: italic; background: rgba(255,255,255,0.02); padding: 6px; border-radius: var(--radius-sm);">
+                      <strong>Notes:</strong> ${escapeHTML(clientAnswer)}
+                    </div>
+                  ` : ''}
+                  
+                  ${suggested ? `
+                    <div style="font-family: var(--font-sans); font-size: 13px; color: var(--text-primary); background: var(--bg-primary); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: var(--radius-sm); white-space: pre-wrap; line-height: 1.4;">${escapeHTML(suggested)}</div>
+                  ` : ''}
+                </div>
+              `;
+            }).filter(html => html !== '').join('');
+            
+            if (!fieldsHTML) return '';
+            
+            return `
+              <div class="meeting-review-section">
+                <h4 style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; margin-bottom: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; letter-spacing: 0.5px;">
+                  ${escapeHTML(secName)} Section
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                  ${fieldsHTML}
+                </div>
+              </div>
+            `;
+          }).filter(html => html !== '').join('') || `
+            <div style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+              No meeting notes or suggested copies were generated during this session.
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+  
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+  
+  // Bind individual copy buttons
+  overlay.querySelectorAll('.btn-copy-field-suggested').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const fieldKey = btn.getAttribute('data-field');
+      const textToCopy = session.suggestedCopies[fieldKey];
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        showToast('Copied suggested field text!', 'success');
+      }).catch(() => {
+        const textArea = document.createElement("textarea");
+        textArea.value = textToCopy;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        textArea.remove();
+        showToast('Copied suggested field text!', 'success');
+      });
+    });
+  });
+  
+  // Bind copy all button
+  const copyAllBtn = overlay.querySelector('#btn-copy-all-review');
+  if (copyAllBtn) {
+    copyAllBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(allContentText).then(() => {
+        showToast('Copied all suggested content to clipboard!', 'success');
+      }).catch(() => {
+        const textArea = document.createElement("textarea");
+        textArea.value = allContentText;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand("copy");
+        textArea.remove();
+        showToast('Copied all suggested content to clipboard!', 'success');
+      });
+    });
+  }
+  
+  // Bind close & return button
+  overlay.querySelector('#btn-close-review').addEventListener('click', () => {
+    overlay.remove();
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+}
+
+function toggleMeetingMode(company) {
+  let overlay = document.getElementById('meeting-mode-overlay');
+  if (overlay) {
+    overlay.remove();
+  } else {
+    overlay = document.createElement('div');
+    overlay.id = 'meeting-mode-overlay';
+    overlay.className = 'meeting-overlay';
     
-    if (viewport) viewport.classList.add('copilot-active');
-    
-    renderGuidedDiscoveryPanel(company, panel);
+    document.body.appendChild(overlay);
+    renderMeetingMode(company, overlay);
   }
 }
 
