@@ -2482,25 +2482,28 @@ function openGenerateInsightsModal(company, container) {
             `;
           } else {
             // View Mode
-            let impBadge = 'badge-info';
-            if (ins.impact === 'high') impBadge = 'badge-danger';
-            if (ins.impact === 'medium') impBadge = 'badge-warning';
-
-            const sourceNotesMatched = Array.from(new Set(ins.sourceNotes)).map(nId => db.getDiscoveryNote(nId)).filter(n => !!n);
+            const currentCandidate = ins;
+            const candidateSourceNotes = Array.from(new Set(currentCandidate.sourceNotes || []));
+            const sourceNotesMatched = candidateSourceNotes.map(nId => db.getDiscoveryNote(nId)).filter(n => !!n);
             const sourceNamesList = sourceNotesMatched.map(n => escapeHTML(n.title)).join(', ');
+            const linkedCount = candidateSourceNotes.length;
+
+            let impBadge = 'badge-info';
+            if (currentCandidate.impact === 'high') impBadge = 'badge-danger';
+            if (currentCandidate.impact === 'medium') impBadge = 'badge-warning';
             
             return `
-              <div class="card note-suggestion-card" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 12px; ${ins.checked ? '' : 'opacity: 0.6; border-color: var(--bg-tertiary);'}" data-local-id="${ins.localId}">
+              <div class="card note-suggestion-card" style="margin-bottom: 0; display: flex; flex-direction: column; gap: 12px; ${currentCandidate.checked ? '' : 'opacity: 0.6; border-color: var(--bg-tertiary);'}" data-local-id="${currentCandidate.localId}">
                 <div class="flex-between" style="align-items: flex-start;">
                   <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1;">
-                    <input type="checkbox" class="insight-checkbox" ${ins.checked ? 'checked' : ''} style="margin-top: 4px; cursor: pointer; width: 16px; height: 16px;">
+                    <input type="checkbox" class="insight-checkbox" ${currentCandidate.checked ? 'checked' : ''} style="margin-top: 4px; cursor: pointer; width: 16px; height: 16px;">
                     <div style="flex: 1;">
-                      <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--text-primary);">${escapeHTML(ins.title)}</h4>
+                      <h4 style="font-size: 15px; font-weight: 700; margin: 0; color: var(--text-primary);">${escapeHTML(currentCandidate.title)}</h4>
                       <div class="flex-row" style="gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center;">
-                        <span class="badge badge-info" style="font-size: 9px;">Pillar: ${ins.category}</span>
-                        <span class="badge ${impBadge}" style="font-size: 9px;">Impact: ${ins.impact}</span>
-                        <span class="badge ${ins.evidenceConfidence === 'High' ? 'badge-success' : (ins.evidenceConfidence === 'Medium' ? 'badge-warning' : 'badge-neutral')}" style="font-size: 9px;">Confidence: ${ins.evidenceConfidence}</span>
-                        <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-left: 4px;">${ins.sourceNotes.length} linked sources</span>
+                        <span class="badge badge-info" style="font-size: 9px;">Pillar: ${currentCandidate.category}</span>
+                        <span class="badge ${impBadge}" style="font-size: 9px;">Impact: ${currentCandidate.impact}</span>
+                        <span class="badge ${currentCandidate.evidenceConfidence === 'High' ? 'badge-success' : (currentCandidate.evidenceConfidence === 'Medium' ? 'badge-warning' : 'badge-neutral')}" style="font-size: 9px;">Confidence: ${currentCandidate.evidenceConfidence}</span>
+                        <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); margin-left: 4px;">${linkedCount} linked sources</span>
                       </div>
                     </div>
                   </div>
@@ -2511,7 +2514,7 @@ function openGenerateInsightsModal(company, container) {
                   </div>
                 </div>
                 
-                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; padding: 10px; background: var(--bg-primary); border-radius: var(--radius-sm); border: 1px solid var(--border-color); max-height: 120px; overflow-y: auto;">${escapeHTML(ins.description)}</div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; padding: 10px; background: var(--bg-primary); border-radius: var(--radius-sm); border: 1px solid var(--border-color); max-height: 120px; overflow-y: auto;">${escapeHTML(currentCandidate.description)}</div>
                 
                 <div style="font-size: 11px; color: var(--text-muted); background: var(--bg-secondary); padding: 6px 10px; border-radius: var(--radius-sm); border-left: 2px solid var(--color-info);">
                   <strong>Evidence:</strong> ${sourceNamesList || 'None'}
