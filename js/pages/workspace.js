@@ -1802,7 +1802,8 @@ function generateSuggestedNotes(company) {
     suggestions.push({
       title: 'Production Reporting Workflow Review',
       category: 'document_review',
-      content: content
+      content: content,
+      generatedNoteType: 'reporting'
     });
   }
 
@@ -1817,7 +1818,8 @@ function generateSuggestedNotes(company) {
     suggestions.push({
       title: 'Maintenance Records Process Observation',
       category: 'observation',
-      content: content
+      content: content,
+      generatedNoteType: 'manual'
     });
   }
 
@@ -1832,7 +1834,8 @@ function generateSuggestedNotes(company) {
     suggestions.push({
       title: 'Inventory Data Visibility Review',
       category: 'document_review',
-      content: content
+      content: content,
+      generatedNoteType: 'inventory'
     });
   }
 
@@ -1847,7 +1850,8 @@ function generateSuggestedNotes(company) {
     suggestions.push({
       title: 'Systems Integration & Data Flow Review',
       category: 'document_review',
-      content: content
+      content: content,
+      generatedNoteType: 'systems'
     });
   }
 
@@ -1860,7 +1864,8 @@ function generateSuggestedNotes(company) {
     suggestions.push({
       title: 'Stakeholder Alignment Interview',
       category: 'interview',
-      content: content
+      content: content,
+      generatedNoteType: 'stakeholder'
     });
   }
 
@@ -2056,6 +2061,7 @@ function openGenerateNotesModal(company, container) {
             content: n.content,
             source: 'discovery_intake',
             generatedFrom: 'Discovery Intake',
+            generatedNoteType: n.generatedNoteType,
             createdAt: new Date().toISOString()
           });
         });
@@ -2301,6 +2307,54 @@ function generateSuggestedInsights(company) {
       const normalCount = matchedNormal.length;
       const totalKeywordsMatched = strongCount + normalCount;
       const categoryAffinityMatched = (n.category === theme.affinityCategory);
+
+      // Metadata-based routing for intake-generated notes
+      if (n.source === 'discovery_intake' || n.generatedFrom === 'Discovery Intake') {
+        let type = n.generatedNoteType;
+        // Fallback inference for legacy notes
+        if (!type) {
+          if (n.title === 'Production Reporting Workflow Review') type = 'reporting';
+          else if (n.title === 'Maintenance Records Process Observation') type = 'manual';
+          else if (n.title === 'Inventory Data Visibility Review') type = 'inventory';
+          else if (n.title === 'Systems Integration & Data Flow Review') type = 'systems';
+          else if (n.title === 'Stakeholder Alignment Interview') type = 'stakeholder';
+        }
+
+        let allowed = false;
+        if (type === 'reporting') {
+          if (theme.id === 'theme_reporting') {
+            allowed = true;
+          } else if (theme.id === 'theme_manual' || theme.id === 'theme_stakeholder' || theme.id === 'theme_inventory') {
+            allowed = (strongCount >= 1);
+          }
+        } else if (type === 'systems') {
+          if (theme.id === 'theme_reporting') {
+            allowed = true;
+          } else if (theme.id === 'theme_inventory' || theme.id === 'theme_stakeholder' || theme.id === 'theme_manual') {
+            allowed = (strongCount >= 1);
+          }
+        } else if (type === 'manual') {
+          if (theme.id === 'theme_manual') {
+            allowed = true;
+          } else if (theme.id === 'theme_reporting' || theme.id === 'theme_stakeholder' || theme.id === 'theme_inventory') {
+            allowed = (strongCount >= 1);
+          }
+        } else if (type === 'inventory') {
+          if (theme.id === 'theme_inventory') {
+            allowed = true;
+          } else if (theme.id === 'theme_stakeholder' || theme.id === 'theme_reporting' || theme.id === 'theme_manual') {
+            allowed = (strongCount >= 1);
+          }
+        } else if (type === 'stakeholder') {
+          if (theme.id === 'theme_stakeholder') {
+            allowed = true;
+          } else if (theme.id === 'theme_reporting' || theme.id === 'theme_inventory' || theme.id === 'theme_manual') {
+            allowed = (strongCount >= 1);
+          }
+        }
+
+        if (!allowed) return; // Skip matching this note to the current theme
+      }
       
       const isRelevant = (totalKeywordsMatched >= 2) || 
                          (strongCount >= 1) || 

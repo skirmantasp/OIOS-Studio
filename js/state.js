@@ -385,6 +385,7 @@ class StateManager {
     };
     if (note.source) newNote.source = note.source;
     if (note.generatedFrom) newNote.generatedFrom = note.generatedFrom;
+    if (note.generatedNoteType) newNote.generatedNoteType = note.generatedNoteType;
     if (note.createdAt) newNote.createdAt = note.createdAt;
     this.data.discoveryNotes.push(newNote);
     this.saveData();
