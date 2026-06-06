@@ -3761,46 +3761,7 @@ function getDiscoveryIntakeContext(company) {
 }
 
 function buildDiscoveryPlan(company) {
-  const defaultOrder = [...DISCOVERY_QUESTIONS];
-  
-  // Check if assessment context has relevant terms
-  const asm = company.assessment || {};
-  const contextText = [
-    company.industry || '',
-    company.description || '',
-    asm.businessGoals || '',
-    asm.coreProblems || '',
-    asm.operationalBottlenecks || '',
-    asm.techStack || ''
-  ].join(' ').toLowerCase();
-  
-  const hasKeywords = ['reporting', 'manual', 'excel', 'power bi', 'fragmented'].some(kw => contextText.includes(kw));
-  
-  if (hasKeywords) {
-    // Priority: Business goals ➔ Reporting process ➔ Manual work areas ➔ Current systems ➔ Data sources ➔ KPIs ➔ Stakeholders
-    const priorityFieldOrder = [
-      // Business goals
-      'primaryGoals', 'expectedOutcomes', 'currentChallenges',
-      // Reporting process / Core processes
-      'coreProcesses', 'knownBottlenecks', 'reports',
-      // Manual work areas
-      'manualWorkAreas',
-      // Current systems / Integrations / Technology issues
-      'currentSystems', 'integrations', 'technologyIssues',
-      // Data sources
-      'dataSources',
-      // KPIs
-      'kpis',
-      // Stakeholders (People)
-      'decisionMakers', 'affectedTeams', 'keyStakeholders'
-    ];
-    
-    return [...DISCOVERY_QUESTIONS].sort((a, b) => {
-      return priorityFieldOrder.indexOf(a.field) - priorityFieldOrder.indexOf(b.field);
-    });
-  }
-  
-  return defaultOrder;
+  return [...DISCOVERY_QUESTIONS];
 }
 
 function getNextDiscoveryQuestion(plan, currentIndex) {
@@ -4139,6 +4100,7 @@ function renderMeetingMode(company, overlay) {
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
               <button id="btn-meeting-skip" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Skip</button>
               <button id="btn-meeting-complete" class="btn btn-primary" style="padding: 8px 16px; height: 38px;">Capture Finding</button>
+              <button id="btn-meeting-prev" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Previous Question</button>
               <button id="btn-meeting-next" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Next Question</button>
               <button id="btn-meeting-finish" class="btn btn-danger" style="padding: 8px 16px; height: 38px;">Finish Session</button>
             </div>
@@ -4242,8 +4204,19 @@ function renderMeetingMode(company, overlay) {
     advanceMeetingQuestion(plan, session, company, overlay);
   });
   
+  // Previous button handler
+  overlay.querySelector('#btn-meeting-prev').addEventListener('click', () => {
+    const val = textarea.value;
+    session.answers[activeQuestion.field] = val;
+    session.currentIndex = (session.currentIndex - 1 + plan.length) % plan.length;
+    saveGuidedDiscoverySession(company.id, session);
+    renderMeetingMode(company, overlay);
+  });
+  
   // Next button handler
   overlay.querySelector('#btn-meeting-next').addEventListener('click', () => {
+    const val = textarea.value;
+    session.answers[activeQuestion.field] = val;
     session.currentIndex = (session.currentIndex + 1) % plan.length;
     saveGuidedDiscoverySession(company.id, session);
     renderMeetingMode(company, overlay);

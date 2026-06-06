@@ -237,9 +237,47 @@ async function runTest() {
 
   // 9. Test Capture Finding Click
   console.log('Clicking "Capture Finding"...');
-  captureBtn.click();
+  const activeCaptureBtn = document.getElementById('btn-meeting-complete');
+  activeCaptureBtn.click();
 
-  // 10. Test Exit Session
+  // 10. Test Previous/Next Question Navigation
+  const prevBtn = document.getElementById('btn-meeting-prev');
+  const nextBtn = document.getElementById('btn-meeting-next');
+  console.log('Previous Question button exists:', !!prevBtn);
+  console.log('Next Question button exists:', !!nextBtn);
+  if (!prevBtn || !nextBtn) {
+    console.error('FAIL: Previous or Next button not found!');
+    process.exit(1);
+  }
+
+  let sessionStr = localStorage.getItem('oios_studio_copilot_session_nordic_precision');
+  let session = JSON.parse(sessionStr);
+  const oldIndex = session.currentIndex;
+  console.log('Index before Previous click:', oldIndex);
+
+  console.log('Clicking Previous Question...');
+  prevBtn.click();
+
+  sessionStr = localStorage.getItem('oios_studio_copilot_session_nordic_precision');
+  session = JSON.parse(sessionStr);
+  console.log('Index after Previous click:', session.currentIndex);
+  if (session.currentIndex !== (oldIndex - 1 + 15) % 15) {
+    console.error('FAIL: Previous Question button did not navigate backward correctly!');
+    process.exit(1);
+  }
+
+  console.log('Clicking Next Question...');
+  nextBtn.click();
+
+  sessionStr = localStorage.getItem('oios_studio_copilot_session_nordic_precision');
+  session = JSON.parse(sessionStr);
+  console.log('Index after Next click:', session.currentIndex);
+  if (session.currentIndex !== oldIndex) {
+    console.error('FAIL: Next Question button did not navigate forward correctly!');
+    process.exit(1);
+  }
+
+  // 11. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');
   console.log('Exit Session button exists:', !!exitBtn);
   if (exitBtn) {
