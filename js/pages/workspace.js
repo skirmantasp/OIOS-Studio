@@ -2068,11 +2068,25 @@ function renderDiscoveryIntakeTab(company, container) {
     }
   ];
 
-  // ---- Full Page Render ----
-  container.innerHTML = `
-    <div class="flex-column" style="gap:20px;">
-
-      <!-- Guided Discovery Copilot Banner -->
+  const session = loadGuidedDiscoverySession(company.id);
+  const sessionExists = session && (Object.keys(session.answers).length > 0 || session.completedQuestions.length > 0 || session.skippedQuestions.length > 0);
+  
+  let bannerHTML = '';
+  if (sessionExists) {
+    bannerHTML = `
+      <div class="flex-between" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 4px;">
+        <div>
+          <strong style="color: var(--text-primary); font-size: 14px; display: block;">Resume Discovery Session</strong>
+          <span style="font-size: 12px; color: var(--text-muted); margin-top: 4px; display: block;">You have an active discovery session in progress. Would you like to resume or start fresh?</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-resume-copilot" class="btn btn-primary">Resume</button>
+          <button id="btn-start-new-copilot" class="btn btn-secondary">Start New Session</button>
+        </div>
+      </div>
+    `;
+  } else {
+    bannerHTML = `
       <div class="flex-between" style="background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 4px;">
         <div>
           <strong style="color: var(--text-primary); font-size: 14px; display: block;">Guided Discovery Copilot</strong>
@@ -2080,6 +2094,15 @@ function renderDiscoveryIntakeTab(company, container) {
         </div>
         <button id="btn-start-copilot" class="btn btn-primary">Start Guided Discovery</button>
       </div>
+    `;
+  }
+
+  // ---- Full Page Render ----
+  container.innerHTML = `
+    <div class="flex-column" style="gap:20px;">
+
+      <!-- Guided Discovery Copilot Banner -->
+      ${bannerHTML}
 
       <!-- Completeness + Suggestions row -->
       <div class="grid-cols-2" style="align-items:start;">
@@ -2151,9 +2174,55 @@ function renderDiscoveryIntakeTab(company, container) {
   });
 
   // Toggle Meeting Mode
-  const btnStartCopilot = container.querySelector('#btn-start-copilot');
-  if (btnStartCopilot) {
-    btnStartCopilot.addEventListener('click', () => {
+  if (sessionExists) {
+    const btnResume = container.querySelector('#btn-resume-copilot');
+    if (btnResume) {
+      btnResume.addEventListener('click', () => {
+        session.minimized = false;
+        saveGuidedDiscoverySession(company.id, session);
+        toggleMeetingMode(company);
+      });
+    }
+    const btnStartNew = container.querySelector('#btn-start-new-copilot');
+    if (btnStartNew) {
+      btnStartNew.addEventListener('click', () => {
+        if (confirm('Are you sure you want to start a new session? This will clear your current session draft.')) {
+          const freshSession = {
+            currentIndex: 0,
+            answers: {},
+            suggestedCopies: {},
+            analysisResults: {},
+            completedQuestions: [],
+            skippedQuestions: [],
+            minimized: false
+          };
+          saveGuidedDiscoverySession(company.id, freshSession);
+          toggleMeetingMode(company);
+        }
+      });
+    }
+  } else {
+    const btnStart = container.querySelector('#btn-start-copilot');
+    if (btnStart) {
+      btnStart.addEventListener('click', () => {
+        toggleMeetingMode(company);
+      });
+    }
+  }
+
+  // Render floating resume button if session is minimized
+  if (session && session.minimized) {
+    const floatBtn = document.createElement('button');
+    floatBtn.id = 'btn-floating-resume-session';
+    floatBtn.className = 'btn btn-primary';
+    floatBtn.style.cssText = 'position: fixed; bottom: 30px; right: 30px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 12px 20px; border-radius: var(--radius-lg); font-weight: 600; display: flex; align-items: center; gap: 8px;';
+    floatBtn.innerHTML = `${getIconHTML('play', 'width: 14px; height: 14px;')} Resume Discovery Session`;
+    container.appendChild(floatBtn);
+    
+    floatBtn.addEventListener('click', () => {
+      session.minimized = false;
+      saveGuidedDiscoverySession(company.id, session);
+      floatBtn.remove();
       toggleMeetingMode(company);
     });
   }
@@ -3871,10 +3940,11 @@ function loadGuidedDiscoverySession(companyId) {
           suggestedCopies: parsed.suggestedCopies || {},
           analysisResults: parsed.analysisResults || {},
           completedQuestions: completedQuestions,
-          skippedQuestions: Array.isArray(parsed.skippedQuestions) ? parsed.skippedQuestions : []
+          skippedQuestions: Array.isArray(parsed.skippedQuestions) ? parsed.skippedQuestions : [],
+          minimized: typeof parsed.minimized === 'boolean' ? parsed.minimized : false
         };
         
-        if (needsAnswersMigration || needsCompletedMigration || needsSkippedMigration) {
+        if (needsAnswersMigration || needsCompletedMigration || needsSkippedMigration || !('minimized' in parsed)) {
           localStorage.setItem(`oios_studio_copilot_session_${companyId}`, JSON.stringify(migrated));
         }
         return migrated;
@@ -3889,8 +3959,110 @@ function loadGuidedDiscoverySession(companyId) {
     suggestedCopies: {},
     analysisResults: {},
     completedQuestions: [],
-    skippedQuestions: []
+    skippedQuestions: [],
+    minimized: false
   };
+}
+
+function extractDetectedInformation(answer, question) {
+  const text = (answer || '').toLowerCase();
+  const detected = [];
+  
+  // Systems
+  if (text.includes('excel')) {
+    detected.push({ label: 'System', value: 'Excel' });
+  } else if (text.includes('sap')) {
+    detected.push({ label: 'System', value: 'SAP ERP' });
+  } else if (text.includes('power bi')) {
+    detected.push({ label: 'System', value: 'Power BI' });
+  } else if (question.field === 'currentSystems') {
+    detected.push({ label: 'System', value: 'Legacy Systems' });
+  }
+  
+  // Pain Points
+  if (text.includes('manual') || text.includes('manually') || text.includes('consolidate') || text.includes('compile') || text.includes('reporting')) {
+    detected.push({ label: 'Pain Point', value: 'Manual Reporting' });
+  } else if (text.includes('fragmented') || text.includes('split') || text.includes('silo')) {
+    detected.push({ label: 'Pain Point', value: 'Fragmented Data' });
+  } else if (text.includes('slow') || text.includes('delay') || text.includes('wait')) {
+    detected.push({ label: 'Pain Point', value: 'Operational Bottlenecks' });
+  }
+  
+  // Stakeholder
+  if (text.includes('operations') || text.includes('supervisor') || text.includes('manager')) {
+    detected.push({ label: 'Stakeholder', value: 'Operations Manager' });
+  } else if (text.includes('finance') || text.includes('cfo')) {
+    detected.push({ label: 'Stakeholder', value: 'CFO / Finance Team' });
+  } else if (text.includes('user') || text.includes('staff') || text.includes('operator')) {
+    detected.push({ label: 'Stakeholder', value: 'Daily System Users' });
+  }
+  
+  // Process
+  if (text.includes('report') || text.includes('reporting') || text.includes('compile') || text.includes('consolidate')) {
+    detected.push({ label: 'Process', value: 'Production Reporting' });
+  } else if (text.includes('inventory') || text.includes('warehouse')) {
+    detected.push({ label: 'Process', value: 'Inventory Management' });
+  }
+  
+  // Potential Insights
+  if (text.includes('excel') || text.includes('manual') || text.includes('consolidate') || text.includes('manually')) {
+    detected.push({ label: 'Potential Insight', value: 'Reporting workflow depends on manual consolidation' });
+  } else {
+    detected.push({ label: 'Potential Insight', value: 'Process automation can eliminate manual entry' });
+  }
+  
+  return detected;
+}
+
+function renderDiscoveryMapProgress(plan, session, company) {
+  const pillars = ['Business', 'People', 'Process', 'Systems', 'Data'];
+  return pillars.map(pillar => {
+    const pillarQuestions = plan.filter(q => q.section.toLowerCase() === pillar.toLowerCase());
+    const completedCount = pillarQuestions.filter(q => {
+      const secKey = q.section.toLowerCase();
+      return session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[secKey]?.[q.field] || '').trim();
+    }).length;
+    
+    let statusText = '';
+    let statusStyle = '';
+    if (completedCount === 3) {
+      statusText = '✓ Completed';
+      statusStyle = 'color: var(--color-success); font-weight: 600;';
+    } else if (completedCount > 0) {
+      statusText = '⏳ In Progress';
+      statusStyle = 'color: var(--color-warning); font-weight: 600;';
+    } else {
+      statusText = '○ Not Started';
+      statusStyle = 'color: var(--text-muted);';
+    }
+    
+    return `
+      <div class="flex-between" style="padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.02);">
+        <span style="color: var(--text-primary); font-weight: 500;">${pillar}</span>
+        <span style="${statusStyle}">${statusText}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderCapturedFindings(plan, session, company) {
+  const completedFields = plan.filter(q => {
+    const secKey = q.section.toLowerCase();
+    return session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[secKey]?.[q.field] || '').trim();
+  });
+  
+  if (completedFields.length === 0) {
+    return `<div style="color: var(--text-muted); font-style: italic; font-size: 11px; padding: 4px 0;">No findings captured yet.</div>`;
+  }
+  
+  return completedFields.map(q => {
+    return `
+      <div style="font-size: 11px; padding: 6px 0; border-bottom: 1px dashed var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <span style="color: var(--text-primary); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(q.label)}</span>
+        <span style="color: var(--color-success); font-weight: 600; flex-shrink: 0;">✓ Captured</span>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderMeetingMode(company, overlay) {
@@ -3904,74 +4076,106 @@ function renderMeetingMode(company, overlay) {
   const activeQuestion = getNextDiscoveryQuestion(plan, session.currentIndex);
   const questionText = getQuestionText(activeQuestion, company);
   
-  // Progress counter
-  const qNum = session.currentIndex + 1;
-  const totalQ = plan.length;
-  
   overlay.innerHTML = `
     <div class="meeting-topbar">
       <div>
         <strong style="font-size: 16px; color: var(--text-primary);">${escapeHTML(company.name)}</strong>
         <span style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 2px;">Discovery Session</span>
       </div>
-      <div style="font-size: 14px; font-weight: 600; color: var(--color-info); font-family: var(--font-mono);">
-        Question ${qNum} of ${totalQ}
-      </div>
-      <div>
-        <button id="btn-exit-meeting" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px; height: 32px; display: inline-flex; align-items: center;">
-          ${getIconHTML('log-out', 'width: 14px; height: 14px; margin-right: 4px;')} Exit Session
+      <div class="meeting-window-controls">
+        <button id="btn-minimize-meeting" class="meeting-window-btn" title="Minimize Session">
+          ${getIconHTML('minus', 'width: 16px; height: 16px;')}
+        </button>
+        <button id="btn-exit-meeting" class="meeting-window-btn exit-btn" title="Exit Session">
+          ${getIconHTML('x', 'width: 16px; height: 16px;')}
         </button>
       </div>
     </div>
     
     <div class="meeting-container">
-      <div class="meeting-card">
-        <!-- Section metadata -->
-        <div class="meeting-question-header">
-          <span class="badge badge-info" style="font-size: 10px; padding: 2px 8px;">${escapeHTML(activeQuestion.section.toUpperCase())}</span>
-          <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">${escapeHTML(activeQuestion.field)}</span>
-        </div>
+      <div class="meeting-grid-layout">
         
-        <!-- Large readable question -->
-        <div class="meeting-question-text" id="meeting-question-display">
-          ${escapeHTML(questionText)}
-        </div>
-        
-        <!-- Contextual info blocks in two columns -->
-        <div class="grid-cols-2" style="gap: 16px;">
-          <div class="meeting-info-block">
-            <div class="meeting-info-title">Why am I asking this?</div>
-            <div style="color: var(--text-secondary);">${escapeHTML(activeQuestion.why)}</div>
+        <!-- LEFT PANEL (70%) -->
+        <div class="meeting-main-panel">
+          <!-- Section metadata -->
+          <div class="meeting-question-header" style="display: flex; gap: 8px; align-items: center;">
+            <span class="badge badge-info" style="font-size: 10px; padding: 2px 8px;">${escapeHTML(activeQuestion.section.toUpperCase())}</span>
+            <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted);">${escapeHTML(activeQuestion.field)}</span>
           </div>
-          <div class="meeting-info-block">
-            <div class="meeting-info-title">A good answer should include</div>
-            <ul style="padding-left: 16px; margin: 0; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
-              ${activeQuestion.criteria.map(c => `<li>${escapeHTML(c.text)}</li>`).join('')}
-            </ul>
+          
+          <!-- Large readable question -->
+          <div class="meeting-question-text" id="meeting-question-display" style="font-size: 20px; font-weight: 600; color: var(--text-primary); line-height: 1.4; margin: 8px 0;">
+            ${escapeHTML(questionText)}
+          </div>
+          
+          <!-- Contextual info blocks in two columns -->
+          <div class="grid-cols-2" style="gap: 16px;">
+            <div class="meeting-info-block">
+              <div class="meeting-info-title">Why am I asking this?</div>
+              <div style="color: var(--text-secondary);">${escapeHTML(activeQuestion.why)}</div>
+            </div>
+            <div class="meeting-info-block">
+              <div class="meeting-info-title">A good answer should include</div>
+              <ul style="padding-left: 16px; margin: 0; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
+                ${activeQuestion.criteria.map(c => `<li>${escapeHTML(c.text)}</li>`).join('')}
+              </ul>
+            </div>
+          </div>
+          
+          <!-- Large Textarea -->
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label for="meeting-answer-input" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; display: block;">Client Answer / Meeting Note</label>
+            <textarea id="meeting-answer-input" class="meeting-textarea" placeholder="Type the client's response here..." style="min-height: 120px;">${escapeHTML(session.answers[activeQuestion.field] || '')}</textarea>
+          </div>
+          
+          <!-- Results Card container -->
+          <div id="meeting-result-container"></div>
+          
+          <!-- Action Bar -->
+          <div class="meeting-action-bar" style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <button id="btn-meeting-analyze" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Analyze Answer</button>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+              <button id="btn-meeting-skip" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Skip</button>
+              <button id="btn-meeting-complete" class="btn btn-primary" style="padding: 8px 16px; height: 38px;">Capture Finding</button>
+              <button id="btn-meeting-next" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Next Question</button>
+              <button id="btn-meeting-finish" class="btn btn-danger" style="padding: 8px 16px; height: 38px;">Finish Session</button>
+            </div>
           </div>
         </div>
         
-        <!-- Large Textarea -->
-        <div>
-          <label for="meeting-answer-input" style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 6px;">Client Answer / Meeting Note</label>
-          <textarea id="meeting-answer-input" class="meeting-textarea" placeholder="Type the client's response here...">${escapeHTML(session.answers[activeQuestion.field] || '')}</textarea>
+        <!-- RIGHT PANEL (30%) -->
+        <div class="meeting-sidebar-panel">
+          <!-- Card 1: Client Snapshot -->
+          <div class="meeting-sidebar-card">
+            <h3 style="font-size: 13px; margin: 0; color: var(--text-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Client Snapshot</h3>
+            <div style="font-size: 12px; display: flex; flex-direction: column; gap: 10px; line-height: 1.4;">
+              <div><strong>Industry:</strong> <span style="color: var(--text-secondary); display: block; margin-top: 2px;">${escapeHTML(company.industry || 'N/A')}</span></div>
+              <div><strong>Company Size:</strong> <span style="color: var(--text-secondary); display: block; margin-top: 2px;">${escapeHTML(company.size || company.companySize || 'N/A')}</span></div>
+              <div><strong>Business Goals:</strong> <span style="color: var(--text-secondary); display: block; margin-top: 2px;">${escapeHTML(company.assessment?.businessGoals || 'N/A')}</span></div>
+              <div><strong>Pain Points:</strong> <span style="color: var(--text-secondary); display: block; margin-top: 2px;">${escapeHTML(company.assessment?.coreProblems || 'N/A')}</span></div>
+              <div><strong>Tech Stack:</strong> <span style="color: var(--text-secondary); display: block; margin-top: 2px;">${escapeHTML(company.assessment?.techStack || 'N/A')}</span></div>
+            </div>
+          </div>
+          
+          <!-- Card 2: Discovery Map -->
+          <div class="meeting-sidebar-card">
+            <h3 style="font-size: 13px; margin: 0; color: var(--text-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Discovery Progress Map</h3>
+            <div style="font-size: 12px; display: flex; flex-direction: column; gap: 8px;">
+              ${renderDiscoveryMapProgress(plan, session, company)}
+            </div>
+          </div>
+          
+          <!-- Card 3: Captured Findings -->
+          <div class="meeting-sidebar-card">
+            <h3 style="font-size: 13px; margin: 0; color: var(--text-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Captured Findings</h3>
+            <div style="font-size: 12px; display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto;">
+              ${renderCapturedFindings(plan, session, company)}
+            </div>
+          </div>
         </div>
         
-        <!-- Results Card container -->
-        <div id="meeting-result-container"></div>
-        
-        <!-- Action Bar -->
-        <div class="meeting-action-bar">
-          <div>
-            <button id="btn-meeting-analyze" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Analyze Answer</button>
-          </div>
-          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <button id="btn-meeting-skip" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Skip</button>
-            <button id="btn-meeting-complete" class="btn btn-primary" style="padding: 8px 16px; height: 38px;">Mark Question Complete</button>
-            <button id="btn-meeting-next" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Next Question</button>
-            <button id="btn-meeting-finish" class="btn btn-danger" style="padding: 8px 16px; height: 38px;">Finish Session</button>
-          </div>
-        </div>
       </div>
     </div>
   `;
@@ -4020,7 +4224,7 @@ function renderMeetingMode(company, overlay) {
     advanceMeetingQuestion(plan, session, company, overlay);
   });
   
-  // Complete button handler
+  // Complete button handler (renamed to Capture Finding in UI)
   overlay.querySelector('#btn-meeting-complete').addEventListener('click', () => {
     const val = textarea.value;
     session.answers[activeQuestion.field] = val;
@@ -4045,10 +4249,40 @@ function renderMeetingMode(company, overlay) {
     renderMeetingMode(company, overlay);
   });
   
+  // Minimize button handler
+  overlay.querySelector('#btn-minimize-meeting').addEventListener('click', () => {
+    session.minimized = true;
+    saveGuidedDiscoverySession(company.id, session);
+    overlay.remove();
+    
+    // Create floating resume button
+    let floatBtn = document.getElementById('btn-floating-resume-session');
+    if (!floatBtn) {
+      floatBtn = document.createElement('button');
+      floatBtn.id = 'btn-floating-resume-session';
+      floatBtn.className = 'btn btn-primary';
+      floatBtn.style.cssText = 'position: fixed; bottom: 30px; right: 30px; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.5); padding: 12px 20px; border-radius: var(--radius-lg); font-weight: 600; display: flex; align-items: center; gap: 8px;';
+      floatBtn.innerHTML = `${getIconHTML('play', 'width: 14px; height: 14px;')} Resume Discovery Session`;
+      
+      const workspaceContainer = document.getElementById('workspace-tab-content') || document.body;
+      workspaceContainer.appendChild(floatBtn);
+      
+      floatBtn.addEventListener('click', () => {
+        session.minimized = false;
+        saveGuidedDiscoverySession(company.id, session);
+        floatBtn.remove();
+        toggleMeetingMode(company);
+      });
+    }
+  });
+
   // Exit session handler
   overlay.querySelector('#btn-exit-meeting').addEventListener('click', () => {
-    if (confirm('Are you sure you want to exit the discovery session? Your draft answers will be saved.')) {
+    if (confirm('Are you sure you want to exit this discovery session?')) {
+      saveGuidedDiscoverySession(company.id, session);
       overlay.remove();
+      const floatBtn = document.getElementById('btn-floating-resume-session');
+      if (floatBtn) floatBtn.remove();
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     }
   });
@@ -4065,7 +4299,7 @@ function advanceMeetingQuestion(plan, session, company, overlay) {
   
   while (nextIdx < plan.length) {
     const q = plan[nextIdx];
-    const isQClosed = session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[q.section]?.[q.field] || '').trim();
+    const isQClosed = session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[q.section.toLowerCase()]?.[q.field] || '').trim();
     if (!isQClosed) {
       session.currentIndex = nextIdx;
       found = true;
@@ -4078,7 +4312,7 @@ function advanceMeetingQuestion(plan, session, company, overlay) {
     nextIdx = 0;
     while (nextIdx < session.currentIndex) {
       const q = plan[nextIdx];
-      const isQClosed = session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[q.section]?.[q.field] || '').trim();
+      const isQClosed = session.completedQuestions.includes(q.field) || !!(company.discoveryIntake?.[q.section.toLowerCase()]?.[q.field] || '').trim();
       if (!isQClosed) {
         session.currentIndex = nextIdx;
         found = true;
@@ -4101,6 +4335,21 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
   const container = overlay.querySelector('#meeting-result-container');
   if (!container) return;
   
+  const detected = extractDetectedInformation(session.answers[activeQuestion.field], activeQuestion);
+  const detectedHTML = `
+    <div class="meeting-detected-info-panel" style="margin-top: 12px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+      <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; font-family: var(--font-mono);">Detected Information:</strong>
+      <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+        ${detected.map(item => `
+          <li style="font-size: 12px; display: flex; align-items: center; gap: 6px; color: var(--text-secondary);">
+            <span style="color: var(--color-success); font-weight: 600;">✓</span> 
+            <strong>${escapeHTML(item.label)}:</strong> <span>${escapeHTML(item.value)}</span>
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  `;
+
   if (res.isSufficient) {
     const suggestedCopy = session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, session.answers[activeQuestion.field]);
     session.suggestedCopies[activeQuestion.field] = suggestedCopy;
@@ -4111,11 +4360,14 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         ${getIconHTML('check-circle', 'width: 16px; height: 16px;')}
         <span style="font-weight: 600;">Answer is sufficient.</span>
       </div>
-      <div class="meeting-suggested-copy-box">
-        <strong style="font-size: 12px; color: var(--text-primary);">
+      
+      ${detectedHTML}
+      
+      <div class="meeting-suggested-copy-box" style="margin-top: 12px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+        <strong style="font-size: 12px; color: var(--text-primary); display: block; margin-bottom: 6px;">
           Suggested Copy for: ${escapeHTML(activeQuestion.section)} > ${escapeHTML(activeQuestion.field)}
         </strong>
-        <div id="meeting-suggested-text" style="font-family: var(--font-sans); font-size: 13px; color: var(--text-secondary); background: var(--bg-primary); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-md); white-space: pre-wrap; margin-top: 6px; line-height: 1.5;">${escapeHTML(suggestedCopy)}</div>
+        <div id="meeting-suggested-text" style="font-family: var(--font-sans); font-size: 13px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-md); white-space: pre-wrap; margin-top: 6px; line-height: 1.5;">${escapeHTML(suggestedCopy)}</div>
         <button id="btn-meeting-copy-text" class="btn btn-secondary" style="margin-top: 8px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px;">
           ${getIconHTML('copy', 'width: 14px; height: 14px;')} Copy Suggested Text
         </button>
@@ -4148,19 +4400,22 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         <ul style="padding-left: 20px; margin: 0; display: flex; flex-direction: column; gap: 4px;">
           ${res.missing.map(m => `<li>${escapeHTML(m)}</li>`).join('')}
         </ul>
-        <div style="margin-top: 8px; padding: 12px; background: rgba(251, 191, 36, 0.03); border: 1px dashed rgba(251, 191, 36, 0.2); border-radius: var(--radius-md); font-size: 13px;">
-          <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-mono);">Suggested follow-up question:</strong>
-          <span style="font-style: italic; color: var(--text-primary); line-height: 1.4; display: block; margin-bottom: 8px;">${escapeHTML(res.followUpQuestion)}</span>
-          <button id="btn-meeting-ask-follow-up" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 4px; height: 26px;">
-            ${getIconHTML('plus', 'width: 12px; height: 12px;')} Append Suggested Follow-up
-          </button>
-        </div>
+      </div>
+      
+      ${detectedHTML}
+      
+      <div class="meeting-suggested-follow-up-box" style="margin-top: 12px; padding: 12px; background: var(--bg-primary); border: 1px dashed rgba(251, 191, 36, 0.2); border-radius: var(--radius-md); font-size: 13px;">
+        <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-mono);">Suggested follow-up question:</strong>
+        <span style="font-style: italic; color: var(--text-primary); line-height: 1.4; display: block; margin-bottom: 8px;">${escapeHTML(res.followUpQuestion)}</span>
+        <button id="btn-use-follow-up" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 4px; height: 26px;">
+          ${getIconHTML('plus', 'width: 12px; height: 12px;')} Use Follow-up Question
+        </button>
       </div>
     `;
     
-    const askFollowUpBtn = container.querySelector('#btn-meeting-ask-follow-up');
-    if (askFollowUpBtn) {
-      askFollowUpBtn.addEventListener('click', () => {
+    const useFollowUpBtn = container.querySelector('#btn-use-follow-up');
+    if (useFollowUpBtn) {
+      useFollowUpBtn.addEventListener('click', () => {
         const input = overlay.querySelector('#meeting-answer-input');
         if (input) {
           const separator = input.value.trim().length > 0 ? '\n\n' : '';

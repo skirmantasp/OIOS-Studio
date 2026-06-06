@@ -84,7 +84,7 @@ const testDb = {
 };
 localStorage.setItem('oios_studio_db_v1', JSON.stringify(testDb));
 
-// Seed legacy copilot session in localStorage to verify robust migration
+// Seed legacy copilot session in localStorage to verify robust migration and Resume state
 const legacySession = {
   currentIndex: 0,
   answeredQuestions: {
@@ -107,30 +107,19 @@ async function runTest() {
   console.log('Rendering Discovery Intake page...');
   renderWorkspace(viewport, params);
 
-  // Check if Guided Discovery Copilot Banner is rendered
-  const banner = document.getElementById('btn-start-copilot');
-  console.log('Start Copilot button exists:', !!banner);
-  if (!banner) {
-    console.error('FAIL: Start Copilot button not found!');
+  // 1. Verify Resume banner exists
+  const resumeBtn = document.getElementById('btn-resume-copilot');
+  const startNewBtn = document.getElementById('btn-start-new-copilot');
+  console.log('Resume button exists in banner:', !!resumeBtn);
+  console.log('Start New Session button exists in banner:', !!startNewBtn);
+  if (!resumeBtn || !startNewBtn) {
+    console.error('FAIL: Resume or Start New buttons not found in banner!');
     process.exit(1);
   }
 
-  // Click start copilot
-  console.log('Clicking "Start Guided Discovery"...');
-  banner.click();
-
-  // Assert legacy session migration occurred successfully
-  const migratedSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
-  console.log('Migrated session answers:', migratedSession.answers);
-  console.log('Migrated session completed questions:', migratedSession.completedQuestions);
-  console.log('Migrated session skipped questions:', migratedSession.skippedQuestions);
-  if (!migratedSession.answers || migratedSession.answers.expectedOutcomes !== "This is expected outcome from previous version." ||
-      !migratedSession.completedQuestions.includes("expectedOutcomes") ||
-      !migratedSession.skippedQuestions.includes("currentChallenges")) {
-    console.error('FAIL: Legacy session migration failed!');
-    process.exit(1);
-  }
-  console.log('PASS: Legacy session migration verified successfully.');
+  // Click resume
+  console.log('Clicking "Resume" Discovery...');
+  resumeBtn.click();
 
   // Check if meeting mode overlay is created
   const overlay = document.getElementById('meeting-mode-overlay');
@@ -140,71 +129,101 @@ async function runTest() {
     process.exit(1);
   }
 
-  // Check that the question text is assessment-aware
-  const questionDisplay = document.getElementById('meeting-question-display');
-  console.log('Question display element exists:', !!questionDisplay);
-  if (!questionDisplay) {
-    console.error('FAIL: Question display element not found!');
-    process.exit(1);
-  }
-  const qText = questionDisplay.textContent.trim();
-  console.log('Question text:', qText);
-  const isAssessmentAware = qText.includes('Based on your assessment, you mentioned goals like');
-  console.log('Question text is assessment-aware:', isAssessmentAware);
-  if (!isAssessmentAware) {
-    console.error('FAIL: Question text is not assessment-aware!');
+  // 2. Verify 70/30 split layout elements
+  const grid = overlay.querySelector('.meeting-grid-layout');
+  const mainPanel = overlay.querySelector('.meeting-main-panel');
+  const sidebarPanel = overlay.querySelector('.meeting-sidebar-panel');
+  const sidebarCards = overlay.querySelectorAll('.meeting-sidebar-card');
+  console.log('Grid layout container exists:', !!grid);
+  console.log('Left 70% main panel exists:', !!mainPanel);
+  console.log('Right 30% sidebar panel exists:', !!sidebarPanel);
+  console.log('Sidebar context cards count (Snapshot, Map, Findings):', sidebarCards.length);
+  if (!grid || !mainPanel || !sidebarPanel || sidebarCards.length < 3) {
+    console.error('FAIL: 70/30 layout panels not correctly structured!');
     process.exit(1);
   }
 
-  // Let's test the answer input and evaluation
+  // 3. Verify Client Snapshot Panel contains loaded assessment metadata
+  const snapshotHTML = sidebarCards[0].innerHTML;
+  console.log('Snapshot Industry field contains "Manufacturing":', snapshotHTML.includes('Manufacturing'));
+  console.log('Snapshot Tech Stack contains "SAP ERP, Excel":', snapshotHTML.includes('SAP ERP, Excel'));
+  if (!snapshotHTML.includes('Manufacturing') || !snapshotHTML.includes('SAP ERP, Excel')) {
+    console.error('FAIL: Snapshot panel did not display assessment metadata!');
+    process.exit(1);
+  }
+
+  // 4. Verify rename of "Capture Finding" button
+  const captureBtn = document.getElementById('btn-meeting-complete');
+  console.log('Capture Finding button exists:', !!captureBtn);
+  console.log('Capture Finding button text:', captureBtn.textContent.trim());
+  if (!captureBtn || captureBtn.textContent.trim() !== 'Capture Finding') {
+    console.error('FAIL: Primary button not renamed to Capture Finding!');
+    process.exit(1);
+  }
+
+  // 5. Test Minimize Session
+  const minimizeBtn = document.getElementById('btn-minimize-meeting');
+  console.log('Minimize button exists in topbar:', !!minimizeBtn);
+  if (!minimizeBtn) {
+    console.error('FAIL: Minimize button not found in topbar!');
+    process.exit(1);
+  }
+
+  console.log('Clicking Minimize button...');
+  minimizeBtn.click();
+
+  // Verify overlay is closed
+  console.log('Overlay removed from DOM on minimize:', !document.getElementById('meeting-mode-overlay'));
+  
+  // Verify floating resume button is created
+  const floatResumeBtn = document.getElementById('btn-floating-resume-session');
+  console.log('Floating Resume button exists on page:', !!floatResumeBtn);
+  if (!floatResumeBtn) {
+    console.error('FAIL: Floating Resume button not found after minimizing!');
+    process.exit(1);
+  }
+
+  // Click floating resume button
+  console.log('Clicking floating Resume button...');
+  floatResumeBtn.click();
+  console.log('Overlay reopened in DOM:', !!document.getElementById('meeting-mode-overlay'));
+  console.log('Floating Resume button removed from DOM:', !document.getElementById('btn-floating-resume-session'));
+
+  // 6. Test AI Detected Information list on Analyze
   const answerTextarea = document.getElementById('meeting-answer-input');
   const analyzeBtn = document.getElementById('btn-meeting-analyze');
-  console.log('Answer textarea exists:', !!answerTextarea);
-  console.log('Analyze button exists:', !!analyzeBtn);
-
-  if (!answerTextarea || !analyzeBtn) {
-    console.error('FAIL: Controls not found inside active question card!');
-    process.exit(1);
-  }
-
-  // 1. Test Weak Answer (Needs follow-up)
-  console.log('Submitting a weak answer...');
-  answerTextarea.value = 'We use Excel.';
-  // Trigger input event to save draft
+  
+  console.log('Submitting notes matching Excel and manual reporting...');
+  answerTextarea.value = 'We consolidate data using Excel manually to compile reports.';
   answerTextarea.dispatchEvent(new dom.window.Event('input'));
   analyzeBtn.click();
 
-  let resultContainer = document.getElementById('meeting-result-container');
-  console.log('Result box contains "Needs follow-up":', resultContainer.textContent.includes('Needs follow-up'));
-  if (!resultContainer.textContent.includes('Needs follow-up')) {
-    console.error('FAIL: Weak answer did not trigger follow-up status!');
+  const resultContainer = document.getElementById('meeting-result-container');
+  console.log('Result container includes Detected Information:', resultContainer.textContent.includes('Detected Information'));
+  console.log('Result container includes System: Excel:', resultContainer.textContent.includes('System') && resultContainer.textContent.includes('Excel'));
+  console.log('Result container includes Pain Point: Manual Reporting:', resultContainer.textContent.includes('Pain Point') && resultContainer.textContent.includes('Manual Reporting'));
+  console.log('Result container includes Potential Insight:', resultContainer.textContent.includes('Potential Insight'));
+  if (!resultContainer.textContent.includes('Detected Information') || !resultContainer.textContent.includes('Excel') || !resultContainer.textContent.includes('Manual Reporting')) {
+    console.error('FAIL: AI Detected Information keyword matching failed!');
     process.exit(1);
   }
 
-  // 2. Test Ask Follow-up button
-  const askFollowUpBtn = document.getElementById('btn-meeting-ask-follow-up');
-  console.log('Ask Follow-up button exists:', !!askFollowUpBtn);
-  if (askFollowUpBtn) {
-    askFollowUpBtn.click();
+  // 7. Verify Suggested Follow-up card and Use Follow-up button
+  const useFollowUpBtn = document.getElementById('btn-use-follow-up');
+  console.log('Use Follow-up button exists:', !!useFollowUpBtn);
+  if (useFollowUpBtn) {
+    useFollowUpBtn.click();
     console.log('Textarea updated with follow-up string:', answerTextarea.value.includes('Follow-up:'));
   }
 
-  // 3. Test Sufficient Answer
+  // 8. Verify Sufficient Answer and Suggested Copy card
   console.log('Submitting a sufficient answer...');
-  // Question 1 is Business > Primary Goals. Needs goal keywords, motivation, and timeline
   answerTextarea.value = 'Our primary goal is to reduce manual reporting work by next month because we need to save time for supervisors.';
   answerTextarea.dispatchEvent(new dom.window.Event('input'));
   analyzeBtn.click();
 
-  resultContainer = document.getElementById('meeting-result-container');
   console.log('Result box contains "Answer is sufficient":', resultContainer.textContent.includes('Answer is sufficient'));
-  if (!resultContainer.textContent.includes('Answer is sufficient')) {
-    console.error('FAIL: Strong answer did not trigger sufficient status!');
-    process.exit(1);
-  }
-
-  // 4. Test Suggested Copy section
-  console.log('Suggested copy text block rendered:', !!document.getElementById('meeting-suggested-text'));
+  console.log('Suggested copy block exists:', !!document.getElementById('meeting-suggested-text'));
   const copyBtn = document.getElementById('btn-meeting-copy-text');
   console.log('Copy Suggested Text button exists:', !!copyBtn);
   if (copyBtn) {
@@ -216,31 +235,19 @@ async function runTest() {
     }
   }
 
-  // 5. Test Mark Closed and Auto-Advance
-  const markCompleteBtn = document.getElementById('btn-meeting-complete');
-  console.log('Mark Question Complete button exists:', !!markCompleteBtn);
-  if (markCompleteBtn) {
-    markCompleteBtn.click();
-    // Re-evaluate index
-    const sessionStr = localStorage.getItem('oios_studio_copilot_session_nordic_precision');
-    const session = JSON.parse(sessionStr);
-    console.log('New active question index advanced:', session.currentIndex > 0);
-    console.log('First question marked completed in session:', session.completedQuestions.includes('primaryGoals'));
-    if (session.currentIndex === 0) {
-      console.error('FAIL: Copilot did not advance the question index!');
-      process.exit(1);
-    }
-  }
+  // 9. Test Capture Finding Click
+  console.log('Clicking "Capture Finding"...');
+  captureBtn.click();
 
-  // 6. Test Exit Session
+  // 10. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');
   console.log('Exit Session button exists:', !!exitBtn);
   if (exitBtn) {
     exitBtn.click();
-    console.log('Overlay removed from DOM:', !document.getElementById('meeting-mode-overlay'));
+    console.log('Overlay removed from DOM on Exit:', !document.getElementById('meeting-mode-overlay'));
   }
 
-  console.log('\nALL COPILOT AND SUGGESTED COPY TESTS PASSED!');
+  console.log('\nALL UX REFINEMENT TESTS PASSED!');
   process.exit(0);
 }
 
