@@ -3865,7 +3865,7 @@ function getFriendlyCriterionLabel(text) {
     .join(' ');
 }
 
-function analyzeDiscoveryAnswer(question, answer) {
+function analyzeDiscoveryAnswer(question, answer, company = null) {
   if (!answer || answer.trim().length < 10) {
     return {
       isSufficient: false,
@@ -4042,39 +4042,90 @@ function analyzeDiscoveryAnswer(question, answer) {
     }
   }
 
+  const activeDomains = detectActiveDomain(answer, company, question);
+  const activeDomain = activeDomains[0];
+  
+  const DOMAIN_DEFS = {
+    healthcare: {
+      objective: "patient scheduling efficiency and clinic capacity utilization",
+      team: "clinic operations or scheduling team",
+      accountable: "improving appointment coordination",
+      initiative: "improve patient scheduling and clinic coordination"
+    },
+    manufacturing: {
+      objective: "production visibility and downtime reduction",
+      team: "production, operations, or maintenance team",
+      accountable: "improving production visibility",
+      initiative: "improve production reporting and downtime management"
+    },
+    consulting: {
+      objective: "proposal preparation efficiency and resource utilization",
+      team: "proposal management, knowledge reuse, or operations team",
+      accountable: "improving proposal preparation or knowledge reuse",
+      initiative: "improve proposal creation efficiency and knowledge reuse"
+    },
+    legal: {
+      objective: "document review workflows and matter management",
+      team: "legal operations, matter management, or document review team",
+      accountable: "improving document review or matter management",
+      initiative: "improve legal document review and case management workflows"
+    },
+    hightech: {
+      objective: "engineering calibration coordination and workflow efficiency",
+      team: "engineering, lab operations, or product team",
+      accountable: "improving calibration coordination",
+      initiative: "improve engineering workflow performance and calibration cycles"
+    },
+    logistics: {
+      objective: "fleet visibility and route planning efficiency",
+      team: "dispatch, warehouse, fleet, or operations team",
+      accountable: "improving route planning or fleet visibility",
+      initiative: "improve logistics, tracking, and route planning efficiency"
+    },
+    finance: {
+      objective: "automated transaction reconciliation and financial reporting risk reduction",
+      team: "finance operations, reporting, reconciliation, or compliance team",
+      accountable: "improving transaction reconciliation or financial reporting",
+      initiative: "improve transaction matching and reporting compliance"
+    }
+  };
+
+  const domainDef = DOMAIN_DEFS[activeDomain] || {
+    objective: "this operational process and workflow efficiency",
+    team: "responsible team",
+    accountable: "improving this operational process",
+    initiative: "improve this process"
+  };
+
   let recommendationText = "";
   let suggestedQuestion = question.followUp;
   
   if (optionalClarifications.length === 0) {
-    recommendationText = "The answer is strong enough to capture as a discovery finding. I would proceed to the next question.";
+    recommendationText = `I identified a clear priority around ${domainDef.objective}. All standard criteria have been satisfied. I recommend capturing this finding and proceeding to the next topic to continue the discovery flow.`;
   } else {
     // Sentence 1: Summarize what was identified
     let s1 = "";
     if (question.field === 'primaryGoals') {
-      if (text.includes('proposal') && text.includes('utilization')) {
-        s1 = "I identified a strategic objective focused on proposal preparation efficiency and consultant utilization.";
-      } else {
-        s1 = "I identified client business goals addressing high-level strategic objectives.";
-      }
+      s1 = `I identified a clear priority around ${domainDef.objective}.`;
     } else if (question.field === 'expectedOutcomes') {
-      s1 = "I identified the expected outcomes and operational improvements for this project.";
+      s1 = `I identified the expected outcomes and target metrics for improving ${domainDef.objective}.`;
     } else if (question.field === 'currentChallenges') {
-      s1 = "I identified the operational friction points and key pain points the client is facing.";
+      s1 = `I identified the operational friction points and bottleneck constraints affecting ${domainDef.objective}.`;
     } else if (question.section === 'People') {
-      s1 = "I identified key roles, team dynamics, and stakeholder context for this initiative.";
+      s1 = `I identified key roles, team dynamics, and stakeholder context for this initiative to ${domainDef.initiative}.`;
     } else if (question.section === 'Process') {
-      s1 = "I identified the critical operational workflows and current process steps.";
+      s1 = `I identified critical operational workflows and current process steps to ${domainDef.initiative}.`;
     } else if (question.section === 'Systems') {
-      s1 = "I identified the core software platforms and tools currently used in this workflow.";
+      s1 = `I identified core software platforms and tools currently used in this workflow to ${domainDef.initiative}.`;
     } else if (question.section === 'Data') {
-      s1 = "I identified reporting structures and KPI metrics that are tracked by the client.";
+      s1 = `I identified reporting structures and KPI metrics that are tracked to monitor ${domainDef.objective}.`;
     } else {
-      s1 = "I identified standard operational details regarding this discovery field.";
+      s1 = `I identified standard operational details regarding this discovery field.`;
     }
 
     // Sentence 2: Explain why it matters
     let s2 = "";
-    if (question.field === 'primaryGoals' && text.includes('proposal') && text.includes('utilization')) {
+    if (activeDomain === 'consulting' && question.field === 'primaryGoals' && text.includes('proposal') && text.includes('utilization')) {
       s2 = "The answer provides a clear priority, measurable target, and 12-month timeline.";
     } else {
       const details = [];
@@ -4093,8 +4144,25 @@ function analyzeDiscoveryAnswer(question, answer) {
     let s3 = "";
     const firstMissing = optionalClarifications[0] ? optionalClarifications[0].replace(/^•\s*/, '') : '';
     if (firstMissing === 'Ownership / Responsible Role' || firstMissing === 'Ownership' || firstMissing === 'Process Owner' || firstMissing === 'System Owner' || firstMissing === 'KPI Owner' || firstMissing === 'Source Owner' || firstMissing === 'Team Ownership') {
-      s3 = "Before moving forward, I recommend clarifying who owns this initiative internally.";
-      suggestedQuestion = `Who will own this initiative internally, and which team will be accountable for improving ${question.field === 'primaryGoals' ? 'proposal preparation efficiency' : 'this process'}?`;
+      s3 = `Before moving forward, ownership remains unclear. I recommend clarifying which ${domainDef.team} will own this initiative so the implementation roadmap can assign accountability correctly.`;
+      
+      if (activeDomain === 'healthcare') {
+        suggestedQuestion = "Who will own this initiative internally, and which clinic operations or scheduling team will be accountable for improving appointment coordination?";
+      } else if (activeDomain === 'manufacturing') {
+        suggestedQuestion = "Who will own this initiative internally, and which production, operations, or maintenance team will be accountable for improving production visibility?";
+      } else if (activeDomain === 'consulting') {
+        suggestedQuestion = "Who will own this initiative internally, and which team will be accountable for improving proposal preparation or knowledge reuse?";
+      } else if (activeDomain === 'legal') {
+        suggestedQuestion = "Who will own this initiative internally, and which legal operations, matter management, or document review team will be accountable?";
+      } else if (activeDomain === 'hightech') {
+        suggestedQuestion = "Who will own this initiative internally, and which engineering, lab operations, or product team will be accountable?";
+      } else if (activeDomain === 'logistics') {
+        suggestedQuestion = "Who will own this initiative internally, and which dispatch, warehouse, fleet, or operations team will be accountable?";
+      } else if (activeDomain === 'finance') {
+        suggestedQuestion = "Who will own this initiative internally, and which finance operations, reporting, reconciliation, or compliance team will be accountable?";
+      } else {
+        suggestedQuestion = "Who will own this initiative internally, and which team will be accountable for improving this operational process?";
+      }
     } else if (firstMissing === 'Timeline') {
       s3 = "Before moving forward, I recommend clarifying the target timeline or strategic schedule.";
       suggestedQuestion = "What is the target launch date or deadline for these improvements?";
@@ -4111,7 +4179,7 @@ function analyzeDiscoveryAnswer(question, answer) {
     // Sentence 4: Explain how this affects discovery direction
     let s4 = "";
     if (question.field === 'primaryGoals') {
-      if (text.includes('proposal') && text.includes('utilization')) {
+      if (activeDomain === 'consulting' && text.includes('proposal') && text.includes('utilization')) {
         s4 = "This will help determine whether the primary opportunity is knowledge management, workflow improvement, or both.";
       } else {
         s4 = "This will help align the proposed system design with the strategic roadmap.";
@@ -5350,7 +5418,7 @@ function renderMeetingMode(company, overlay) {
   // Analyze button handler
   overlay.querySelector('#btn-meeting-analyze').addEventListener('click', () => {
     const val = textarea.value;
-    const res = analyzeDiscoveryAnswer(activeQuestion, val);
+    const res = analyzeDiscoveryAnswer(activeQuestion, val, company);
     
     session.answers[activeQuestion.field] = val;
     session.analysisResults[activeQuestion.field] = res;

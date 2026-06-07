@@ -183,6 +183,64 @@ function validateFindingQuality(findingText, domain, originalAnswer, suggestedCo
   }
 }
 
+function validateRecommendationQuality(recommendationText, followUpText, domain) {
+  console.log(`Validating Recommendation Quality for domain "${domain}"...`);
+  console.log(`- Recommendation Text: "${recommendationText.trim()}"`);
+  console.log(`- Follow-up Text: "${followUpText.trim()}"`);
+  
+  const text = (recommendationText + " " + followUpText).toLowerCase();
+  
+  // Forbidden phrases: Avoid "accepted", "strong enough", "proceed to the next question"
+  const forbiddenPhrases = [
+    'answer is accepted',
+    'answer is strong enough',
+    'proceed to the next question'
+  ];
+  for (const phrase of forbiddenPhrases) {
+    if (text.includes(phrase)) {
+      console.error(`FAIL: Recommendation text contains forbidden validator phrase: "${phrase}"`);
+      process.exit(1);
+    }
+  }
+
+  // Domain-specific keyword rules
+  let expectedKeywords = [];
+  let forbiddenKeywords = [];
+  
+  if (domain === 'healthcare') {
+    expectedKeywords = ['scheduling', 'appointment coordination', 'clinic operations', 'clinician utilization', 'patient wait times'];
+    forbiddenKeywords = ['proposal', 'consultant', 'production', 'downtime'];
+  } else if (domain === 'manufacturing') {
+    expectedKeywords = ['production visibility', 'production reporting', 'downtime', 'operations', 'maintenance', 'production team'];
+    forbiddenKeywords = ['proposal', 'consultant', 'knowledge retrieval', 'patient', 'clinician'];
+  } else if (domain === 'consulting') {
+    expectedKeywords = ['proposal preparation', 'consultant utilization', 'knowledge reuse', 'engagement team'];
+    forbiddenKeywords = ['patient', 'clinic', 'clinician', 'production', 'downtime'];
+  } else if (domain === 'generic') {
+    expectedKeywords = ['this operational process', 'responsible team', 'ownership'];
+    forbiddenKeywords = [
+      'proposal', 'patient', 'clinician', 'production', 'downtime', 
+      'attorney', 'warehouse', 'reconciliation'
+    ];
+  }
+  
+  if (expectedKeywords.length > 0) {
+    const hasExpected = expectedKeywords.some(kw => text.includes(kw));
+    console.log(`- Includes expected keywords for ${domain}:`, hasExpected);
+    if (!hasExpected) {
+      console.error(`FAIL: Recommendation for ${domain} does not contain any of: ${expectedKeywords.join(', ')}`);
+      process.exit(1);
+    }
+  }
+  
+  const hasForbidden = forbiddenKeywords.some(kw => text.includes(kw));
+  console.log(`- Does NOT leak other domain keywords:`, !hasForbidden);
+  if (hasForbidden) {
+    console.error(`FAIL: Recommendation for ${domain} leaked keywords: ${forbiddenKeywords.filter(kw => text.includes(kw)).join(', ')}`);
+    process.exit(1);
+  }
+}
+
 async function runTest() {
   console.log('Importing modules...');
   const { db } = await import('file:///c:/Users/skirm/Desktop/OIOS Studio/js/state.js');
@@ -581,15 +639,17 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     process.exit(1);
   }
   const fullRecText = fullRecommendationBox.textContent;
-  const hasStrongEnough = fullRecText.includes('strong enough to capture');
-  const hasProceedNext = fullRecText.includes('proceed to the next question');
+  const hasValidationPhrases = /accepted|strong enough|proceed to the next question/i.test(fullRecText);
+  const hasStrategicWording = fullRecText.includes('production visibility and downtime reduction');
+  const hasPartnerWording = fullRecText.includes('I recommend capturing this finding and proceeding to the next topic');
   const hasSuggestedFollowUp = fullRecText.includes('Suggested Follow-up');
-  
-  console.log('Includes "strong enough to capture":', hasStrongEnough);
-  console.log('Includes "proceed to the next question":', hasProceedNext);
+
+  console.log('Does NOT include validation phrases:', !hasValidationPhrases);
+  console.log('Includes strategic objective wording:', hasStrategicWording);
+  console.log('Includes discovery partner wording:', hasPartnerWording);
   console.log('Does NOT suggest a follow-up:', !hasSuggestedFollowUp);
-  
-  if (!hasStrongEnough || !hasProceedNext || hasSuggestedFollowUp) {
+
+  if (hasValidationPhrases || !hasStrategicWording || !hasPartnerWording || hasSuggestedFollowUp) {
     console.error('FAIL: Recommendation text requirements violated for full answer!');
     process.exit(1);
   }
@@ -682,10 +742,10 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   }
   const recommendationText = recommendationBox.textContent;
   
-  const hasStrategicObj = recommendationText.includes('strategic objective');
+  const hasStrategicObj = recommendationText.includes('clear priority');
   const hasPropPrep = recommendationText.includes('proposal preparation');
-  const hasConsUtil = recommendationText.includes('consultant utilization');
-  const hasClarWhoOwns = recommendationText.includes('who owns') || recommendationText.includes('who owns this initiative');
+  const hasConsUtil = recommendationText.includes('resource utilization');
+  const hasClarWhoOwns = recommendationText.includes('ownership remains unclear') || recommendationText.includes('will own this initiative');
   
   const hasForbiddenPhrase = [
     'Missing detail',
@@ -979,6 +1039,12 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     process.exit(1);
   }
 
+  // Validate recommendation safety
+  const recBoxHC = document.querySelector('.meeting-recommendation-box');
+  const recTextHC = recBoxHC ? recBoxHC.querySelector('span').textContent : '';
+  const followUpTextHC = recBoxHC ? recBoxHC.textContent : '';
+  validateRecommendationQuality(recTextHC, followUpTextHC, 'healthcare');
+
   // Click Save as Discovery Finding
   const saveBtnHC = document.getElementById('btn-card-save-discovery-finding');
   if (!saveBtnHC) {
@@ -1043,6 +1109,12 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     console.error('FAIL: Consulting proposal test failed!');
     process.exit(1);
   }
+
+  // Validate recommendation safety
+  const recBoxConsulting = document.querySelector('.meeting-recommendation-box');
+  const recTextConsulting = recBoxConsulting ? recBoxConsulting.querySelector('span').textContent : '';
+  const followUpTextConsulting = recBoxConsulting ? recBoxConsulting.textContent : '';
+  validateRecommendationQuality(recTextConsulting, followUpTextConsulting, 'consulting');
 
   // Click Save as Discovery Finding
   const saveBtnConsulting = document.getElementById('btn-card-save-discovery-finding');
@@ -1110,6 +1182,12 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     console.error('FAIL: Manufacturing reporting test failed!');
     process.exit(1);
   }
+
+  // Validate recommendation safety
+  const recBoxMfg = document.querySelector('.meeting-recommendation-box');
+  const recTextMfg = recBoxMfg ? recBoxMfg.querySelector('span').textContent : '';
+  const followUpTextMfg = recBoxMfg ? recBoxMfg.textContent : '';
+  validateRecommendationQuality(recTextMfg, followUpTextMfg, 'manufacturing');
 
   // Click Save as Discovery Finding
   const saveBtnMfg = document.getElementById('btn-card-save-discovery-finding');
@@ -1240,6 +1318,12 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     console.error('FAIL: Generic operations test failed!');
     process.exit(1);
   }
+
+  // Validate recommendation safety
+  const recBoxGeneric = document.querySelector('.meeting-recommendation-box');
+  const recTextGeneric = recBoxGeneric ? recBoxGeneric.querySelector('span').textContent : '';
+  const followUpTextGeneric = recBoxGeneric ? recBoxGeneric.textContent : '';
+  validateRecommendationQuality(recTextGeneric, followUpTextGeneric, 'generic');
 
   // Click Save as Discovery Finding
   const saveBtnGeneric = document.getElementById('btn-card-save-discovery-finding');
