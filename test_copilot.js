@@ -687,6 +687,103 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   
   console.log('DISCOVERY THEMES DETECTION and AI OBSERVATION VERIFICATION PASSED!\n');
 
+  // --- TEST APPLY TO DISCOVERY INTAKE ---
+  console.log('\n--- TEST APPLY TO DISCOVERY INTAKE ---');
+  const applyIntakeBtn = document.getElementById('btn-meeting-apply-intake');
+  console.log('Apply to Discovery Intake button exists:', !!applyIntakeBtn);
+  if (!applyIntakeBtn) {
+    console.error('FAIL: Apply to Discovery Intake button not found!');
+    process.exit(1);
+  }
+  
+  // Click Apply
+  console.log('Clicking Apply to Discovery Intake...');
+  applyIntakeBtn.click();
+  
+  let freshCompany = db.getCompany('nordic_precision');
+  let appliedText = freshCompany.discoveryIntake.business.primaryGoals;
+  console.log('Applied text in DB:', appliedText);
+  if (appliedText !== mfgSuggestedText) {
+    console.error(`FAIL: Expected applied text to match Suggested Copy. Got: "${appliedText}"`);
+    process.exit(1);
+  }
+  
+  // Click Apply again (test append behavior)
+  console.log('Clicking Apply to Discovery Intake again...');
+  applyIntakeBtn.click();
+  
+  freshCompany = db.getCompany('nordic_precision');
+  let appendedText = freshCompany.discoveryIntake.business.primaryGoals;
+  console.log('Appended text in DB:', appendedText);
+  
+  const expectedAppended = mfgSuggestedText + '\n\n' + mfgSuggestedText;
+  if (appendedText !== expectedAppended) {
+    console.error(`FAIL: Expected appended text to contain two copies separated by two line breaks. Got: "${appendedText}"`);
+    process.exit(1);
+  }
+  
+  // Verify AI Observations did not get written to Discovery Intake
+  const containsAiObservation = appendedText.includes('Management visibility') || appendedText.includes('constrained by');
+  console.log('Does NOT contain AI Observations:', !containsAiObservation);
+  if (containsAiObservation) {
+    console.error('FAIL: AI Observation was written into Discovery Intake!');
+    process.exit(1);
+  }
+  
+  // Test one non-business field navigation and apply
+  console.log('Navigating to Systems > Current Systems...');
+  for (let i = 0; i < 9; i++) {
+    document.getElementById('btn-meeting-next').click();
+  }
+  
+  let sysActiveField = document.querySelector('.meeting-question-header span:last-child').textContent.trim();
+  console.log('Active Question Field (Systems):', sysActiveField);
+  if (sysActiveField !== 'currentSystems') {
+    console.error('FAIL: Expected to be on currentSystems question, got:', sysActiveField);
+    process.exit(1);
+  }
+  
+  const systemsAnswer = `We currently use SAP ERP and multiple local Excel spreadsheets.`;
+  dynamicTextarea = document.getElementById('meeting-answer-input');
+  dynamicTextarea.value = systemsAnswer;
+  dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
+  dynamicAnalyzeBtn = document.getElementById('btn-meeting-analyze');
+  dynamicAnalyzeBtn.click();
+  
+  const sysSuggestedCopyDiv = document.getElementById('meeting-suggested-text');
+  if (!sysSuggestedCopyDiv) {
+    console.error('FAIL: Systems Suggested Copy block not found!');
+    process.exit(1);
+  }
+  const sysSuggestedText = sysSuggestedCopyDiv.textContent;
+  console.log('Systems Suggested Text:', sysSuggestedText);
+  
+  const sysApplyBtn = document.getElementById('btn-meeting-apply-intake');
+  console.log('Systems Apply button exists:', !!sysApplyBtn);
+  sysApplyBtn.click();
+  
+  freshCompany = db.getCompany('nordic_precision');
+  let sysAppliedText = freshCompany.discoveryIntake.systems.currentSystems;
+  console.log('Systems applied text in DB:', sysAppliedText);
+  if (sysAppliedText !== sysSuggestedText) {
+    console.error(`FAIL: Expected systems applied text to match. Got: "${sysAppliedText}"`);
+    process.exit(1);
+  }
+  
+  // Verify that the view button is rendered
+  const viewBtn = document.getElementById('btn-meeting-view-intake');
+  console.log('View button exists:', !!viewBtn);
+  if (!viewBtn) {
+    console.error('FAIL: View in Discovery Intake button not found after successful apply!');
+    process.exit(1);
+  }
+  
+  // Navigate back to Business > Primary Goals to restore index or check exit
+  console.log('Navigating back to index 0...');
+  for (let i = 0; i < 9; i++) {
+    document.getElementById('btn-meeting-prev').click();
+  }
+
   // 11. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');
   console.log('Exit Session button exists:', !!exitBtn);

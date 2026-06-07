@@ -5258,9 +5258,14 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
           ${res.isSufficient ? `<span style="display:none;" id="test-sufficient-check">Answer is sufficient</span>` : ''}
         </strong>
         <div id="meeting-suggested-text" style="font-family: var(--font-sans); font-size: 13px; color: var(--text-secondary); background: var(--bg-secondary); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-md); white-space: pre-wrap; margin-top: 6px; line-height: 1.5;">${escapeHTML(suggestedCopy)}</div>
-        <button id="btn-meeting-copy-text" class="btn btn-secondary" style="margin-top: 8px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px;">
-          ${getIconHTML('copy', 'width: 14px; height: 14px;')} Copy Suggested Text
-        </button>
+        <div class="meeting-suggested-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="btn-meeting-apply-intake" class="btn btn-primary" style="margin-top: 8px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px;">
+            Apply to Discovery Intake
+          </button>
+          <button id="btn-meeting-copy-text" class="btn btn-secondary" style="margin-top: 8px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px;">
+            ${getIconHTML('copy', 'width: 14px; height: 14px;')} Copy Suggested Text
+          </button>
+        </div>
       </div>
     `;
   }
@@ -5334,6 +5339,77 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         textArea.remove();
         showToast('Copied suggested text to clipboard!', 'success');
       });
+    });
+  }
+
+  // Bind apply to intake button if it exists
+  const applyIntakeBtn = container.querySelector('#btn-meeting-apply-intake');
+  if (applyIntakeBtn) {
+    applyIntakeBtn.addEventListener('click', () => {
+      const section = activeQuestion.section.toLowerCase();
+      const field = activeQuestion.field;
+      
+      const freshCompany = db.ensureDiscoveryIntake(company.id);
+      const intake = freshCompany.discoveryIntake || db._defaultDiscoveryIntake();
+      const currentVal = (intake[section] && intake[section][field]) ? intake[section][field].trim() : '';
+      
+      let newVal = '';
+      if (currentVal.length === 0) {
+        newVal = suggestedCopy;
+      } else {
+        newVal = currentVal + '\n\n' + suggestedCopy;
+      }
+      
+      db.updateDiscoveryIntake(company.id, { [section]: { [field]: newVal } });
+      
+      const LABEL_MAP = {
+        'business.primaryGoals': 'Business > Primary Goals',
+        'business.expectedOutcomes': 'Business > Expected Outcomes',
+        'business.currentChallenges': 'Business > Current Challenges',
+        'people.decisionMakers': 'People > Decision Makers',
+        'people.affectedTeams': 'People > Affected Teams',
+        'people.keyStakeholders': 'People > Key Stakeholders',
+        'process.coreProcesses': 'Process > Core Processes',
+        'process.knownBottlenecks': 'Process > Known Bottlenecks',
+        'process.manualWorkAreas': 'Process > Manual Work Areas',
+        'systems.currentSystems': 'Systems > Current Systems',
+        'systems.integrations': 'Systems > Integrations',
+        'systems.technologyIssues': 'Systems > Technology Issues',
+        'data.reports': 'Data > Reports & Dashboards',
+        'data.kpis': 'Data > KPIs',
+        'data.dataSources': 'Data > Data Sources'
+      };
+      
+      const labelKey = `${section}.${field}`;
+      const readableLabel = LABEL_MAP[labelKey] || `${activeQuestion.section} > ${activeQuestion.field}`;
+      showToast(`Added to Discovery Intake → ${readableLabel}`, 'success');
+      
+      // Add view button next to copy buttons if not present
+      let viewBtn = container.querySelector('#btn-meeting-view-intake');
+      if (!viewBtn) {
+        const btnGroup = applyIntakeBtn.parentNode;
+        viewBtn = document.createElement('button');
+        viewBtn.id = 'btn-meeting-view-intake';
+        viewBtn.className = 'btn btn-secondary';
+        viewBtn.style.cssText = 'margin-top: 8px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px;';
+        viewBtn.innerHTML = 'View in Discovery Intake';
+        btnGroup.appendChild(viewBtn);
+        
+        viewBtn.addEventListener('click', () => {
+          const minimizeBtn = overlay.querySelector('#btn-minimize-meeting');
+          if (minimizeBtn) {
+            minimizeBtn.click();
+          }
+          window.location.hash = `#/workspace?id=${company.id}&tab=Discovery%20Intake`;
+          setTimeout(() => {
+            const targetEl = document.getElementById(`di-${section}-${field}`);
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              targetEl.focus();
+            }
+          }, 100);
+        });
+      }
     });
   }
 
