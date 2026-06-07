@@ -116,10 +116,77 @@ const legacySession = {
 };
 localStorage.setItem('oios_studio_copilot_session_nordic_precision', JSON.stringify(legacySession));
 
+function validateFindingQuality(findingText, domain, originalAnswer, suggestedCopy, isMeaningfulFinding) {
+  console.log(`Validating finding quality for domain "${domain}": "${findingText}"`);
+  
+  // 1. Concise (1-3 sentences)
+  const sentences = findingText.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]+/g) || [findingText];
+  const sentenceCount = sentences.length;
+  console.log(`- Sentence count: ${sentenceCount} (expected 1-3)`);
+  if (sentenceCount < 1 || sentenceCount > 3) {
+    console.error(`FAIL: Saved finding is not concise (has ${sentenceCount} sentences)! Text: "${findingText}"`);
+    process.exit(1);
+  }
+  
+  // 2. Not the full Suggested Copy block
+  if (suggestedCopy && suggestedCopy.length > 50) {
+    const isExactCopy = findingText.trim() === suggestedCopy.trim();
+    console.log(`- Is exact copy of suggested copy:`, isExactCopy);
+    if (isExactCopy) {
+      console.error(`FAIL: Saved finding is a duplicate of the full Suggested Copy block!`);
+      process.exit(1);
+    }
+  }
+  
+  // 3. Domain-aware
+  let domainKeywords = [];
+  let forbiddenKeywords = [];
+  if (domain === 'healthcare') {
+    domainKeywords = ['patient', 'clinic', 'clinician', 'scheduling', 'appointment', 'utilization', 'coordination'];
+    forbiddenKeywords = ['proposal', 'consultant', 'knowledge retrieval', 'production', 'calibration'];
+  } else if (domain === 'consulting') {
+    domainKeywords = ['proposal', 'consultant', 'knowledge', 'utilization', 'retrieval'];
+    forbiddenKeywords = ['patient', 'clinic', 'clinician', 'production', 'calibration'];
+  } else if (domain === 'manufacturing') {
+    domainKeywords = ['production', 'inventory', 'reporting', 'visibility', 'bottleneck', 'downtime'];
+    forbiddenKeywords = ['proposal', 'consultant', 'patient', 'clinician', 'calibration'];
+  } else if (domain === 'hightech') {
+    domainKeywords = ['engineering', 'calibration', 'integration', 'testbed', 'hardware', 'software'];
+    forbiddenKeywords = ['healthcare', 'consulting', 'consultant', 'patient', 'clinician'];
+  } else if (domain === 'generic') {
+    forbiddenKeywords = ['proposal', 'consultant', 'patient', 'clinician', 'production', 'calibration'];
+  }
+  
+  const lowerText = findingText.toLowerCase();
+  if (domainKeywords.length > 0) {
+    const hasDomainKw = domainKeywords.some(kw => lowerText.includes(kw));
+    console.log(`- Has domain keywords:`, hasDomainKw);
+    if (!hasDomainKw) {
+      console.error(`FAIL: Saved finding is missing domain keywords for ${domain}!`);
+      process.exit(1);
+    }
+  }
+  
+  const hasForbiddenKw = forbiddenKeywords.some(kw => lowerText.includes(kw));
+  console.log(`- Does NOT leak other domain keywords:`, !hasForbiddenKw);
+  if (hasForbiddenKw) {
+    console.error(`FAIL: Saved finding leaked keywords from other domains!`);
+    process.exit(1);
+  }
+  
+  // 4. Meaningful consultant conclusion
+  const isMeaningful = isMeaningfulFinding(findingText);
+  console.log(`- Passes isMeaningfulFinding quality check:`, isMeaningful);
+  if (!isMeaningful) {
+    console.error(`FAIL: Saved finding failed the isMeaningfulFinding quality check!`);
+    process.exit(1);
+  }
+}
+
 async function runTest() {
   console.log('Importing modules...');
   const { db } = await import('file:///c:/Users/skirm/Desktop/OIOS Studio/js/state.js');
-  const { default: renderWorkspace } = await import('file:///c:/Users/skirm/Desktop/OIOS Studio/js/pages/workspace.js');
+  const { default: renderWorkspace, isMeaningfulFinding, generateDiscoveryFinding } = await import('file:///c:/Users/skirm/Desktop/OIOS Studio/js/pages/workspace.js');
 
   const viewport = document.getElementById('app-viewport');
   const params = new URLSearchParams('id=nordic_precision&tab=Discovery Intake');
@@ -354,11 +421,14 @@ async function runTest() {
   // Verify Captured Findings sidebar updates immediately
   const meetingSidebarPanel = document.querySelector('.meeting-sidebar-panel');
   const sidebarText = meetingSidebarPanel ? meetingSidebarPanel.textContent : '';
-  console.log('Sidebar updates immediately and includes the saved finding:', sidebarText.includes('The primary strategic objective is to reduce manual reporting work'));
-  if (!sidebarText.includes('The primary strategic objective is to reduce manual reporting work')) {
+  console.log('Sidebar updates immediately and includes the saved finding:', sidebarText.includes('Management visibility appears constrained'));
+  if (!sidebarText.includes('Management visibility appears constrained')) {
     console.error('FAIL: Captured Findings sidebar did not update immediately!');
     process.exit(1);
   }
+
+  const firstSuggestedCopyText = document.getElementById('meeting-suggested-text').textContent;
+  validateFindingQuality(lastFinding.suggestedCopy, 'manufacturing', lastFinding.originalAnswer, firstSuggestedCopyText, isMeaningfulFinding);
 
   // Verify that clicking again does not silently create duplicate
   console.log('Checking that clicking again does not silently create duplicate...');
@@ -873,6 +943,18 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   };
   db.updateCompany(companyHC.id, companyHC);
 
+  // Reset session to clean starting state for Test 1
+  const sessionHC = {
+    currentIndex: 0,
+    answers: { expectedOutcomes: 'initial setup' },
+    analysisResults: {},
+    suggestedCopies: {},
+    capturedFindings: [],
+    completedQuestions: [],
+    skippedQuestions: []
+  };
+  localStorage.setItem('oios_studio_copilot_session_nordic_precision', JSON.stringify(sessionHC));
+
   renderWorkspace(viewport, params);
   document.getElementById('btn-resume-copilot').click();
 
@@ -897,6 +979,20 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     process.exit(1);
   }
 
+  // Click Save as Discovery Finding
+  const saveBtnHC = document.getElementById('btn-card-save-discovery-finding');
+  if (!saveBtnHC) {
+    console.error('FAIL: Healthcare save button not found!');
+    process.exit(1);
+  }
+  saveBtnHC.click();
+
+  // Retrieve finding and validate
+  const freshSessionHC = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  const lastFindingHC = freshSessionHC.capturedFindings[freshSessionHC.capturedFindings.length - 1];
+  const suggestedCopyHC = document.getElementById('meeting-suggested-text').textContent;
+  validateFindingQuality(lastFindingHC.suggestedCopy, 'healthcare', lastFindingHC.originalAnswer, suggestedCopyHC, isMeaningfulFinding);
+
   document.getElementById('btn-exit-meeting').click();
 
   // Test 2: Consulting proposal
@@ -911,6 +1007,18 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     techStack: ''
   };
   db.updateCompany(companyConsulting.id, companyConsulting);
+
+  // Reset session to clean starting state for Test 2
+  const sessionConsulting = {
+    currentIndex: 0,
+    answers: { expectedOutcomes: 'initial setup' },
+    analysisResults: {},
+    suggestedCopies: {},
+    capturedFindings: [],
+    completedQuestions: [],
+    skippedQuestions: []
+  };
+  localStorage.setItem('oios_studio_copilot_session_nordic_precision', JSON.stringify(sessionConsulting));
 
   renderWorkspace(viewport, params);
   document.getElementById('btn-resume-copilot').click();
@@ -936,6 +1044,20 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     process.exit(1);
   }
 
+  // Click Save as Discovery Finding
+  const saveBtnConsulting = document.getElementById('btn-card-save-discovery-finding');
+  if (!saveBtnConsulting) {
+    console.error('FAIL: Consulting save button not found!');
+    process.exit(1);
+  }
+  saveBtnConsulting.click();
+
+  // Retrieve finding and validate
+  const freshSessionConsulting = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  const lastFindingConsulting = freshSessionConsulting.capturedFindings[freshSessionConsulting.capturedFindings.length - 1];
+  const suggestedCopyConsulting = document.getElementById('meeting-suggested-text').textContent;
+  validateFindingQuality(lastFindingConsulting.suggestedCopy, 'consulting', lastFindingConsulting.originalAnswer, suggestedCopyConsulting, isMeaningfulFinding);
+
   document.getElementById('btn-exit-meeting').click();
 
   // Test 3: Manufacturing reporting
@@ -950,6 +1072,18 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     techStack: ''
   };
   db.updateCompany(companyMfg.id, companyMfg);
+
+  // Reset session to clean starting state for Test 3
+  const sessionMfg = {
+    currentIndex: 0,
+    answers: { expectedOutcomes: 'initial setup' },
+    analysisResults: {},
+    suggestedCopies: {},
+    capturedFindings: [],
+    completedQuestions: [],
+    skippedQuestions: []
+  };
+  localStorage.setItem('oios_studio_copilot_session_nordic_precision', JSON.stringify(sessionMfg));
 
   renderWorkspace(viewport, params);
   document.getElementById('btn-resume-copilot').click();
@@ -977,6 +1111,20 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     process.exit(1);
   }
 
+  // Click Save as Discovery Finding
+  const saveBtnMfg = document.getElementById('btn-card-save-discovery-finding');
+  if (!saveBtnMfg) {
+    console.error('FAIL: Mfg save button not found!');
+    process.exit(1);
+  }
+  saveBtnMfg.click();
+
+  // Retrieve finding and validate
+  const freshSessionMfg = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  const lastFindingMfg = freshSessionMfg.capturedFindings[freshSessionMfg.capturedFindings.length - 1];
+  const suggestedCopyMfg = document.getElementById('meeting-suggested-text').textContent;
+  validateFindingQuality(lastFindingMfg.suggestedCopy, 'manufacturing', lastFindingMfg.originalAnswer, suggestedCopyMfg, isMeaningfulFinding);
+
   document.getElementById('btn-exit-meeting').click();
 
   // Test 4: High-tech calibration
@@ -991,6 +1139,18 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     techStack: ''
   };
   db.updateCompany(companyTech.id, companyTech);
+
+  // Reset session to clean starting state for Test 4
+  const sessionTech = {
+    currentIndex: 0,
+    answers: { expectedOutcomes: 'initial setup' },
+    analysisResults: {},
+    suggestedCopies: {},
+    capturedFindings: [],
+    completedQuestions: [],
+    skippedQuestions: []
+  };
+  localStorage.setItem('oios_studio_copilot_session_nordic_precision', JSON.stringify(sessionTech));
 
   renderWorkspace(viewport, params);
   document.getElementById('btn-resume-copilot').click();
@@ -1016,6 +1176,20 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     process.exit(1);
   }
 
+  // Click Save as Discovery Finding
+  const saveBtnTech = document.getElementById('btn-card-save-discovery-finding');
+  if (!saveBtnTech) {
+    console.error('FAIL: HighTech save button not found!');
+    process.exit(1);
+  }
+  saveBtnTech.click();
+
+  // Retrieve finding and validate
+  const freshSessionTech = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  const lastFindingTech = freshSessionTech.capturedFindings[freshSessionTech.capturedFindings.length - 1];
+  const suggestedCopyTech = document.getElementById('meeting-suggested-text').textContent;
+  validateFindingQuality(lastFindingTech.suggestedCopy, 'hightech', lastFindingTech.originalAnswer, suggestedCopyTech, isMeaningfulFinding);
+
   document.getElementById('btn-exit-meeting').click();
 
   // Test 5: Generic operations
@@ -1030,6 +1204,18 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     techStack: ''
   };
   db.updateCompany(companyGeneric.id, companyGeneric);
+
+  // Reset session to clean starting state for Test 5
+  const sessionGeneric = {
+    currentIndex: 0,
+    answers: { expectedOutcomes: 'initial setup' },
+    analysisResults: {},
+    suggestedCopies: {},
+    capturedFindings: [],
+    completedQuestions: [],
+    skippedQuestions: []
+  };
+  localStorage.setItem('oios_studio_copilot_session_nordic_precision', JSON.stringify(sessionGeneric));
 
   renderWorkspace(viewport, params);
   document.getElementById('btn-resume-copilot').click();
@@ -1054,6 +1240,20 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     console.error('FAIL: Generic operations test failed!');
     process.exit(1);
   }
+
+  // Click Save as Discovery Finding
+  const saveBtnGeneric = document.getElementById('btn-card-save-discovery-finding');
+  if (!saveBtnGeneric) {
+    console.error('FAIL: Generic save button not found!');
+    process.exit(1);
+  }
+  saveBtnGeneric.click();
+
+  // Retrieve finding and validate
+  const freshSessionGeneric = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  const lastFindingGeneric = freshSessionGeneric.capturedFindings[freshSessionGeneric.capturedFindings.length - 1];
+  const suggestedCopyGeneric = document.getElementById('meeting-suggested-text').textContent;
+  validateFindingQuality(lastFindingGeneric.suggestedCopy, 'generic', lastFindingGeneric.originalAnswer, suggestedCopyGeneric, isMeaningfulFinding);
 
   document.getElementById('btn-exit-meeting').click();
 

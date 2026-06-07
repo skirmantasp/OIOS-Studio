@@ -4859,6 +4859,109 @@ function extractDetectedInformation(answer, question, company = null) {
   return detected;
 }
 
+export function isMeaningfulFinding(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lower = text.trim().toLowerCase();
+  
+  // Exclude known generic/bad templates
+  const genericBadPhrases = [
+    'manual work may affect efficiency',
+    'reporting appears important',
+    'operations could be improved',
+    'the process may benefit from optimization',
+    'insufficient detail is currently available',
+    'appears to create coordination effort and reduced operational visibility',
+    'suggests a process constraint that may affect speed',
+    'appears to require significant manual drafting',
+    'access and reuse of past materials could point to',
+    'processes appear constrained by patient coordination',
+    'delivery processes appear constrained',
+    'could point to a need for a centralized repository'
+  ];
+  
+  if (genericBadPhrases.some(phrase => lower.includes(phrase))) {
+    return false;
+  }
+  
+  // List of keywords/concepts that indicate a meaningful impact/finding
+  const meaningfulKeywords = [
+    'implication', 'constraint', 'bottleneck', 'dependency', 'dependent', 
+    'risk', 'opportunity', 'efficiency', 'utilization', 'utilize', 'capacity', 
+    'downtime', 'scaling', 'latency', 'coordination', 'fragmented', 'visibility', 
+    'delay', 'standardize', 'predictable', 'reconciliation', 'underutilize', 'unutilized',
+    'limit', 'prevent', 'loss', 'cost', 'engagement', 'friction', 'waste', 'affect',
+    'consequence', 'outcome', 'mismatch', 'redundancy', 'rework', 'leakage', 'accuracy',
+    'lead time', 'cycle time', 'throughput', 'overhead', 'exposure', 'reduce', 'effort',
+    'objective', 'strategic', 'improve', 'optimize', 'performance', 'manual', 'automate',
+    'process', 'workflow', 'reporting', 'integration', 'error', 'defect', 'quality'
+  ];
+  
+  const hasMeaningfulKeyword = meaningfulKeywords.some(kw => lower.includes(kw));
+  if (!hasMeaningfulKeyword) {
+    return false;
+  }
+  
+  if (lower.length < 15) {
+    return false;
+  }
+  
+  return true;
+}
+
+export function generateDiscoveryFinding(answer, question, company, res, suggestedCopy) {
+  const detected = extractDetectedInformation(answer, question, company);
+  const aiObs = detected.filter(item => item.label === 'AI Observation');
+  
+  // 1. Strong AI Observation (High confidence)
+  const highConf = aiObs.filter(item => item.confidence === 'High');
+  for (const obs of highConf) {
+    if (isMeaningfulFinding(obs.value)) {
+      return obs.value;
+    }
+  }
+  
+  // 2. Strong AI Observation (Medium confidence)
+  const medConf = aiObs.filter(item => item.confidence === 'Medium');
+  for (const obs of medConf) {
+    if (isMeaningfulFinding(obs.value)) {
+      return obs.value;
+    }
+  }
+  
+  // 3. Discovery Recommendation
+  if (res && res.recommendationText && isMeaningfulFinding(res.recommendationText)) {
+    const sentences = res.recommendationText.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]+/g) || [res.recommendationText];
+    const cleaned = sentences.map(s => s.trim()).filter(s => isMeaningfulFinding(s));
+    if (cleaned.length > 0) {
+      return cleaned.slice(0, 3).join(' ');
+    }
+  }
+  
+  // 4. Suggested Copy fallback (first 1-3 sentences)
+  const copyText = suggestedCopy || '';
+  const sentences = copyText.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]+/g) || [copyText];
+  const cleanedSentences = sentences.map(s => s.trim()).filter(Boolean);
+  
+  let meaningfulSentences = cleanedSentences.filter(s => isMeaningfulFinding(s));
+  
+  if (meaningfulSentences.length === 0) {
+    meaningfulSentences = cleanedSentences.filter(s => {
+      const lower = s.toLowerCase();
+      const genericBadPhrases = [
+        'manual work may affect efficiency',
+        'reporting appears important',
+        'operations could be improved',
+        'the process may benefit from optimization'
+      ];
+      return !genericBadPhrases.some(phrase => lower.includes(phrase)) && lower.length >= 10;
+    });
+  }
+  
+  const finalFallback = meaningfulSentences.slice(0, 3).join(' ');
+  return finalFallback || cleanedSentences.slice(0, 3).join(' ');
+}
+
+
 function renderDiscoveryMapProgress(plan, session, company, activeQuestion) {
   const pillars = ['Business', 'People', 'Process', 'Systems', 'Data'];
   return pillars.map(pillar => {
@@ -5378,7 +5481,8 @@ function advanceMeetingQuestion(plan, session, company, overlay) {
 
 function openCaptureFindingModal(activeQuestion, res, session, company, overlay, defaultSuggestedCopy = '') {
   const originalAnswer = session.answers[activeQuestion.field] || '';
-  const suggestedCopy = defaultSuggestedCopy || session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, originalAnswer);
+  const rawCopy = defaultSuggestedCopy || session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, originalAnswer);
+  const suggestedCopy = generateDiscoveryFinding(originalAnswer, activeQuestion, company, res, rawCopy);
   const plan = buildDiscoveryPlan(company);
 
   const destinationMap = {
@@ -5557,12 +5661,14 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
   let suggestedCopy = session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, session.answers[activeQuestion.field]);
   session.suggestedCopies[activeQuestion.field] = suggestedCopy;
   
+  const conciseFinding = generateDiscoveryFinding(session.answers[activeQuestion.field], activeQuestion, company, res, suggestedCopy);
+  
   const targetField = activeQuestion.section.toLowerCase() + '.' + activeQuestion.field;
   const originalAnswer = session.answers[activeQuestion.field] || '';
   const isCaptured = session.capturedFindings?.some(f => 
     f.targetField === targetField &&
     f.originalAnswer === originalAnswer &&
-    f.suggestedCopy === suggestedCopy
+    f.suggestedCopy === conciseFinding
   ) || false;
   
   const captureBtnText = isCaptured ? '✓ Finding Saved' : 'Save as Discovery Finding';
@@ -5593,13 +5699,12 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
   }
 
   // Capture Preview Card
-  const firstSentence = suggestedCopy.split('\n')[0] || '';
   const capturePreviewCardHTML = `
     <div class="meeting-capture-preview-card" style="margin-top: 12px; padding: 16px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 10px;">
       <h4 style="font-size: 12px; margin: 0; color: var(--text-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">Capture Preview</h4>
       <div>
         <strong style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono);">Finding:</strong>
-        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px; font-style: italic;">"${escapeHTML(firstSentence)}"</div>
+        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px; font-style: italic;">"${escapeHTML(conciseFinding)}"</div>
       </div>
       <div style="display: flex; gap: 16px; font-size: 12px;">
         <div>
@@ -5787,10 +5892,12 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         session.capturedFindings = [];
       }
       
+      const findingContent = generateDiscoveryFinding(originalAnswer, activeQuestion, company, res, suggestedCopy);
+      
       const isDuplicate = session.capturedFindings.some(f => 
         f.targetField === targetField &&
         f.originalAnswer === originalAnswer &&
-        f.suggestedCopy === suggestedCopy
+        f.suggestedCopy === findingContent
       );
       
       if (isDuplicate) {
@@ -5808,7 +5915,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         questionId: activeQuestion.field,
         targetField,
         originalAnswer,
-        suggestedCopy,
+        suggestedCopy: findingContent,
         aiObservation,
         confidence: res.confidence,
         identifiedTags: res.identifiedTags,
