@@ -153,6 +153,9 @@ function validateFindingQuality(findingText, domain, originalAnswer, suggestedCo
   } else if (domain === 'hightech') {
     domainKeywords = ['engineering', 'calibration', 'integration', 'testbed', 'hardware', 'software'];
     forbiddenKeywords = ['healthcare', 'consulting', 'consultant', 'patient', 'clinician'];
+  } else if (domain === 'hightech_software') {
+    domainKeywords = ['engineering', 'utilization', 'monitoring', 'incident', 'alert'];
+    forbiddenKeywords = ['healthcare', 'consulting', 'consultant', 'patient', 'clinician', 'calibration', 'quantum', 'testbed', 'fpga'];
   } else if (domain === 'generic') {
     forbiddenKeywords = ['proposal', 'consultant', 'patient', 'clinician', 'production', 'calibration'];
   }
@@ -216,6 +219,9 @@ function validateRecommendationQuality(recommendationText, followUpText, domain)
   } else if (domain === 'consulting') {
     expectedKeywords = ['proposal preparation', 'consultant utilization', 'knowledge reuse', 'engagement team'];
     forbiddenKeywords = ['patient', 'clinic', 'clinician', 'production', 'downtime'];
+  } else if (domain === 'hightech_software') {
+    expectedKeywords = ['system monitoring', 'incident management', 'devops', 'site reliability team'];
+    forbiddenKeywords = ['patient', 'clinic', 'clinician', 'production', 'downtime', 'calibration', 'lab operations', 'quantum', 'proposal'];
   } else if (domain === 'generic') {
     expectedKeywords = ['this operational process', 'responsible team', 'ownership'];
     forbiddenKeywords = [
@@ -1338,6 +1344,90 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   const lastFindingGeneric = freshSessionGeneric.capturedFindings[freshSessionGeneric.capturedFindings.length - 1];
   const suggestedCopyGeneric = document.getElementById('meeting-suggested-text').textContent;
   validateFindingQuality(lastFindingGeneric.suggestedCopy, 'generic', lastFindingGeneric.originalAnswer, suggestedCopyGeneric, isMeaningfulFinding);
+
+  document.getElementById('btn-exit-meeting').click();
+
+  // Test 6: SaaS / Software Operations (High-tech Software sub-domain)
+  console.log('\nRunning Test 6: SaaS / Software Operations...');
+  const companySaaS = db.getCompany('nordic_precision');
+  companySaaS.industry = 'SaaS';
+  companySaaS.description = 'Cloud-based monitoring and alert routing system.';
+  companySaaS.assessment = {
+    businessGoals: 'Optimize software deployment pipelines and incident response times.',
+    coreProblems: 'Fragmented monitoring tools lead to alert fatigue.',
+    operationalBottlenecks: 'Manual alert routing and incident coordination.',
+    techStack: 'AWS, GitHub, Datadog, Splunk, PagerDuty'
+  };
+  db.updateCompany(companySaaS.id, companySaaS);
+
+  // Reset session to clean starting state for Test 6
+  const sessionSaaS = {
+    currentIndex: 0,
+    answers: { expectedOutcomes: 'initial setup' },
+    analysisResults: {},
+    suggestedCopies: {},
+    capturedFindings: [],
+    completedQuestions: [],
+    skippedQuestions: []
+  };
+  localStorage.setItem('oios_studio_copilot_session_nordic_precision', JSON.stringify(sessionSaaS));
+
+  renderWorkspace(viewport, params);
+  document.getElementById('btn-resume-copilot').click();
+
+  let inputSaaS = document.getElementById('meeting-answer-input');
+  let btnSaaS = document.getElementById('btn-meeting-analyze');
+  inputSaaS.value = `Our software operations team experiences manual alert triaging bottlenecks. Tool fragmentation across Splunk and Datadog affects engineering visibility. Incident routing takes too long.`;
+  inputSaaS.dispatchEvent(new dom.window.Event('input'));
+  btnSaaS.click();
+
+  let resContainerSaaS = document.getElementById('meeting-result-container');
+  let textSaaS = resContainerSaaS.textContent.toLowerCase();
+  console.log('SaaS Result Summary:', resContainerSaaS.textContent.trim());
+
+  let hasExpectedSaaS = ['monitoring', 'incident', 'software deployment', 'alert', 'engineering utilization'].some(term => textSaaS.includes(term));
+  let hasForbiddenSaaS = ['calibration', 'hardware team', 'hardware and software teams', 'testbed', 'fpga', 'quantum', 'clinician', 'patient', 'consultant'].some(term => textSaaS.includes(term));
+
+  console.log('SaaS includes monitoring/incident/alert terms:', hasExpectedSaaS);
+  console.log('SaaS does NOT leak hardware/calibration terms:', !hasForbiddenSaaS);
+
+  if (!hasExpectedSaaS || hasForbiddenSaaS) {
+    console.error('FAIL: SaaS Software Operations test failed!');
+    process.exit(1);
+  }
+
+  // Validate recommendation safety
+  const recBoxSaaS = document.querySelector('.meeting-recommendation-box');
+  const recTextSaaS = recBoxSaaS ? recBoxSaaS.querySelector('span').textContent : '';
+  const followUpTextSaaS = recBoxSaaS ? recBoxSaaS.textContent : '';
+  
+  // Custom checks for SaaS recommendation
+  const hasValidationPhrasesSaaS = /accepted|strong enough|proceed to the next question/i.test(recTextSaaS);
+  const hasExpectedSaaSRecommendation = recTextSaaS.toLowerCase().includes('monitoring') || recTextSaaS.toLowerCase().includes('incident');
+  const hasForbiddenSaaSRecommendation = /calibration|lab operations|hardware/i.test(recTextSaaS) || /calibration|lab operations|hardware/i.test(followUpTextSaaS);
+  
+  console.log('SaaS recommendation does NOT include validator phrases:', !hasValidationPhrasesSaaS);
+  console.log('SaaS recommendation includes software/monitoring terms:', hasExpectedSaaSRecommendation);
+  console.log('SaaS recommendation does NOT leak hardware/calibration terms:', !hasForbiddenSaaSRecommendation);
+
+  if (hasValidationPhrasesSaaS || !hasExpectedSaaSRecommendation || hasForbiddenSaaSRecommendation) {
+    console.error('FAIL: SaaS Recommendation validation failed!');
+    process.exit(1);
+  }
+
+  // Click Save as Discovery Finding
+  const saveBtnSaaS = document.getElementById('btn-card-save-discovery-finding');
+  if (!saveBtnSaaS) {
+    console.error('FAIL: SaaS save button not found!');
+    process.exit(1);
+  }
+  saveBtnSaaS.click();
+
+  // Retrieve finding and validate
+  const freshSessionSaaS = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  const lastFindingSaaS = freshSessionSaaS.capturedFindings[freshSessionSaaS.capturedFindings.length - 1];
+  const suggestedCopySaaS = document.getElementById('meeting-suggested-text').textContent;
+  validateFindingQuality(lastFindingSaaS.suggestedCopy, 'hightech_software', lastFindingSaaS.originalAnswer, suggestedCopySaaS, isMeaningfulFinding);
 
   document.getElementById('btn-exit-meeting').click();
 

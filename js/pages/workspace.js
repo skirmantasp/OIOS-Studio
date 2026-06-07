@@ -4044,6 +4044,10 @@ function analyzeDiscoveryAnswer(question, answer, company = null) {
 
   const activeDomains = detectActiveDomain(answer, company, question);
   const activeDomain = activeDomains[0];
+
+  const textLower = (answer || '').toLowerCase();
+  const isHardware = /\b(hardware|firmware|compiler|testbed|calibration|calibrat|fpga|quantum|device|lab|sensor|circuit|chip|hightech|high-tech)\b/i.test(textLower) ||
+                     (company && company.assessment && /\b(hardware|firmware|compiler|testbed|calibration|calibrat|fpga|quantum|device|lab|sensor|circuit|chip|hightech|high-tech)\b/i.test(JSON.stringify(company.assessment).toLowerCase()));
   
   const DOMAIN_DEFS = {
     healthcare: {
@@ -4070,11 +4074,16 @@ function analyzeDiscoveryAnswer(question, answer, company = null) {
       accountable: "improving document review or matter management",
       initiative: "improve legal document review and case management workflows"
     },
-    hightech: {
+    hightech: isHardware ? {
       objective: "engineering calibration coordination and workflow efficiency",
       team: "engineering, lab operations, or product team",
       accountable: "improving calibration coordination",
       initiative: "improve engineering workflow performance and calibration cycles"
+    } : {
+      objective: "system monitoring visibility and incident management efficiency",
+      team: "software engineering, DevOps, or site reliability team",
+      accountable: "improving monitoring visibility or incident response",
+      initiative: "improve software deployment performance and monitoring workflows"
     },
     logistics: {
       objective: "fleet visibility and route planning efficiency",
@@ -4155,7 +4164,11 @@ function analyzeDiscoveryAnswer(question, answer, company = null) {
       } else if (activeDomain === 'legal') {
         suggestedQuestion = "Who will own this initiative internally, and which legal operations, matter management, or document review team will be accountable?";
       } else if (activeDomain === 'hightech') {
-        suggestedQuestion = "Who will own this initiative internally, and which engineering, lab operations, or product team will be accountable?";
+        if (isHardware) {
+          suggestedQuestion = "Who will own this initiative internally, and which engineering, lab operations, or product team will be accountable?";
+        } else {
+          suggestedQuestion = "Who will own this initiative internally, and which software engineering, DevOps, or site reliability team will be accountable?";
+        }
       } else if (activeDomain === 'logistics') {
         suggestedQuestion = "Who will own this initiative internally, and which dispatch, warehouse, fleet, or operations team will be accountable?";
       } else if (activeDomain === 'finance') {
@@ -4467,7 +4480,7 @@ function detectActiveDomain(text, company, question) {
       return ind.includes('consulting') || ind.includes('professional services') || ind.includes('advisory');
     }
     if (domain === 'hightech') {
-      return ind.includes('hightech') || ind.includes('high-tech') || ind.includes('technology') || ind.includes('quantum') || ind.includes('hardware') || ind.includes('software');
+      return ind.includes('hightech') || ind.includes('high-tech') || ind.includes('technology') || ind.includes('quantum') || ind.includes('hardware') || ind.includes('software') || ind.includes('saas') || ind.includes('cloud');
     }
     if (domain === 'logistics') {
       return ind.includes('logistics') || ind.includes('transportation') || ind.includes('shipping') || ind.includes('delivery') || ind.includes('distrib');
@@ -4543,6 +4556,8 @@ function extractDetectedInformation(answer, question, company = null) {
   const text = (answer || '').toLowerCase();
   const detected = [];
   const activeDomains = detectActiveDomain(text, company, question);
+  const isHardware = /\b(hardware|firmware|compiler|testbed|calibration|calibrat|fpga|quantum|device|lab|sensor|circuit|chip|hightech|high-tech)\b/i.test(text) ||
+                     (company && company.assessment && /\b(hardware|firmware|compiler|testbed|calibration|calibrat|fpga|quantum|device|lab|sensor|circuit|chip|hightech|high-tech)\b/i.test(JSON.stringify(company.assessment).toLowerCase()));
   
   // Systems
   if (text.includes('excel')) {
@@ -4718,7 +4733,9 @@ function extractDetectedInformation(answer, question, company = null) {
       } else if (activeDomains.includes('hightech')) {
         aiObservations.push({
           label: 'AI Observation',
-          value: 'Engineering utilization appears directly affected by manual calibration coordination and testing bottlenecks.',
+          value: isHardware 
+            ? 'Engineering utilization appears directly affected by manual calibration coordination and testing bottlenecks.'
+            : 'Engineering utilization appears directly affected by fragmented monitoring tools and manual incident coordination.',
           confidence: hasImpact ? 'High' : 'Medium'
         });
       } else if (activeDomains.includes('legal')) {
@@ -4814,20 +4831,37 @@ function extractDetectedInformation(answer, question, company = null) {
       }
     }
     
-    // 4. High-Tech / Hardware
+    // 4. High-Tech / Hardware / SaaS
     if (activeDomains.includes('hightech')) {
-      if (text.includes('calibrat') || text.includes('workflow') || text.includes('hardware') || text.includes('software') || text.includes('team')) {
-        aiObservations.push({
-          label: 'AI Observation',
-          value: 'Engineering workflow performance appears affected by manual calibration coordination and limited visibility across hardware and software teams.',
-          confidence: hasImpact ? 'High' : 'Medium'
-        });
+      if (isHardware) {
+        if (text.includes('calibrat') || text.includes('workflow') || text.includes('hardware') || text.includes('software') || text.includes('team')) {
+          aiObservations.push({
+            label: 'AI Observation',
+            value: 'Engineering workflow performance appears affected by manual calibration coordination and limited visibility across hardware and software teams.',
+            confidence: hasImpact ? 'High' : 'Medium'
+          });
+        } else {
+          aiObservations.push({
+            label: 'AI Observation',
+            value: 'Product integration cycles appear constrained by testbed visibility, API dependencies, or hardware-firmware alignment.',
+            confidence: 'Medium'
+          });
+        }
       } else {
-        aiObservations.push({
-          label: 'AI Observation',
-          value: 'Product integration cycles appear constrained by testbed visibility, API dependencies, or hardware-firmware alignment.',
-          confidence: 'Medium'
-        });
+        // SaaS / Software Operations
+        if (text.includes('incident') || text.includes('alert') || text.includes('monitor') || text.includes('workflow') || text.includes('team')) {
+          aiObservations.push({
+            label: 'AI Observation',
+            value: 'Engineering workflow performance appears affected by manual alert triaging and lack of central visibility across software operations systems.',
+            confidence: hasImpact ? 'High' : 'Medium'
+          });
+        } else {
+          aiObservations.push({
+            label: 'AI Observation',
+            value: 'Software deployment cycles appear constrained by tool fragmentation, API dependencies, or manual deployment steps.',
+            confidence: 'Medium'
+          });
+        }
       }
     }
     
