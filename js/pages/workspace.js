@@ -4912,7 +4912,7 @@ function renderCapturedFindings(plan, session, company) {
           <strong style="color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(label)}</strong>
           <span style="color: var(--color-success); font-weight: 600; flex-shrink: 0;">✓ Captured</span>
         </div>
-        <div style="color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-style: italic;">
+        <div style="color: var(--text-secondary); font-style: italic; white-space: pre-wrap; word-break: break-word;">
           ${escapeHTML(finding.suggestedCopy)}
         </div>
       </div>
