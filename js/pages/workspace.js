@@ -3933,16 +3933,86 @@ function analyzeDiscoveryAnswer(question, answer) {
     if (!identifiedTags.includes('✓ Process Bottleneck')) identifiedTags.push('✓ Process Bottleneck');
   }
 
+  // Context-Aware Clarification Profiles
+  const questionProfiles = {
+    primaryGoals: ['Business Driver', 'Timeline', 'Success Metrics', 'Ownership / Responsible Role'],
+    expectedOutcomes: ['Success Metrics', 'KPI Targets', 'Timeline', 'Measurement Method'],
+    currentChallenges: ['Business Impact', 'Frequency', 'Severity', 'Root Cause'],
+    decisionMakers: ['Decision Authority', 'Sponsor', 'Budget Ownership', 'Final Approver', 'Stakeholder / Sponsor'],
+    affectedTeams: ['Team Ownership', 'Team Impact', 'Department Scope'],
+    keyStakeholders: ['Stakeholder Influence', 'Communication Requirements', 'Stakeholder Alignment'],
+    coreProcesses: ['Process Owner', 'Frequency', 'Volume', 'Criticality'],
+    knownBottlenecks: ['Impact', 'Frequency', 'Root Cause', 'Manual Effort'],
+    manualWorkAreas: ['Time Spent', 'Frequency', 'Volume', 'Current Workaround'],
+    currentSystems: ['System Owner', 'User Groups', 'Usage Frequency', 'Business Purpose'],
+    integrations: ['Integration Method', 'Data Flow', 'Frequency', 'Failure Points'],
+    technologyIssues: ['Severity', 'Business Impact', 'Frequency', 'Ownership'],
+    reports: ['Audience', 'Frequency', 'Business Purpose'],
+    kpis: ['KPI Target', 'KPI Owner', 'Measurement Frequency'],
+    dataSources: ['Source Owner', 'Data Quality', 'Refresh Frequency']
+  };
+
+  const clarificationChecks = {
+    'Business Driver': text => /\b(because|due\s+to|impacts|limits|affects|drives|reason|so\s+that|in\s+order\s+to|motivation|why|need|demand|drive|competition|growth|revenue|improve|reduce|save|cost|value)\b/i.test(text),
+    'Timeline': text => /\b(next\s+12\s+months|next\s+6\s+months|over\s+the\s+next\s+year|within|by\s+q[1-4]|this\s+year|next\s+year|deadline|target\s+period)\b/i.test(text) ||
+      /next\s+(\d+|[a-zA-Z]+)\s+months?/i.test(text) ||
+      /next\s+(\d+|[a-zA-Z]+)\s+weeks?/i.test(text) ||
+      /next\s+(\d+|[a-zA-Z]+)\s+years?/i.test(text) ||
+      /\bby\s+q[1-4]\b/i.test(text) ||
+      /\bthis\s+year\b/i.test(text) ||
+      /\bnext\s+year\b/i.test(text) ||
+      /within\s+(\d+|[a-zA-Z]+)\s+months?/i.test(text) ||
+      /within\s+(\d+|[a-zA-Z]+)\s+weeks?/i.test(text) ||
+      /\b(by|months|year|weeks|timeline|deadline|target|schedule)\b/i.test(text),
+    'Success Metrics': text => /\b(increase|reduce|decrease|improve|percent|hours|days|utilization|kpi|metric|target|from|to|measurable|measure|dollars|metrics|numbers)\b/i.test(text) || text.includes('%'),
+    'Ownership / Responsible Role': text => /\b(owner|responsible|accountable|sponsor|manager|director|operations\s+director|finance\s+director|it\s+manager|team\s+lead|department\s+owner|process\s+owner|champion|role|supervisor|user|team|cfo|staff|lead|person|operations|who)\b/i.test(text),
+    'KPI Targets': text => /\b(target|goal|value|percent|%|reduce|increase|from|to|utilization|number|hours|days)\b/i.test(text) || text.includes('%'),
+    'Measurement Method': text => /\b(measure|measurement|track|method|report|excel|power\s+bi|sap|system|tool|sheet|database|manually|manual|process)\b/i.test(text),
+    'Business Impact': text => /\b(impact|cost|effect|delay|lose|waste|prevent|because|due\s+to|affect|drives)\b/i.test(text),
+    'Frequency': text => /\b(frequency|daily|weekly|monthly|annual|often|repeat|usage|time|interval|hourly|constantly)\b/i.test(text),
+    'Severity': text => /\b(severity|critical|high|urgent|block|stop|bottleneck|major|impact|severe)\b/i.test(text),
+    'Root Cause': text => /\b(because|due\s+to|cause|why|source|origin|root)\b/i.test(text),
+    'Decision Authority': text => /\b(decision|authority|choose|approve|decide|select|final|approver|sign\s+off)\b/i.test(text),
+    'Sponsor': text => /\b(sponsor|champion|director|executive|owner|manager|lead|cfo)\b/i.test(text),
+    'Budget Ownership': text => /\b(budget|cost|spend|money|funding|financial|owner|own|sponsor)\b/i.test(text),
+    'Final Approver': text => /\b(approve|sign\s+off|final|approval|executive|approver|director|manager)\b/i.test(text),
+    'Stakeholder / Sponsor': text => /\b(sponsor|champion|director|executive|owner|manager|lead|cfo|stakeholder)\b/i.test(text),
+    'Team Ownership': text => /\b(owner|responsible|team|manager|lead|ownership)\b/i.test(text),
+    'Team Impact': text => /\b(impact|affect|user|staff|personnel|work|team|employ|consultant)\b/i.test(text),
+    'Department Scope': text => /\b(department|division|area|scope|boundary|team|consultants|consultant)\b/i.test(text),
+    'Stakeholder Influence': text => /\b(influence|power|key|interest|impact|important|align|concerned|concern)\b/i.test(text),
+    'Communication Requirements': text => /\b(communication|report|notify|update|meeting|email|message|chat|teams|outlook|sharepoint)\b/i.test(text),
+    'Stakeholder Alignment': text => /\b(alignment|align|concern|interest|support|agree|resistance|meeting|feedback)\b/i.test(text),
+    'Process Owner': text => /\b(owner|lead|responsible|manager|process\s+owner)\b/i.test(text),
+    'Volume': text => /\b(volume|count|number|quantity|transactions|many|much|amount|total)\b/i.test(text),
+    'Criticality': text => /\b(critical|key|core|important|vital|essential|criticality)\b/i.test(text),
+    'Impact': text => /\b(impact|cost|delay|affect|consequence|result)\b/i.test(text),
+    'Manual Effort': text => /\b(manual|manually|copy|paste|hand|input|type|extract|export|import)\b/i.test(text),
+    'Time Spent': text => /\b(hours|days|time|minutes|effort|spent|spent\s+time|duration)\b/i.test(text),
+    'Current Workaround': text => /\b(workaround|manually|alternative|bypass|temp|routine|custom)\b/i.test(text),
+    'System Owner': text => /\b(owner|admin|it|manager|system\s+owner|operator|administer)\b/i.test(text),
+    'User Groups': text => /\b(users|teams|staff|department|group|roles|consultant|consultants)\b/i.test(text),
+    'Business Purpose': text => /\b(purpose|why|logic|goal|objective|needed|help|allow|enable|support)\b/i.test(text),
+    'Integration Method': text => /\b(api|connection|link|export|import|sync|transfer|interface|integrate|bridge|connect)\b/i.test(text),
+    'Data Flow': text => /\b(flow|direction|send|receive|move|push|pull|transfer|input|output|transmission)\b/i.test(text),
+    'Failure Points': text => /\b(fail|error|break|retry|drop|loss|issue|problem|bug|crash|fail\s+point)\b/i.test(text),
+    'Ownership': text => /\b(owner|responsible|it|support|ownership|responsible\s+party)\b/i.test(text),
+    'Audience': text => /\b(audience|management|team|user|board|director|executive|viewer|recipient|manager|reader)\b/i.test(text),
+    'KPI Owner': text => /\b(owner|responsible|manager|team|kpi\s+owner)\b/i.test(text),
+    'Measurement Frequency': text => /\b(frequency|daily|weekly|monthly|schedule|period|measured|tracking)\b/i.test(text),
+    'Source Owner': text => /\b(owner|admin|database|dba|source\s+owner)\b/i.test(text),
+    'Data Quality': text => /\b(quality|clean|trust|accurate|error|integrity|validation|incorrect|valid)\b/i.test(text),
+    'Refresh Frequency': text => /\b(refresh|update|sync|frequency|hourly|daily|schedule|load|pull)\b/i.test(text)
+  };
+
   const optionalClarifications = [];
-  if (!hasPriority) optionalClarifications.push('• Priority');
-  if (!hasBusinessDriver) optionalClarifications.push('• Business Driver');
-  if (!hasTimeline) optionalClarifications.push('• Timeline');
-  if (!hasKPI) optionalClarifications.push('• Measurable Outcome / KPI');
-  if (!hasOwner) {
-    optionalClarifications.push('• Ownership / responsible role');
-    optionalClarifications.push('• Stakeholder or sponsor');
-  }
-  if (!hasProcessOrSystem) optionalClarifications.push('• Affected Process / System');
+  const allowed = questionProfiles[question.field] || [];
+  allowed.forEach(clar => {
+    const checkFn = clarificationChecks[clar];
+    if (checkFn && !checkFn(text)) {
+      optionalClarifications.push(`• ${clar}`);
+    }
+  });
 
   const potentialFindings = [];
   if (text.includes('excel') && (text.includes('manual') || text.includes('consolidate') || text.includes('compile'))) {
@@ -3981,6 +4051,8 @@ function analyzeDiscoveryAnswer(question, answer) {
   } else if (optionalClarifications.some(c => c.includes('Outcome') || c.includes('Metrics'))) {
     recommendationText = "I identified a strong operational visibility initiative. Before moving on, I recommend clarifying success metrics.";
     suggestedQuestion = "What measurable business outcome would indicate this initiative was successful?";
+  } else if (optionalClarifications.some(c => c.includes('Ownership'))) {
+    recommendationText = "I identified business goals, but ownership is undefined. Before moving on, I recommend clarifying ownership of this objective.";
   }
 
   const numCriteria = question.criteria.length;
@@ -4804,7 +4876,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
   // Build Optional clarifications list
   const optionalClarificationsHTML = res.optionalClarifications.length > 0
     ? res.optionalClarifications.map(c => `<li style="color: var(--text-secondary); display: flex; align-items: center; gap: 6px;"><span style="color: var(--text-muted);">•</span> ${escapeHTML(c.replace(/^•\s*/, ''))}</li>`).join('')
-    : `<li style="color: var(--text-muted); font-style: italic;">All criteria met</li>`;
+    : `<li style="color: var(--text-muted); font-style: italic;">None identified</li>`;
 
   // Recommendation Card (Always displayed in the Copilot layer)
   const recommendationCardHTML = `

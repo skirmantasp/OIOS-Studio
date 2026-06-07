@@ -339,20 +339,26 @@ async function runTest() {
 
   // 10.5 Verify Confidence Engine with missing ownership vs fully-satisfied answer
   console.log('\n--- 10.5 CONFIDENCE ENGINE VERIFICATION ---');
+  
+  // Navigate back to Business > Primary Goals question (from index 2 to 0)
+  console.log('Navigating to Business > Primary Goals...');
+  document.getElementById('btn-meeting-prev').click();
+  document.getElementById('btn-meeting-prev').click();
+
   const proposalAnswerText = `Our highest priority is reducing proposal creation time.
 Today consultants spend time searching previous proposals, industry research, and internal frameworks.
 This impacts consultant utilization.
 Over the next 12 months we want to reduce proposal preparation effort by at least 50% and increase consultant utilization from 72% to 80%.`;
   
   console.log('Testing proposal creation answer (missing ownership)...');
-  const dynamicTextarea = document.getElementById('meeting-answer-input');
-  const dynamicAnalyzeBtn = document.getElementById('btn-meeting-analyze');
+  let dynamicTextarea = document.getElementById('meeting-answer-input');
+  let dynamicAnalyzeBtn = document.getElementById('btn-meeting-analyze');
   
   dynamicTextarea.value = proposalAnswerText;
   dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
   dynamicAnalyzeBtn.click();
   
-  const activeQuestionField = document.querySelector('.meeting-question-header span:last-child').textContent.trim();
+  let activeQuestionField = document.querySelector('.meeting-question-header span:last-child').textContent.trim();
   console.log('Active Question Field:', activeQuestionField);
   
   let currentSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
@@ -366,9 +372,12 @@ Over the next 12 months we want to reduce proposal preparation effort by at leas
   const hasOwnershipClarification = analysisRes.optionalClarifications.some(c => c.toLowerCase().includes('ownership / responsible role'));
   console.log('Optional Clarifications includes ownership / responsible role:', hasOwnershipClarification);
   
-  const resContainer = document.getElementById('meeting-result-container');
-  const hasAllCriteriaMet = resContainer.textContent.includes('All criteria met');
-  console.log('All criteria met is NOT displayed:', !hasAllCriteriaMet);
+  const hasStakeholderClarification = analysisRes.optionalClarifications.some(c => c.toLowerCase().includes('stakeholder / sponsor'));
+  console.log('Optional Clarifications includes stakeholder / sponsor:', hasStakeholderClarification);
+  
+  let resContainer = document.getElementById('meeting-result-container');
+  const hasNoneIdentifiedText = resContainer.textContent.includes('None identified');
+  console.log('None identified is NOT displayed:', !hasNoneIdentifiedText);
   
   if (analysisRes.confidence >= 100 || analysisRes.confidence < 80 || analysisRes.confidence > 90) {
     console.error('FAIL: Confidence score for missing ownership not in the 80-90% range!');
@@ -378,8 +387,12 @@ Over the next 12 months we want to reduce proposal preparation effort by at leas
     console.error('FAIL: Missing ownership clarification not listed in optional clarifications!');
     process.exit(1);
   }
-  if (hasAllCriteriaMet) {
-    console.error('FAIL: "All criteria met" displayed despite missing ownership component!');
+  if (hasStakeholderClarification) {
+    console.error('FAIL: Unallowed stakeholder / sponsor clarification was listed for primaryGoals!');
+    process.exit(1);
+  }
+  if (hasNoneIdentifiedText) {
+    console.error('FAIL: "None identified" displayed despite missing ownership component!');
     process.exit(1);
   }
   
@@ -389,6 +402,8 @@ Over the next 12 months we want to reduce proposal preparation effort by at leas
 In order to achieve this, the Operations Director will be responsible for the transition.
 By Q4, we expect to reduce proposal preparation effort by 50% using our custom SharePoint system because we need to save time.`;
   
+  dynamicTextarea = document.getElementById('meeting-answer-input');
+  dynamicAnalyzeBtn = document.getElementById('btn-meeting-analyze');
   dynamicTextarea.value = fullAnswerText;
   dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
   dynamicAnalyzeBtn.click();
@@ -400,6 +415,10 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   console.log('Is Confidence 95-100%:', analysisRes.confidence >= 95 && analysisRes.confidence <= 100);
   console.log('Optional Clarifications (Full Answer):', analysisRes.optionalClarifications);
   
+  resContainer = document.getElementById('meeting-result-container');
+  const hasNoneIdentifiedFull = resContainer.textContent.includes('None identified');
+  console.log('None identified is displayed for full answer:', hasNoneIdentifiedFull);
+  
   if (analysisRes.confidence < 95 || analysisRes.confidence > 100) {
     console.error('FAIL: Confidence score for full answer not in the 95-100% range!');
     process.exit(1);
@@ -408,8 +427,46 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     console.error('FAIL: Optional clarifications listed when all components are present!');
     process.exit(1);
   }
+  if (!hasNoneIdentifiedFull) {
+    console.error('FAIL: "None identified" not displayed when all optional clarifications are met!');
+    process.exit(1);
+  }
+
+  // 10.6 Test People > Decision Makers context-aware clarifications
+  console.log('\n--- 10.6 CONTEXT-AWARE CLARIFICATION ENGINE (DECISION MAKERS) ---');
+  console.log('Navigating to People > Decision Makers...');
+  document.getElementById('btn-meeting-next').click();
+  document.getElementById('btn-meeting-next').click();
+  document.getElementById('btn-meeting-next').click();
   
-  console.log('CONFIDENCE ENGINE VERIFICATION PASSED!\n');
+  dynamicTextarea = document.getElementById('meeting-answer-input');
+  dynamicAnalyzeBtn = document.getElementById('btn-meeting-analyze');
+  
+  console.log('Testing decision makers answer missing sponsor...');
+  dynamicTextarea.value = 'We need to decide how to allocate the final approval task.';
+  dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
+  dynamicAnalyzeBtn.click();
+  
+  activeQuestionField = document.querySelector('.meeting-question-header span:last-child').textContent.trim();
+  console.log('Active Question Field:', activeQuestionField);
+  if (activeQuestionField !== 'decisionMakers') {
+    console.error('FAIL: Not on decisionMakers question!');
+    process.exit(1);
+  }
+  
+  currentSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  analysisRes = currentSession.analysisResults[activeQuestionField];
+  
+  console.log('Optional Clarifications for Decision Makers:', analysisRes.optionalClarifications);
+  const decisionMakersHasStakeholderClar = analysisRes.optionalClarifications.some(c => c.toLowerCase().includes('stakeholder / sponsor'));
+  console.log('Optional Clarifications includes Stakeholder / Sponsor:', decisionMakersHasStakeholderClar);
+  
+  if (!decisionMakersHasStakeholderClar) {
+    console.error('FAIL: Stakeholder / Sponsor did not appear for Decision Makers answer missing it!');
+    process.exit(1);
+  }
+  
+  console.log('CONTEXT-AWARE CLARIFICATION ENGINE VERIFICATION PASSED!\n');
 
   // 11. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');
