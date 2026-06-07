@@ -5011,56 +5011,233 @@ export function isMeaningfulFinding(text) {
 }
 
 export function generateDiscoveryFinding(answer, question, company, res, suggestedCopy) {
-  const detected = extractDetectedInformation(answer, question, company);
-  const aiObs = detected.filter(item => item.label === 'AI Observation');
-  
-  // 1. Strong AI Observation (High confidence)
-  const highConf = aiObs.filter(item => item.confidence === 'High');
-  for (const obs of highConf) {
-    if (isMeaningfulFinding(obs.value)) {
-      return obs.value;
+  if (!answer || answer.trim().length < 10) {
+    return 'Notes are too brief to form a discovery finding.';
+  }
+
+  // 1. Detect Active Domain & Terms
+  const activeDomains = detectActiveDomain(answer, company, question);
+  const activeDomain = activeDomains[0] || 'generic';
+
+  const text = answer.trim();
+  const textLower = text.toLowerCase();
+
+  const isHardware = /\b(hardware|firmware|compiler|testbed|calibration|calibrat|fpga|quantum|device|lab|sensor|circuit|chip|hightech|high-tech)\b/i.test(textLower) ||
+                     (company && company.assessment && /\b(hardware|firmware|compiler|testbed|calibration|calibrat|fpga|quantum|device|lab|sensor|circuit|chip|hightech|high-tech)\b/i.test(JSON.stringify(company.assessment).toLowerCase()));
+
+  const DOMAIN_TERMS = {
+    healthcare: {
+      subject: 'clinic operations',
+      activity: 'patient scheduling and clinic capacity',
+      workload: 'appointment coordination',
+      output: 'scheduling visibility',
+      teamFallback: 'clinic operations and scheduling teams'
+    },
+    legal: {
+      subject: 'legal operations',
+      activity: 'matter management and document review workflows',
+      workload: 'case progress and status tracking',
+      output: 'matter visibility',
+      teamFallback: 'attorneys, paralegals, and legal operations teams'
+    },
+    manufacturing: {
+      subject: 'production operations',
+      activity: 'downtime reduction and operational planning',
+      workload: 'production reporting',
+      output: 'production visibility',
+      teamFallback: 'production, maintenance, and operations teams'
+    },
+    consulting: {
+      subject: 'advisory operations',
+      activity: 'proposal preparation and consultant workflows',
+      workload: 'knowledge retrieval and proposal drafting',
+      output: 'resource utilization',
+      teamFallback: 'proposal management, knowledge reuse, and consultant teams'
+    },
+    hightech: {
+      subject: 'engineering operations',
+      activity: 'workflow performance and integration cycles',
+      workload: 'alert triaging and deployment steps',
+      output: 'system monitoring visibility',
+      teamFallback: 'software engineering, DevOps, and site reliability teams'
+    },
+    logistics: {
+      subject: 'logistics operations',
+      activity: 'fleet visibility and route planning',
+      workload: 'shipment tracking and route planning',
+      output: 'fleet visibility',
+      teamFallback: 'dispatch, warehouse, fleet, and operations teams'
+    },
+    finance: {
+      subject: 'finance operations',
+      activity: 'transaction reconciliation and financial reporting',
+      workload: 'transaction matching and reporting compliance',
+      output: 'financial visibility',
+      teamFallback: 'finance operations, reporting, reconciliation, and compliance teams'
+    }
+  };
+
+  let terms = DOMAIN_TERMS[activeDomain] || {
+    subject: 'operations',
+    activity: 'operational processes and workflows',
+    workload: 'operational tasks',
+    output: 'process visibility',
+    teamFallback: 'responsible teams and operations staff'
+  };
+
+  if (activeDomain === 'hightech') {
+    if (isHardware) {
+      terms = {
+        subject: 'engineering hardware operations',
+        activity: 'workflow performance and calibration cycles',
+        workload: 'testbed validation and device testing',
+        output: 'calibration visibility',
+        teamFallback: 'engineering, lab operations, and product teams'
+      };
+    } else {
+      terms = {
+        subject: 'software operations',
+        activity: 'software deployment and system monitoring',
+        workload: 'alert triaging and incident routing',
+        output: 'monitoring visibility',
+        teamFallback: 'software engineering, DevOps, and site reliability teams'
+      };
     }
   }
-  
-  // 2. Strong AI Observation (Medium confidence)
-  const medConf = aiObs.filter(item => item.confidence === 'Medium');
-  for (const obs of medConf) {
-    if (isMeaningfulFinding(obs.value)) {
-      return obs.value;
-    }
-  }
-  
-  // 3. Discovery Recommendation
-  if (res && res.recommendationText && isMeaningfulFinding(res.recommendationText)) {
-    const sentences = res.recommendationText.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]+/g) || [res.recommendationText];
-    const cleaned = sentences.map(s => s.trim()).filter(s => isMeaningfulFinding(s));
-    if (cleaned.length > 0) {
-      return cleaned.slice(0, 3).join(' ');
-    }
-  }
-  
-  // 4. Suggested Copy fallback (first 1-3 sentences)
-  const copyText = suggestedCopy || '';
-  const sentences = copyText.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]+/g) || [copyText];
-  const cleanedSentences = sentences.map(s => s.trim()).filter(Boolean);
-  
-  let meaningfulSentences = cleanedSentences.filter(s => isMeaningfulFinding(s));
-  
-  if (meaningfulSentences.length === 0) {
-    meaningfulSentences = cleanedSentences.filter(s => {
-      const lower = s.toLowerCase();
-      const genericBadPhrases = [
-        'manual work may affect efficiency',
-        'reporting appears important',
-        'operations could be improved',
-        'the process may benefit from optimization'
-      ];
-      return !genericBadPhrases.some(phrase => lower.includes(phrase)) && lower.length >= 10;
+
+  // 2. Parse sentences and search for best match
+  const cleanAns = answer.replace(/^(well|honestly|basically|currently|actually|we have|the client said|the client stated|our team|we currently|we just|so basically|in terms of that,)\s*,?\s*/i, '');
+  const sentences = cleanAns.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s => s.length > 5);
+  const firstSentence = sentences[0] || cleanAns;
+
+  const getCleanSentence = (sentenceText) => {
+    let s = sentenceText.trim();
+    s = s.replace(/^[,\-\s•+]+/, '');
+    s = s.charAt(0).toUpperCase() + s.slice(1);
+    if (!/[.!?]$/.test(s)) s += '.';
+    return s;
+  };
+
+  // Helper to extract entities
+  const getEntities = (textSource) => {
+    const srcLower = textSource.toLowerCase();
+    
+    // Systems
+    const knownSystems = [
+      'clio', 'netdocuments', 'outlook', 'teams', 'sharepoint', 'excel', 'sap', 'erp', 'crm',
+      'salesforce', 'jira', 'slack', 'datadog', 'splunk', 'pagerduty', 'aws', 'github', 'power bi'
+    ];
+    const foundSystems = [];
+    knownSystems.forEach(sys => {
+      if (srcLower.includes(sys)) {
+        if (sys === 'netdocuments') foundSystems.push('NetDocuments');
+        else if (sys === 'outlook') foundSystems.push('Outlook');
+        else if (sys === 'teams') foundSystems.push('Teams');
+        else if (sys === 'sharepoint') foundSystems.push('SharePoint');
+        else if (sys === 'excel') foundSystems.push('Excel');
+        else if (sys === 'sap') foundSystems.push('SAP ERP');
+        else if (sys === 'salesforce') foundSystems.push('Salesforce');
+        else if (sys === 'jira') foundSystems.push('Jira');
+        else if (sys === 'slack') foundSystems.push('Slack');
+        else if (sys === 'datadog') foundSystems.push('Datadog');
+        else if (sys === 'splunk') foundSystems.push('Splunk');
+        else if (sys === 'pagerduty') foundSystems.push('PagerDuty');
+        else if (sys === 'aws') foundSystems.push('AWS');
+        else if (sys === 'github') foundSystems.push('GitHub');
+        else if (sys === 'power bi') foundSystems.push('Power BI');
+        else if (sys === 'clio') foundSystems.push('Clio');
+        else foundSystems.push(sys.charAt(0).toUpperCase() + sys.slice(1));
+      }
     });
+
+    // Roles
+    const knownRoles = [
+      'attorneys', 'attorney', 'paralegals', 'paralegal', 'assistants', 'assistant', 'consultants', 'consultant',
+      'engineers', 'engineer', 'clinicians', 'clinician', 'doctors', 'doctor', 'nurses', 'nurse', 'managers', 'manager',
+      'directors', 'director', 'partners', 'partner', 'leadership', 'supervisors', 'supervisor', 'operators', 'operator',
+      'legal operations', 'operations team', 'finance team', 'developers', 'developer', 'staff'
+    ];
+    const foundRoles = [];
+    knownRoles.forEach(role => {
+      if (srcLower.includes(role)) {
+        foundRoles.push(role);
+      }
+    });
+
+    return { systems: foundSystems, roles: foundRoles };
+  };
+
+  const entities = getEntities(answer + ' ' + (suggestedCopy || ''));
+
+  const fieldKey = `${question.section.toLowerCase()}.${question.field}`;
+
+  switch (fieldKey) {
+    case 'business.primaryGoals': {
+      const match = sentences.find(s => /\b(goal|priority|strategic|objective|aim|plan|reduce|improve|optimize|automate|increase)\b/i.test(s)) || firstSentence;
+      return `${getCleanSentence(match)} This strategic priority focuses on optimizing ${terms.activity} and improving overall ${terms.output}.`;
+    }
+    case 'business.expectedOutcomes': {
+      const match = sentences.find(s => /\b(expect|kpi|target|outcome|metric|measure|reduce|increase|percent|%|hours|days)\b/i.test(s)) || firstSentence;
+      return `The organization expects to achieve measurable outcomes in ${terms.activity}, targeting improvements such as ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'}`;
+    }
+    case 'business.currentChallenges': {
+      const match = sentences.find(s => /\b(challenge|friction|bottleneck|constraint|pain|delay|manual|fragmented|reconciliation|lost|waste)\b/i.test(s)) || firstSentence;
+      return `Operational constraints in ${terms.subject} stem from ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'} This directly limits team efficiency and ${terms.output}.`;
+    }
+    case 'people.decisionMakers': {
+      const match = sentences.find(s => /\b(approve|decide|authority|owner|sponsor|lead|partner|committee|leadership|management|governance)\b/i.test(s)) || firstSentence;
+      return `Strategic governance and approval sits with ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'} Operational ownership resides at the leadership level.`;
+    }
+    case 'people.affectedTeams': {
+      const affected = entities.roles.length > 0 ? entities.roles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(', ') : terms.teamFallback;
+      const match = sentences.find(s => /\b(affect|impact|user|staff|team|change|transition|train)\b/i.test(s)) || firstSentence;
+      return `The change impact directly affects the operations team and ${affected} as workflows are redesigned. Specifically, ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'}`;
+    }
+    case 'people.keyStakeholders': {
+      const match = sentences.find(s => /\b(align|support|concern|interest|stakeholder|partner|user|staff|team)\b/i.test(s)) || firstSentence;
+      return `Successful implementation will require alignment between key stakeholders and technology contributors, specifically addressing how ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'}`;
+    }
+    case 'process.coreProcesses': {
+      const match = sentences.find(s => /\b(process|workflow|step|intake|tracking|reporting|coordination|routing)\b/i.test(s)) || firstSentence;
+      return `Core workflows under review include ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'} These processes form the operational baseline for standardizing ${terms.activity}.`;
+    }
+    case 'process.knownBottlenecks': {
+      const match = sentences.find(s => /\b(delay|slow|wait|bottleneck|friction|queue|hold|manual|retrieval)\b/i.test(s)) || firstSentence;
+      return `Operational bottlenecks are characterized by ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'} These delays disrupt the core operational lifecycle.`;
+    }
+    case 'process.manualWorkAreas': {
+      const match = sentences.find(s => /\b(manual|manually|copy|paste|type|excel|spreadsheet|email|search)\b/i.test(s)) || firstSentence;
+      return `High-volume manual work is concentrated in ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'} This represents a prime target for system automation.`;
+    }
+    case 'systems.currentSystems': {
+      const sysList = entities.systems.length > 0 ? entities.systems.join(', ') : 'existing software tools and spreadsheets';
+      return `The current technology landscape for ${terms.subject} relies primarily on ${sysList}. This environment supports daily ${terms.workload} management.`;
+    }
+    case 'systems.integrations': {
+      const match = sentences.find(s => /\b(integrate|connection|api|sync|manual|consolidate|transfer|bridge|file|export|import)\b/i.test(s)) || firstSentence;
+      return `Core system integrations are partially implemented, but data flow still relies on manual consolidation across platforms. Specifically, ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'}`;
+    }
+    case 'systems.technologyIssues': {
+      const match = sentences.find(s => /\b(slow|performance|instability|crash|gap|missing|limitation|visibility|search|dashboard|issue|bug)\b/i.test(s)) || firstSentence;
+      return `The primary technology limitation is the absence of unified visibility, cross-system search, and consolidated dashboards. Specifically, ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'}`;
+    }
+    case 'data.reports': {
+      const match = sentences.find(s => /\b(report|dashboard|summary|visibility|kpi|analytics|excel|weekly|monthly)\b/i.test(s)) || firstSentence;
+      return `Leadership relies on operational and dashboard reporting, but unified visibility is constrained. Specifically, ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'}`;
+    }
+    case 'data.kpis': {
+      const match = sentences.find(s => /\b(kpi|metric|target|track|measure|sla|performance)\b/i.test(s)) || firstSentence;
+      return `Key performance indicators (KPIs) and target measurements focus on tracking ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'}`;
+    }
+    case 'data.dataSources': {
+      const match = sentences.find(s => /\b(source|database|repository|excel|warehouse|data|file|folder|sharepoint)\b/i.test(s)) || firstSentence;
+      return `Operational data sources are distributed across multiple databases without a centralized data foundation. Specifically, ${match.charAt(0).toLowerCase() + match.slice(1)}${/[.!?]$/.test(match) ? '' : '.'} This distribution serves as the system-of-record.`;
+    }
+    default: {
+      const match = sentences.find(s => isMeaningfulFinding(s)) || firstSentence;
+      return getCleanSentence(match);
+    }
   }
-  
-  const finalFallback = meaningfulSentences.slice(0, 3).join(' ');
-  return finalFallback || cleanedSentences.slice(0, 3).join(' ');
 }
 
 

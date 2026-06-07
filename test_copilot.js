@@ -485,8 +485,8 @@ async function runTest() {
   // Verify Captured Findings sidebar updates immediately
   const meetingSidebarPanel = document.querySelector('.meeting-sidebar-panel');
   const sidebarText = meetingSidebarPanel ? meetingSidebarPanel.textContent : '';
-  console.log('Sidebar updates immediately and includes the saved finding:', sidebarText.includes('Management visibility appears constrained'));
-  if (!sidebarText.includes('Management visibility appears constrained')) {
+  console.log('Sidebar updates immediately and includes the saved finding:', sidebarText.includes(lastFinding.suggestedCopy));
+  if (!sidebarText.includes(lastFinding.suggestedCopy)) {
     console.error('FAIL: Captured Findings sidebar did not update immediately!');
     process.exit(1);
   }
@@ -1430,6 +1430,152 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   validateFindingQuality(lastFindingSaaS.suggestedCopy, 'hightech_software', lastFindingSaaS.originalAnswer, suggestedCopySaaS, isMeaningfulFinding);
 
   document.getElementById('btn-exit-meeting').click();
+
+  // Test 7: Legal Scenario - Field-Specific Findings validation
+  console.log('\nRunning Test 7: Legal Scenario (Field-Specific Finding Content Redesign)...');
+  const companyLegal = {
+    id: 'nordic_precision', // Reusing ID to avoid state complexity
+    name: 'Legal Partners LLC',
+    industry: 'Legal',
+    assessment: {
+      businessGoals: 'Reduce manual document review effort and improve matter context visibility.',
+      coreProblems: 'Document retrieval takes too long.',
+      operationalBottlenecks: 'Manual review of case files.',
+      techStack: 'Clio, NetDocuments, Outlook, Teams, SharePoint, Excel'
+    }
+  };
+
+  const testCases = [
+    {
+      field: 'primaryGoals',
+      section: 'Business',
+      answer: 'Our primary goal is to improve matter visibility across practice groups and optimize case workload tracking.',
+      suggestedCopy: 'Improve matter visibility and case tracking.',
+      checks: [
+        { regex: /strategic priority|optimize|matter visibility/i, name: 'strategic/business priority focus' }
+      ]
+    },
+    {
+      field: 'expectedOutcomes',
+      section: 'Business',
+      answer: 'We expect to reduce manual document review and case retrieval time by 40% over the next quarter.',
+      suggestedCopy: 'Reduce manual document review by 40%.',
+      checks: [
+        { regex: /expect.*measurable outcomes|target.*improvement/i, name: 'outcome/KPI focus' }
+      ]
+    },
+    {
+      field: 'decisionMakers',
+      section: 'People',
+      answer: 'The Managing Partner and the Executive Leadership Committee approve all budget allocations, while Legal Operations owns execution.',
+      suggestedCopy: 'Managing Partner and Executive Committee approve, Legal Ops owns.',
+      checks: [
+        { regex: /governance|approval|ownership/i, name: 'governance/authority/ownership language' }
+      ]
+    },
+    {
+      field: 'affectedTeams',
+      section: 'People',
+      answer: 'Attorneys, paralegals, and legal assistants will see direct impacts on their daily work processes.',
+      suggestedCopy: 'Attorneys and paralegals are affected.',
+      checks: [
+        { regex: /affected|impact|attorney|paralegal/i, name: 'affected teams/change impact language' }
+      ]
+    },
+    {
+      field: 'integrations',
+      section: 'Systems',
+      answer: 'Our core systems are Clio and NetDocuments, but we manually copy and consolidate report data from Excel sheets.',
+      suggestedCopy: 'Clio and NetDocuments require manual consolidation.',
+      checks: [
+        { regex: /integrat|data flow|manual consolidation/i, name: 'integrations/data flow/manual consolidation language' }
+      ]
+    },
+    {
+      field: 'technologyIssues',
+      section: 'Systems',
+      answer: 'The search tools are slow and we lack a central dashboard, making cross-system search impossible.',
+      suggestedCopy: 'No unified search or dashboard across systems.',
+      checks: [
+        { regex: /technology limitation|unified visibility|search|dashboard/i, name: 'technology limitation/unified visibility/search/dashboard language' }
+      ]
+    },
+    {
+      field: 'reports',
+      section: 'Data',
+      answer: 'Leadership relies on weekly retrospective utilization reports compiled manually by staff.',
+      suggestedCopy: 'Retrospective reports compiled manually.',
+      checks: [
+        { regex: /report|dashboard|reporting/i, name: 'reports/dashboard/reporting language' }
+      ]
+    },
+    {
+      field: 'kpis',
+      section: 'Data',
+      answer: 'We track lawyer utilization rate and client matter cycle times as our primary performance targets.',
+      suggestedCopy: 'Track lawyer utilization and matter cycle times.',
+      checks: [
+        { regex: /KPI|measurement|target/i, name: 'KPI/measurement/target language' }
+      ]
+    },
+    {
+      field: 'dataSources',
+      section: 'Data',
+      answer: 'Case records and communications are saved in NetDocuments, Clio, and local drives, serving as our system-of-record.',
+      suggestedCopy: 'NetDocuments and Clio serve as system-of-record.',
+      checks: [
+        { regex: /data sources|data foundation|system-of-record/i, name: 'data sources/data foundation/system-of-record language' }
+      ]
+    }
+  ];
+
+  const generatedFindings = {};
+
+  for (const tc of testCases) {
+    const question = { section: tc.section, field: tc.field };
+    const finding = generateDiscoveryFinding(tc.answer, question, companyLegal, {}, tc.suggestedCopy);
+    
+    console.log(`Generated finding for ${tc.section}.${tc.field}: "${finding}"`);
+    
+    // Check conciseness (1-3 sentences)
+    const sentences = finding.replace(/\r?\n/g, ' ').replace(/\s+/g, ' ').trim().match(/[^.!?]+[.!?]+/g) || [finding];
+    const sentenceCount = sentences.length;
+    if (sentenceCount < 1 || sentenceCount > 3) {
+      console.error(`FAIL: Finding for ${tc.section}.${tc.field} is not concise! (${sentenceCount} sentences)`);
+      process.exit(1);
+    }
+    
+    // Check required regexes
+    for (const check of tc.checks) {
+      if (!check.regex.test(finding)) {
+        console.error(`FAIL: Finding for ${tc.section}.${tc.field} does not contain ${check.name}! (Regex: ${check.regex})`);
+        process.exit(1);
+      }
+    }
+    
+    generatedFindings[`${tc.section}.${tc.field}`] = finding;
+  }
+
+  // Verify Primary Goals differs from Expected Outcomes
+  const primaryGoalsFinding = generatedFindings['Business.primaryGoals'];
+  const expectedOutcomesFinding = generatedFindings['Business.expectedOutcomes'];
+  console.log('Primary Goals finding differs from Expected Outcomes finding:', primaryGoalsFinding !== expectedOutcomesFinding);
+  if (primaryGoalsFinding === expectedOutcomesFinding) {
+    console.error('FAIL: Primary Goals finding is identical to Expected Outcomes finding!');
+    process.exit(1);
+  }
+
+  // Verify findings are not all duplicates
+  const allFindings = Object.values(generatedFindings);
+  const uniqueFindings = new Set(allFindings);
+  console.log(`Unique findings count: ${uniqueFindings.size} of ${allFindings.length}`);
+  if (uniqueFindings.size < allFindings.length) {
+    console.error('FAIL: Legal test produced duplicate findings!');
+    process.exit(1);
+  }
+
+  // Re-open and verify UI-driven exit session
+  document.getElementById('btn-resume-copilot').click();
 
   // 11. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');
