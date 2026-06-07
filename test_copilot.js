@@ -676,16 +676,16 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   
   let hasProposalCreation = themesContainer.textContent.includes('Proposal Creation');
   let hasKnowledgeAccess = themesContainer.textContent.includes('Knowledge Access');
-  let hasConsultantUtilization = themesContainer.textContent.includes('Consultant Utilization');
+  let hasResourceUtilization = themesContainer.textContent.includes('Resource Utilization');
   let hasNoThemesText = themesContainer.textContent.includes('No themes identified yet.');
   
   console.log('Includes Proposal Creation:', hasProposalCreation);
   console.log('Includes Knowledge Access:', hasKnowledgeAccess);
-  console.log('Includes Consultant Utilization:', hasConsultantUtilization);
+  console.log('Includes Resource Utilization:', hasResourceUtilization);
   console.log('Does NOT show "No themes identified yet.":', !hasNoThemesText);
   
-  if (!hasProposalCreation || !hasKnowledgeAccess || !hasConsultantUtilization) {
-    console.error('FAIL: Expected themes (Proposal Creation, Knowledge Access, Consultant Utilization) not all present!');
+  if (!hasProposalCreation || !hasKnowledgeAccess || !hasResourceUtilization) {
+    console.error('FAIL: Expected themes (Proposal Creation, Knowledge Access, Resource Utilization) not all present!');
     process.exit(1);
   }
   if (hasNoThemesText) {
@@ -854,6 +854,208 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   for (let i = 0; i < 9; i++) {
     document.getElementById('btn-meeting-prev').click();
   }
+
+  // ====================================================
+  // AI Observation Domain-Awareness Scenario Tests
+  // ====================================================
+  console.log('\n--- AI Observation Domain-Awareness Scenario Tests ---');
+
+  // Test 1: Healthcare scheduling
+  console.log('Running Test 1: Healthcare scheduling...');
+  const companyHC = db.getCompany('nordic_precision');
+  companyHC.industry = 'Healthcare';
+  companyHC.description = 'Patient clinic scheduling network.';
+  companyHC.assessment = {
+    businessGoals: 'Reduce patient wait times and optimize clinician utilization.',
+    coreProblems: '',
+    operationalBottlenecks: '',
+    techStack: ''
+  };
+  db.updateCompany(companyHC.id, companyHC);
+
+  renderWorkspace(viewport, params);
+  document.getElementById('btn-resume-copilot').click();
+
+  let inputHC = document.getElementById('meeting-answer-input');
+  let btnHC = document.getElementById('btn-meeting-analyze');
+  inputHC.value = `Our highest priority is improving patient scheduling efficiency across all clinics. Currently, each location manages scheduling differently and staff spend significant time coordinating appointments manually. This creates scheduling conflicts, underutilized clinician capacity, and longer patient wait times. Over the next 12 months we want to standardize scheduling processes, improve visibility into available resources, and reduce appointment coordination effort by at least 40%. Success would mean shorter patient wait times, higher clinician utilization, and a more predictable scheduling experience across all facilities.`;
+  inputHC.dispatchEvent(new dom.window.Event('input'));
+  btnHC.click();
+
+  let resContainerHC = document.getElementById('meeting-result-container');
+  let textHC = resContainerHC.textContent.toLowerCase();
+  console.log('HC Result Summary:', resContainerHC.textContent.trim());
+
+  let hasExpectedHC = ['patient scheduling', 'clinic capacity', 'clinician utilization', 'patient wait times', 'appointment coordination', 'resource planning'].some(term => textHC.includes(term));
+  let hasForbiddenHC = ['proposal', 'consultant', 'knowledge retrieval', 'production reporting', 'inventory reporting'].some(term => textHC.includes(term));
+
+  console.log('Healthcare includes clinician utilization/scheduling terms:', hasExpectedHC);
+  console.log('Healthcare does NOT leak consulting/proposal/manufacturing terms:', !hasForbiddenHC);
+
+  if (!hasExpectedHC || hasForbiddenHC) {
+    console.error('FAIL: Healthcare scheduling test failed!');
+    process.exit(1);
+  }
+
+  document.getElementById('btn-exit-meeting').click();
+
+  // Test 2: Consulting proposal
+  console.log('Running Test 2: Consulting proposal...');
+  const companyConsulting = db.getCompany('nordic_precision');
+  companyConsulting.industry = 'Consulting';
+  companyConsulting.description = 'Management consulting services.';
+  companyConsulting.assessment = {
+    businessGoals: 'Improve proposal preparation.',
+    coreProblems: '',
+    operationalBottlenecks: '',
+    techStack: ''
+  };
+  db.updateCompany(companyConsulting.id, companyConsulting);
+
+  renderWorkspace(viewport, params);
+  document.getElementById('btn-resume-copilot').click();
+
+  let inputConsulting = document.getElementById('meeting-answer-input');
+  let btnConsulting = document.getElementById('btn-meeting-analyze');
+  inputConsulting.value = `Our highest priority is reducing proposal creation time. Today consultants spend a significant amount of time searching previous proposals, industry research, and internal frameworks before they can start drafting. This directly impacts consultant utilization and limits how many client engagements we can support. Over the next 12 months we want to reduce proposal preparation effort by at least 50% and increase consultant utilization from 72% to 80%.`;
+  inputConsulting.dispatchEvent(new dom.window.Event('input'));
+  btnConsulting.click();
+
+  let resContainerConsulting = document.getElementById('meeting-result-container');
+  let textConsulting = resContainerConsulting.textContent.toLowerCase();
+  console.log('Consulting Result Summary:', resContainerConsulting.textContent.trim());
+
+  let hasExpectedConsulting = ['proposal preparation', 'consultant utilization', 'institutional knowledge', 'knowledge accessibility'].some(term => textConsulting.includes(term));
+  let hasForbiddenConsulting = ['patient scheduling', 'production reporting'].some(term => textConsulting.includes(term));
+
+  console.log('Consulting includes consultant utilization/proposal terms:', hasExpectedConsulting);
+  console.log('Consulting does NOT leak healthcare/manufacturing terms:', !hasForbiddenConsulting);
+
+  if (!hasExpectedConsulting || hasForbiddenConsulting) {
+    console.error('FAIL: Consulting proposal test failed!');
+    process.exit(1);
+  }
+
+  document.getElementById('btn-exit-meeting').click();
+
+  // Test 3: Manufacturing reporting
+  console.log('Running Test 3: Manufacturing reporting...');
+  const companyMfg = db.getCompany('nordic_precision');
+  companyMfg.industry = 'Manufacturing';
+  companyMfg.description = 'Turbine castings production.';
+  companyMfg.assessment = {
+    businessGoals: 'Improve management visibility.',
+    coreProblems: '',
+    operationalBottlenecks: '',
+    techStack: ''
+  };
+  db.updateCompany(companyMfg.id, companyMfg);
+
+  renderWorkspace(viewport, params);
+  document.getElementById('btn-resume-copilot').click();
+
+  let inputMfg = document.getElementById('meeting-answer-input');
+  let btnMfg = document.getElementById('btn-meeting-analyze');
+  inputMfg.value = `We manually compile reports using spreadsheets, which creates a process bottleneck and delays visibility for management. Production reports are assembled at the end of the week.`;
+  inputMfg.dispatchEvent(new dom.window.Event('input'));
+  btnMfg.click();
+
+  let resContainerMfg = document.getElementById('meeting-result-container');
+  let textMfg = resContainerMfg.textContent.toLowerCase();
+  console.log('Mfg Result Summary:', resContainerMfg.textContent.trim());
+
+  let hasExpectedMfg = ['reporting workflows', 'manual consolidation', 'fragmented operational data', 'management visibility'].some(term => textMfg.includes(term));
+  let hasForbiddenMfg = ['proposal', 'consultant'].some(term => textMfg.includes(term));
+  let hasProductionReporting = textMfg.includes('production reporting');
+
+  console.log('Mfg includes reporting workflows/visibility terms:', hasExpectedMfg);
+  console.log('Mfg does NOT leak consulting/proposal terms:', !hasForbiddenMfg);
+  console.log('Mfg process is Production Reporting:', hasProductionReporting);
+
+  if (!hasExpectedMfg || hasForbiddenMfg || !hasProductionReporting) {
+    console.error('FAIL: Manufacturing reporting test failed!');
+    process.exit(1);
+  }
+
+  document.getElementById('btn-exit-meeting').click();
+
+  // Test 4: High-tech calibration
+  console.log('Running Test 4: High-tech calibration...');
+  const companyTech = db.getCompany('nordic_precision');
+  companyTech.industry = 'Quantum Hardware';
+  companyTech.description = 'Cryogenic controller compiler and hardware integration.';
+  companyTech.assessment = {
+    businessGoals: 'Reduce calibration cycles and integration overhead.',
+    coreProblems: '',
+    operationalBottlenecks: '',
+    techStack: ''
+  };
+  db.updateCompany(companyTech.id, companyTech);
+
+  renderWorkspace(viewport, params);
+  document.getElementById('btn-resume-copilot').click();
+
+  let inputTech = document.getElementById('meeting-answer-input');
+  let btnTech = document.getElementById('btn-meeting-analyze');
+  inputTech.value = `Engineering workflow performance is affected by manual calibration coordination between hardware and software teams. The testbed needs frequent alignment. We also need to check utilization of testbeds.`;
+  inputTech.dispatchEvent(new dom.window.Event('input'));
+  btnTech.click();
+
+  let resContainerTech = document.getElementById('meeting-result-container');
+  let textTech = resContainerTech.textContent.toLowerCase();
+  console.log('HighTech Result Summary:', resContainerTech.textContent.trim());
+
+  let hasExpectedTech = ['engineering workflow', 'calibration coordination', 'hardware/software integration', 'testbed or lab visibility', 'engineering utilization'].some(term => textTech.includes(term));
+  let hasForbiddenTech = ['healthcare', 'consulting', 'consultant'].some(term => textTech.includes(term));
+
+  console.log('HighTech includes engineering/calibration/utilization terms:', hasExpectedTech);
+  console.log('HighTech does NOT leak healthcare/consulting terms:', !hasForbiddenTech);
+
+  if (!hasExpectedTech || hasForbiddenTech) {
+    console.error('FAIL: High-tech calibration test failed!');
+    process.exit(1);
+  }
+
+  document.getElementById('btn-exit-meeting').click();
+
+  // Test 5: Generic operations
+  console.log('Running Test 5: Generic operations...');
+  const companyGeneric = db.getCompany('nordic_precision');
+  companyGeneric.industry = 'General Operations';
+  companyGeneric.description = 'Standard operational services.';
+  companyGeneric.assessment = {
+    businessGoals: 'Improve overall efficiency.',
+    coreProblems: '',
+    operationalBottlenecks: '',
+    techStack: ''
+  };
+  db.updateCompany(companyGeneric.id, companyGeneric);
+
+  renderWorkspace(viewport, params);
+  document.getElementById('btn-resume-copilot').click();
+
+  let inputGeneric = document.getElementById('meeting-answer-input');
+  let btnGeneric = document.getElementById('btn-meeting-analyze');
+  inputGeneric.value = `We want to make the reporting workflow more efficient, reduce cycle time, and get better visibility.`;
+  inputGeneric.dispatchEvent(new dom.window.Event('input'));
+  btnGeneric.click();
+
+  let resContainerGeneric = document.getElementById('meeting-result-container');
+  let textGeneric = resContainerGeneric.textContent.toLowerCase();
+  console.log('Generic Result Summary:', resContainerGeneric.textContent.trim());
+
+  let hasForbiddenGeneric = ['proposal', 'consultant', 'patient', 'clinician', 'production', 'calibration'].some(term => textGeneric.includes(term));
+  let hasOperationalReporting = textGeneric.includes('operational reporting');
+
+  console.log('Generic does NOT contain industry-specific nouns:', !hasForbiddenGeneric);
+  console.log('Generic process is Operational Reporting:', hasOperationalReporting);
+
+  if (hasForbiddenGeneric || !hasOperationalReporting) {
+    console.error('FAIL: Generic operations test failed!');
+    process.exit(1);
+  }
+
+  document.getElementById('btn-exit-meeting').click();
 
   // 11. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');

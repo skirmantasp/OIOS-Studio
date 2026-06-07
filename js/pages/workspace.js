@@ -4351,9 +4351,130 @@ function loadGuidedDiscoverySession(companyId) {
   };
 }
 
-function extractDetectedInformation(answer, question) {
+function detectActiveDomain(text, company, question) {
+  const DOMAIN_KEYWORDS = {
+    healthcare: [
+      'patient', 'clinic', 'clinician', 'appointment', 'scheduling', 'wait time', 
+      'capacity', 'ehr', 'epic', 'qmatic', 'care', 'diagnostic', 'outpatient'
+    ],
+    legal: [
+      'case', 'matter', 'client file', 'document review', 'contract', 'court', 
+      'deadline', 'legal research', 'law firm', 'lawyer', 'attorney', 'compliance'
+    ],
+    manufacturing: [
+      'production', 'inventory', 'maintenance', 'procurement', 'shop floor', 
+      'erp', 'sap', 'batch', 'quality', 'downtime', 'supply chain'
+    ],
+    consulting: [
+      'proposal', 'consultant', 'engagement', 'utilization', 'framework', 
+      'research reuse', 'pitch deck', 'previous proposal'
+    ],
+    hightech: [
+      'hardware', 'firmware', 'compiler', 'testbed', 'api', 'engineering', 
+      'calibration', 'fpga', 'quantum', 'device', 'lab', 'integration cycle'
+    ],
+    logistics: [
+      'shipment', 'route', 'warehouse', 'delivery', 'fleet', 'carrier', 
+      'dispatch', 'tracking', 'lead time'
+    ],
+    finance: [
+      'invoice', 'reconciliation', 'transaction', 'risk', 'reporting', 
+      'portfolio', 'compliance', 'accounting'
+    ]
+  };
+
+  const matchIndustry = (industryName, domain) => {
+    if (!industryName) return false;
+    const ind = industryName.toLowerCase();
+    if (domain === 'healthcare') {
+      return ind.includes('healthcare') || ind.includes('medical') || ind.includes('health') || ind.includes('clinic');
+    }
+    if (domain === 'legal') {
+      return ind.includes('legal') || ind.includes('law') || ind.includes('firm');
+    }
+    if (domain === 'manufacturing') {
+      return ind.includes('manufacturing') || ind.includes('factory') || ind.includes('industrial');
+    }
+    if (domain === 'consulting') {
+      return ind.includes('consulting') || ind.includes('professional services') || ind.includes('advisory');
+    }
+    if (domain === 'hightech') {
+      return ind.includes('hightech') || ind.includes('high-tech') || ind.includes('technology') || ind.includes('quantum') || ind.includes('hardware') || ind.includes('software');
+    }
+    if (domain === 'logistics') {
+      return ind.includes('logistics') || ind.includes('transportation') || ind.includes('shipping') || ind.includes('delivery') || ind.includes('distrib');
+    }
+    if (domain === 'finance') {
+      return ind.includes('finance') || ind.includes('financial') || ind.includes('accounting') || ind.includes('banking') || ind.includes('investment');
+    }
+    return false;
+  };
+
+  const countMatches = (target, domainKeywords) => {
+    if (!target) return 0;
+    const t = target.toLowerCase();
+    let count = 0;
+    for (const kw of domainKeywords) {
+      if (t.includes(kw)) {
+        count++;
+      }
+    }
+    return count;
+  };
+
+  // 1. Current Answer
+  if (text) {
+    const matched = [];
+    for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
+      if (countMatches(text, keywords) >= 2) {
+        matched.push(domain);
+      }
+    }
+    if (matched.length > 0) return matched;
+  }
+
+  // 2. Current Question
+  if (question) {
+    const qText = `${question.section || ''} ${question.field || ''}`.toLowerCase();
+    const matched = [];
+    for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
+      if (countMatches(qText, keywords) >= 1) {
+        matched.push(domain);
+      }
+    }
+    if (matched.length > 0) return matched;
+  }
+
+  // 3. Assessment Context
+  if (company && company.assessment) {
+    const contextText = `${company.description || company.overview || ''} ${company.assessment.businessGoals || ''} ${company.assessment.coreProblems || ''} ${company.assessment.operationalBottlenecks || ''} ${company.assessment.techStack || ''}`.toLowerCase();
+    const matched = [];
+    for (const [domain, keywords] of Object.entries(DOMAIN_KEYWORDS)) {
+      if (countMatches(contextText, keywords) >= 2) {
+        matched.push(domain);
+      }
+    }
+    if (matched.length > 0) return matched;
+  }
+
+  // 4. Company Industry
+  if (company && company.industry) {
+    const matched = [];
+    for (const domain of Object.keys(DOMAIN_KEYWORDS)) {
+      if (matchIndustry(company.industry, domain)) {
+        matched.push(domain);
+      }
+    }
+    if (matched.length > 0) return matched;
+  }
+
+  return [];
+}
+
+function extractDetectedInformation(answer, question, company = null) {
   const text = (answer || '').toLowerCase();
   const detected = [];
+  const activeDomains = detectActiveDomain(text, company, question);
   
   // Systems
   if (text.includes('excel')) {
@@ -4362,7 +4483,7 @@ function extractDetectedInformation(answer, question) {
     detected.push({ label: 'System', value: 'SAP ERP' });
   } else if (text.includes('power bi')) {
     detected.push({ label: 'System', value: 'Power BI' });
-  } else if (question.field === 'currentSystems') {
+  } else if (question && question.field === 'currentSystems') {
     detected.push({ label: 'System', value: 'Legacy Systems' });
   }
   
@@ -4386,73 +4507,116 @@ function extractDetectedInformation(answer, question) {
   
   // Process
   if (text.includes('report') || text.includes('reporting') || text.includes('compile') || text.includes('consolidate')) {
-    detected.push({ label: 'Process', value: 'Production Reporting' });
+    if (activeDomains.includes('manufacturing')) {
+      detected.push({ label: 'Process', value: 'Production Reporting' });
+    } else {
+      detected.push({ label: 'Process', value: 'Operational Reporting' });
+    }
   } else if (text.includes('inventory') || text.includes('warehouse')) {
     detected.push({ label: 'Process', value: 'Inventory Management' });
   }
   
-  // AI Observations with Confidence classifications and careful phrasing
   const themes = [];
   const themeDefinitions = {
-    'Proposal Creation': [
-      'proposal', 'proposals', 'proposal creation', 'proposal preparation',
-      'drafting', 'pitch deck', 'deck template', 'client brief'
-    ],
-    'Knowledge Access': [
-      'knowledge', 'internal frameworks', 'research', 'previous proposals',
-      'ip library', 'intellectual property', 'reusable assets', 'document library',
-      'knowledge base', 'archives'
-    ],
-    'Consultant Utilization': [
-      'consultant utilization', 'utilization', 'billable time', 'consultant capacity',
-      'client engagements', 'associate consultants', 'onboarding consultants'
-    ],
-    'Operational Efficiency': [
-      'efficiency', 'reduce time', 'time saving', 'faster', 'streamline',
-      'productivity', 'reduce effort', 'cycle time'
-    ],
-    'Research Reuse': [
-      'industry research', 'research papers', 'past briefs', 'prior work',
-      'reusable research', 'template reuse'
-    ],
-    'Manual Work': [
-      'manual', 'manually', 'spreadsheet', 'copy-paste', 'searching email',
-      'searching archives'
-    ],
-    'Manual Reporting': [
-      'manual reporting', 'weekly reporting', 'reporting cycle',
-      'reports are assembled', 'reporting completed', 'manual', 'manually',
-      'spreadsheet', 'copy-paste'
-    ],
-    'Data Fragmentation': [
-      'fragmented', 'scattered', 'siloed', 'local drives', 'disconnected',
-      'no central repository'
-    ],
-    'System Integration': [
-      'integration', 'sharepoint', 'onedrive', 'teams', 'outlook',
-      'intranet', 'search engine', 'database'
-    ],
-    'Reporting / Visibility': [
-      'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility'
-    ],
-    'Operational Visibility': [
-      'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility',
-      'operational visibility'
-    ],
-    'Process Bottleneck': [
-      'bottleneck', 'delay', 'slow', 'waits', 'takes hours', 'approval delay',
-      'preparation time'
-    ],
-    'Inventory Planning': [
-      'inventory', 'stock', 'materials', 'procurement'
-    ],
-    'Production Performance': [
-      'production performance', 'production floor', 'production orders', 'output'
-    ]
+    'Proposal Creation': {
+      domain: 'consulting',
+      keywords: [
+        'proposal', 'proposals', 'proposal creation', 'proposal preparation',
+        'drafting', 'pitch deck', 'deck template', 'client brief'
+      ]
+    },
+    'Knowledge Access': {
+      domain: 'consulting',
+      keywords: [
+        'knowledge', 'internal frameworks', 'research', 'previous proposals',
+        'ip library', 'intellectual property', 'reusable assets', 'document library',
+        'knowledge base', 'archives'
+      ]
+    },
+    'Resource Utilization': {
+      keywords: [
+        'utilization', 'billable time', 'capacity', 'clinician capacity',
+        'consultant capacity', 'staff capacity', 'developer capacity',
+        'client engagements', 'associate consultants', 'onboarding consultants',
+        'physician utilization', 'clinician utilization', 'consultant utilization',
+        'engineer utilization', 'lawyer utilization', 'attorney utilization',
+        'resource planning', 'resource utilization'
+      ]
+    },
+    'Operational Efficiency': {
+      keywords: [
+        'efficiency', 'reduce time', 'time saving', 'faster', 'streamline',
+        'productivity', 'reduce effort', 'cycle time'
+      ]
+    },
+    'Research Reuse': {
+      domain: 'consulting',
+      keywords: [
+        'industry research', 'research papers', 'past briefs', 'prior work',
+        'reusable research', 'template reuse'
+      ]
+    },
+    'Manual Work': {
+      keywords: [
+        'manual', 'manually', 'spreadsheet', 'copy-paste', 'searching email',
+        'searching archives'
+      ]
+    },
+    'Manual Reporting': {
+      domain: 'manufacturing',
+      keywords: [
+        'manual reporting', 'weekly reporting', 'reporting cycle',
+        'reports are assembled', 'reporting completed'
+      ]
+    },
+    'Data Fragmentation': {
+      keywords: [
+        'fragmented', 'scattered', 'siloed', 'local drives', 'disconnected',
+        'no central repository'
+      ]
+    },
+    'System Integration': {
+      keywords: [
+        'integration', 'sharepoint', 'onedrive', 'teams', 'outlook',
+        'intranet', 'search engine', 'database'
+      ]
+    },
+    'Reporting / Visibility': {
+      keywords: [
+        'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility'
+      ]
+    },
+    'Operational Visibility': {
+      keywords: [
+        'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility',
+        'operational visibility'
+      ]
+    },
+    'Process Bottleneck': {
+      keywords: [
+        'bottleneck', 'delay', 'slow', 'waits', 'takes hours', 'approval delay',
+        'preparation time'
+      ]
+    },
+    'Inventory Planning': {
+      domain: 'manufacturing',
+      keywords: [
+        'inventory', 'stock', 'materials', 'procurement'
+      ]
+    },
+    'Production Performance': {
+      domain: 'manufacturing',
+      keywords: [
+        'production performance', 'production floor', 'production orders', 'output'
+      ]
+    }
   };
 
-  for (const [themeName, keywords] of Object.entries(themeDefinitions)) {
-    const matched = keywords.some(kw => text.includes(kw));
+  for (const [themeName, def] of Object.entries(themeDefinitions)) {
+    if (def.domain && !activeDomains.includes(def.domain)) {
+      continue;
+    }
+    const matched = def.keywords.some(kw => text.includes(kw));
     if (matched) {
       themes.push(themeName);
     }
@@ -4469,111 +4633,220 @@ function extractDetectedInformation(answer, question) {
   } else {
     const hasImpact = /\b(impact|limit|prevent|loss|cost|utilization|engagement|constraint|friction|bottleneck|delay|waste|affect)\b/i.test(text);
     
-    // 1. Proposal Creation + Knowledge Access
-    if (themes.includes('Proposal Creation') && themes.includes('Knowledge Access')) {
-      aiObservations.push({
-        label: 'AI Observation',
-        value: 'Proposal preparation appears heavily dependent on locating and reusing institutional knowledge across previous proposals, research materials, and internal frameworks.',
-        confidence: hasImpact ? 'High' : 'Medium'
-      });
-      aiObservations.push({
-        label: 'AI Observation',
-        value: 'This may indicate that knowledge accessibility is a major constraint in the proposal workflow.',
-        confidence: 'Medium'
-      });
-    } else {
-      if (themes.includes('Proposal Creation')) {
+    // Resource Utilization Specialization
+    if (themes.includes('Resource Utilization')) {
+      if (activeDomains.includes('consulting')) {
         aiObservations.push({
           label: 'AI Observation',
-          value: 'Proposal preparation appears to require significant manual drafting and template coordination.',
+          value: 'Consultant utilization appears directly affected by time spent on non-billable proposal preparation and knowledge retrieval work.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      } else if (activeDomains.includes('healthcare')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Clinician utilization appears directly affected by scheduling overhead and manual appointment coordination effort.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      } else if (activeDomains.includes('hightech')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Engineering utilization appears directly affected by manual calibration coordination and testing bottlenecks.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      } else if (activeDomains.includes('legal')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Attorney utilization appears directly affected by time spent on manual document review and case file search.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      } else {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Resource utilization appears affected by coordination overhead and manual process steps within the workflow.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
+    }
+
+    // 1. Healthcare
+    if (activeDomains.includes('healthcare')) {
+      if (text.includes('schedul') || text.includes('appointment') || text.includes('wait') || text.includes('clinic')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Patient scheduling appears to be a central operational constraint affecting clinic capacity, clinician utilization, and patient wait times.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Variation in scheduling practices across clinics may be contributing to inconsistent resource planning and coordination effort.',
+          confidence: 'Medium'
+        });
+      } else {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Healthcare delivery processes appear constrained by patient coordination, scheduling, or capacity limitations.',
           confidence: 'Medium'
         });
       }
-      if (themes.includes('Knowledge Access')) {
+    }
+    
+    // 2. Consulting
+    if (activeDomains.includes('consulting')) {
+      if (themes.includes('Proposal Creation') && themes.includes('Knowledge Access')) {
         aiObservations.push({
           label: 'AI Observation',
-          value: 'Knowledge access and reuse of past materials could point to a need for a centralized repository.',
+          value: 'Proposal preparation appears heavily dependent on locating and reusing institutional knowledge across previous proposals, research materials, and internal frameworks.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'This may indicate that knowledge accessibility is a major constraint in the proposal workflow.',
+          confidence: 'Medium'
+        });
+      } else {
+        if (themes.includes('Proposal Creation')) {
+          aiObservations.push({
+            label: 'AI Observation',
+            value: 'Proposal preparation appears to require significant manual drafting and template coordination.',
+            confidence: 'Medium'
+          });
+        }
+        if (themes.includes('Knowledge Access')) {
+          aiObservations.push({
+            label: 'AI Observation',
+            value: 'Knowledge access and reuse of past materials could point to a need for a centralized repository.',
+            confidence: 'Medium'
+          });
+        }
+      }
+    }
+    
+    // 3. Manufacturing
+    if (activeDomains.includes('manufacturing')) {
+      if (themes.includes('Inventory Planning')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Inventory planning appears affected by limited visibility into stock status, lead times, or procurement signals.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
+      if (themes.includes('Production Performance')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Production performance monitoring appears dependent on delayed or fragmented information flows.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
+      if (text.includes('report') || text.includes('reporting') || text.includes('visibility') || text.includes('data')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Management visibility appears constrained by delayed reporting cycles and fragmented operational data.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
+    }
+    
+    // 4. High-Tech / Hardware
+    if (activeDomains.includes('hightech')) {
+      if (text.includes('calibrat') || text.includes('workflow') || text.includes('hardware') || text.includes('software') || text.includes('team')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Engineering workflow performance appears affected by manual calibration coordination and limited visibility across hardware and software teams.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      } else {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Product integration cycles appear constrained by testbed visibility, API dependencies, or hardware-firmware alignment.',
           confidence: 'Medium'
         });
       }
     }
     
-    // 2. Consultant Utilization
-    if (themes.includes('Consultant Utilization')) {
+    // 5. Legal
+    if (activeDomains.includes('legal')) {
+      if (text.includes('document') || text.includes('review') || text.includes('retriev') || text.includes('matter')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Legal work appears constrained by document retrieval, matter context visibility, or manual review coordination.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      } else {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Case management and client file review workflows appear dependent on manual document processing, risking missed deadlines or compliance issues.',
+          confidence: 'Medium'
+        });
+      }
+    }
+    
+    // 6. Logistics
+    if (activeDomains.includes('logistics')) {
       aiObservations.push({
         label: 'AI Observation',
-        value: 'Consultant utilization appears directly affected by time spent on non-billable proposal preparation and knowledge retrieval work.',
+        value: 'Logistics and dispatch workflows appear constrained by fragmented tracking, route planning coordination, or warehouse lead time visibility.',
         confidence: hasImpact ? 'High' : 'Medium'
       });
     }
     
-    // 3. Operational Visibility / Reporting
-    if (themes.includes('Operational Visibility') || themes.includes('Reporting / Visibility')) {
+    // 7. Finance
+    if (activeDomains.includes('finance')) {
       aiObservations.push({
         label: 'AI Observation',
-        value: 'Management visibility appears constrained by delayed reporting cycles and fragmented operational data.',
+        value: 'Financial reconciliation and reporting processes appear dependent on manual transaction matching, affecting cycle speed or risk visibility.',
         confidence: hasImpact ? 'High' : 'Medium'
       });
     }
     
-    // 4. Manual Reporting
-    if (themes.includes('Manual Reporting') && !themes.includes('Proposal Creation')) {
-      aiObservations.push({
-        label: 'AI Observation',
-        value: 'Reporting workflows appear dependent on manual consolidation, which may create delay, reconciliation effort, and inconsistent visibility.',
-        confidence: hasImpact ? 'High' : 'Medium'
-      });
+    // 8. Shared / neutral observations
+    if (aiObservations.length === 0) {
+      if (themes.includes('Operational Visibility') || themes.includes('Reporting / Visibility')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Management visibility appears constrained by delayed reporting cycles and fragmented operational data.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
+      if (themes.includes('Manual Reporting') || themes.includes('Manual Work')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Reporting workflows appear dependent on manual consolidation, which may create delay, reconciliation effort, and inconsistent visibility.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
+      if (themes.includes('Data Fragmentation')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Operational information appears distributed across disconnected sources, which may reduce trust in reporting and decision-making speed.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
+      if (themes.includes('System Integration')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'System integration gaps may be contributing to duplicated work and limited end-to-end visibility.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
+      if (themes.includes('Process Bottleneck')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'The described workflow suggests a process bottleneck that may be affecting speed, capacity, or decision quality.',
+          confidence: hasImpact ? 'High' : 'Medium'
+        });
+      }
     }
     
-    // 5. Data Fragmentation
-    if (themes.includes('Data Fragmentation')) {
-      aiObservations.push({
-        label: 'AI Observation',
-        value: 'Operational information appears distributed across disconnected sources, which may reduce trust in reporting and decision-making speed.',
-        confidence: hasImpact ? 'High' : 'Medium'
-      });
-    }
-    
-    // 6. System Integration
-    if (themes.includes('System Integration')) {
-      aiObservations.push({
-        label: 'AI Observation',
-        value: 'System integration gaps may be contributing to duplicated work and limited end-to-end visibility.',
-        confidence: hasImpact ? 'High' : 'Medium'
-      });
-    }
-    
-    // 7. Process Bottleneck
-    if (themes.includes('Process Bottleneck')) {
-      aiObservations.push({
-        label: 'AI Observation',
-        value: 'The described workflow suggests a process bottleneck that may be affecting speed, capacity, or decision quality.',
-        confidence: hasImpact ? 'High' : 'Medium'
-      });
-    }
-    
-    // 8. Inventory Planning
-    if (themes.includes('Inventory Planning')) {
-      aiObservations.push({
-        label: 'AI Observation',
-        value: 'Inventory planning appears affected by limited visibility into stock status, lead times, or procurement signals.',
-        confidence: hasImpact ? 'High' : 'Medium'
-      });
-    }
-    
-    // 9. Production Performance
-    if (themes.includes('Production Performance')) {
-      aiObservations.push({
-        label: 'AI Observation',
-        value: 'Production performance monitoring appears dependent on delayed or fragmented information flows.',
-        confidence: hasImpact ? 'High' : 'Medium'
-      });
-    }
-    
+    // If still empty, add default neutral fallback observations
     if (aiObservations.length === 0) {
       aiObservations.push({
         label: 'AI Observation',
-        value: 'The described activities suggest a standard operational workflow that could point to optimization opportunities.',
+        value: 'The described workflow appears to create coordination effort and reduced operational visibility.',
+        confidence: 'Low'
+      });
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'The answer suggests a process constraint that may affect speed, resource utilization, or decision quality.',
         confidence: 'Low'
       });
     }
@@ -4647,7 +4920,7 @@ function renderCapturedFindings(plan, session, company) {
   }).join('');
 }
 
-function extractSessionThemes(session) {
+function extractSessionThemes(session, company = null) {
   const themes = new Set();
   
   const texts = [];
@@ -4664,61 +4937,109 @@ function extractSessionThemes(session) {
   }
   
   const allText = texts.join(' ').toLowerCase();
+  
+  const activeDomains = detectActiveDomain(allText, company, null);
 
   const themeDefinitions = {
-    'Proposal Creation': [
-      'proposal', 'proposals', 'proposal creation', 'proposal preparation',
-      'drafting', 'pitch deck', 'deck template', 'client brief'
-    ],
-    'Knowledge Access': [
-      'knowledge', 'internal frameworks', 'research', 'previous proposals',
-      'ip library', 'intellectual property', 'reusable assets', 'document library',
-      'knowledge base', 'archives'
-    ],
-    'Consultant Utilization': [
-      'consultant utilization', 'utilization', 'billable time', 'consultant capacity',
-      'client engagements', 'associate consultants', 'onboarding consultants'
-    ],
-    'Operational Efficiency': [
-      'efficiency', 'reduce time', 'time saving', 'faster', 'streamline',
-      'productivity', 'reduce effort', 'cycle time'
-    ],
-    'Research Reuse': [
-      'industry research', 'research papers', 'past briefs', 'prior work',
-      'reusable research', 'template reuse'
-    ],
-    'Manual Work': [
-      'manual', 'manually', 'spreadsheet', 'copy-paste', 'searching email',
-      'searching archives'
-    ],
-    'Manual Reporting': [
-      'manual reporting', 'weekly reporting', 'reporting cycle',
-      'reports are assembled', 'reporting completed', 'manual', 'manually',
-      'spreadsheet', 'copy-paste'
-    ],
-    'Data Fragmentation': [
-      'fragmented', 'scattered', 'siloed', 'local drives', 'disconnected',
-      'no central repository'
-    ],
-    'System Integration': [
-      'integration', 'sharepoint', 'onedrive', 'teams', 'outlook',
-      'intranet', 'search engine', 'database'
-    ],
-    'Reporting / Visibility': [
-      'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility'
-    ],
-    'Operational Visibility': [
-      'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility',
-      'operational visibility'
-    ],
-    'Process Bottleneck': [
-      'bottleneck', 'delay', 'slow', 'waits', 'takes hours', 'approval delay',
-      'preparation time'
-    ]
+    'Proposal Creation': {
+      domain: 'consulting',
+      keywords: [
+        'proposal', 'proposals', 'proposal creation', 'proposal preparation',
+        'drafting', 'pitch deck', 'deck template', 'client brief'
+      ]
+    },
+    'Knowledge Access': {
+      domain: 'consulting',
+      keywords: [
+        'knowledge', 'internal frameworks', 'research', 'previous proposals',
+        'ip library', 'intellectual property', 'reusable assets', 'document library',
+        'knowledge base', 'archives'
+      ]
+    },
+    'Resource Utilization': {
+      keywords: [
+        'utilization', 'billable time', 'capacity', 'clinician capacity',
+        'consultant capacity', 'staff capacity', 'developer capacity',
+        'client engagements', 'associate consultants', 'onboarding consultants',
+        'physician utilization', 'clinician utilization', 'consultant utilization',
+        'engineer utilization', 'lawyer utilization', 'attorney utilization',
+        'resource planning', 'resource utilization'
+      ]
+    },
+    'Operational Efficiency': {
+      keywords: [
+        'efficiency', 'reduce time', 'time saving', 'faster', 'streamline',
+        'productivity', 'reduce effort', 'cycle time'
+      ]
+    },
+    'Research Reuse': {
+      domain: 'consulting',
+      keywords: [
+        'industry research', 'research papers', 'past briefs', 'prior work',
+        'reusable research', 'template reuse'
+      ]
+    },
+    'Manual Work': {
+      keywords: [
+        'manual', 'manually', 'spreadsheet', 'copy-paste', 'searching email',
+        'searching archives'
+      ]
+    },
+    'Manual Reporting': {
+      domain: 'manufacturing',
+      keywords: [
+        'manual reporting', 'weekly reporting', 'reporting cycle',
+        'reports are assembled', 'reporting completed'
+      ]
+    },
+    'Data Fragmentation': {
+      keywords: [
+        'fragmented', 'scattered', 'siloed', 'local drives', 'disconnected',
+        'no central repository'
+      ]
+    },
+    'System Integration': {
+      keywords: [
+        'integration', 'sharepoint', 'onedrive', 'teams', 'outlook',
+        'intranet', 'search engine', 'database'
+      ]
+    },
+    'Reporting / Visibility': {
+      keywords: [
+        'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility'
+      ]
+    },
+    'Operational Visibility': {
+      keywords: [
+        'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility',
+        'operational visibility'
+      ]
+    },
+    'Process Bottleneck': {
+      keywords: [
+        'bottleneck', 'delay', 'slow', 'waits', 'takes hours', 'approval delay',
+        'preparation time'
+      ]
+    },
+    'Inventory Planning': {
+      domain: 'manufacturing',
+      keywords: [
+        'inventory', 'stock', 'materials', 'procurement'
+      ]
+    },
+    'Production Performance': {
+      domain: 'manufacturing',
+      keywords: [
+        'production performance', 'production floor', 'production orders', 'output'
+      ]
+    }
   };
 
-  for (const [themeName, keywords] of Object.entries(themeDefinitions)) {
-    const matched = keywords.some(kw => allText.includes(kw));
+  for (const [themeName, def] of Object.entries(themeDefinitions)) {
+    if (def.domain && !activeDomains.includes(def.domain)) {
+      continue;
+    }
+    const matched = def.keywords.some(kw => allText.includes(kw));
     if (matched) {
       themes.add(themeName);
     }
@@ -4727,8 +5048,8 @@ function extractSessionThemes(session) {
   return Array.from(themes);
 }
 
-function renderDiscoveryThemes(session) {
-  const themes = extractSessionThemes(session);
+function renderDiscoveryThemes(session, company = null) {
+  const themes = extractSessionThemes(session, company);
   if (themes.length === 0) {
     return `<div style="color: var(--text-muted); font-style: italic; font-size: 11px; padding: 4px 0;">No themes identified yet.</div>`;
   }
@@ -4741,13 +5062,13 @@ function renderDiscoveryThemes(session) {
   `).join('');
 }
 
-function hasAnalysisResultAndCopy(activeQuestion, session) {
+function hasAnalysisResultAndCopy(activeQuestion, session, company = null) {
   const val = session.answers[activeQuestion.field] || '';
   if (!val.trim()) return false;
   const res = session.analysisResults[activeQuestion.field];
   if (!res) return false;
   const suggestedCopy = session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, val);
-  const detected = extractDetectedInformation(val, activeQuestion);
+  const detected = extractDetectedInformation(val, activeQuestion, company);
   const hasAiObs = detected.some(d => d.label === 'AI Observation');
   return !!suggestedCopy || hasAiObs;
 }
@@ -4873,7 +5194,7 @@ function renderMeetingMode(company, overlay) {
           <div class="meeting-sidebar-card">
             <h3 style="font-size: 13px; margin: 0; color: var(--text-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Discovery Themes</h3>
             <div id="meeting-themes-container" style="font-size: 12px; display: flex; flex-direction: column; gap: 8px;">
-              ${renderDiscoveryThemes(session)}
+              ${renderDiscoveryThemes(session, company)}
             </div>
           </div>
         </div>
@@ -4941,7 +5262,7 @@ function renderMeetingMode(company, overlay) {
     // Update themes card dynamically
     const themesContainer = overlay.querySelector('#meeting-themes-container');
     if (themesContainer) {
-      themesContainer.innerHTML = renderDiscoveryThemes(session);
+      themesContainer.innerHTML = renderDiscoveryThemes(session, company);
     }
   });
   
@@ -5084,7 +5405,7 @@ function openCaptureFindingModal(activeQuestion, res, session, company, overlay,
   }).join('');
 
   // Extract AI Observation context to pre-fill the consultant note
-  const detected = extractDetectedInformation(originalAnswer, activeQuestion);
+  const detected = extractDetectedInformation(originalAnswer, activeQuestion, company);
   const aiObs = detected.find(d => d.label === 'AI Observation');
   const defaultNote = aiObs ? `${aiObs.label} (${aiObs.confidence}): ${aiObs.value}` : (res.recommendationText || '');
 
@@ -5187,7 +5508,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
   const container = overlay.querySelector('#meeting-result-container');
   if (!container) return;
   
-  const detected = extractDetectedInformation(session.answers[activeQuestion.field], activeQuestion);
+  const detected = extractDetectedInformation(session.answers[activeQuestion.field], activeQuestion, company);
   const detectedHTML = `
     <div class="meeting-detected-info-panel" style="margin-top: 12px; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
       <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; font-family: var(--font-mono);">Detected Information:</strong>
@@ -5476,7 +5797,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         return;
       }
       
-      const detected = extractDetectedInformation(originalAnswer, activeQuestion);
+      const detected = extractDetectedInformation(originalAnswer, activeQuestion, company);
       const aiObs = detected.find(d => d.label === 'AI Observation');
       const aiObservation = aiObs ? aiObs.value : '';
       
