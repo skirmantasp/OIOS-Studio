@@ -20,6 +20,26 @@ const dom = new JSDOM(`
       <div id="app-viewport"></div>
     </main>
   </div>
+  <div id="app-modal" class="modal-backdrop">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 id="modal-title"></h3>
+        <button id="modal-close"></button>
+      </div>
+      <div class="modal-body" id="modal-body-content"></div>
+      <div class="modal-footer" id="modal-footer-content"></div>
+    </div>
+  </div>
+  <div id="app-drawer" class="drawer-backdrop">
+    <div class="drawer-container">
+      <div class="drawer-header">
+        <h3 id="drawer-title"></h3>
+        <button id="drawer-edit"></button>
+        <button id="drawer-close"></button>
+      </div>
+      <div class="drawer-body" id="drawer-body-content"></div>
+    </div>
+  </div>
 </body>
 </html>
 `, {
@@ -239,6 +259,16 @@ async function runTest() {
   console.log('Clicking "Capture Finding"...');
   const activeCaptureBtn = document.getElementById('btn-meeting-complete');
   activeCaptureBtn.click();
+
+  // Click Save Finding button in the modal to complete the action
+  const saveFindingBtn = document.getElementById('modal-save-finding');
+  console.log('Save Finding button exists in modal:', !!saveFindingBtn);
+  if (saveFindingBtn) {
+    saveFindingBtn.click();
+  } else {
+    console.error('FAIL: Save Finding button not found in modal!');
+    process.exit(1);
+  }
 
   // 10. Test Previous/Next Question Navigation
   const prevBtn = document.getElementById('btn-meeting-prev');
