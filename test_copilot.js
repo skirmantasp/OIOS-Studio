@@ -432,6 +432,27 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     process.exit(1);
   }
 
+  // Verify recommendation text for full answer
+  const fullRecommendationBox = document.querySelector('.meeting-recommendation-box');
+  console.log('Full Recommendation text:', fullRecommendationBox ? fullRecommendationBox.textContent : 'NOT FOUND');
+  if (!fullRecommendationBox) {
+    console.error('FAIL: Recommendation box not found for full answer!');
+    process.exit(1);
+  }
+  const fullRecText = fullRecommendationBox.textContent;
+  const hasStrongEnough = fullRecText.includes('strong enough to capture');
+  const hasProceedNext = fullRecText.includes('proceed to the next question');
+  const hasSuggestedFollowUp = fullRecText.includes('Suggested Follow-up');
+  
+  console.log('Includes "strong enough to capture":', hasStrongEnough);
+  console.log('Includes "proceed to the next question":', hasProceedNext);
+  console.log('Does NOT suggest a follow-up:', !hasSuggestedFollowUp);
+  
+  if (!hasStrongEnough || !hasProceedNext || hasSuggestedFollowUp) {
+    console.error('FAIL: Recommendation text requirements violated for full answer!');
+    process.exit(1);
+  }
+
   // 10.6 Test People > Decision Makers context-aware clarifications
   console.log('\n--- 10.6 CONTEXT-AWARE CLARIFICATION ENGINE (DECISION MAKERS) ---');
   console.log('Navigating to People > Decision Makers...');
@@ -508,6 +529,44 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   
   if (!includesStrategic || !includesReduceEffort || !includesNext12 || !includesIncreaseUtil || startsWithHighestPriority) {
     console.error('FAIL: Suggested Copy synthesis rules not satisfied for proposal creation answer!');
+    process.exit(1);
+  }
+
+  // Verify Recommendation block for proposal creation answer
+  const recommendationBox = document.querySelector('.meeting-recommendation-box');
+  console.log('Recommendation text found:', recommendationBox ? recommendationBox.textContent : 'NOT FOUND');
+  if (!recommendationBox) {
+    console.error('FAIL: Recommendation block not found!');
+    process.exit(1);
+  }
+  const recommendationText = recommendationBox.textContent;
+  
+  const hasStrategicObj = recommendationText.includes('strategic objective');
+  const hasPropPrep = recommendationText.includes('proposal preparation');
+  const hasConsUtil = recommendationText.includes('consultant utilization');
+  const hasClarWhoOwns = recommendationText.includes('who owns') || recommendationText.includes('who owns this initiative');
+  
+  const hasForbiddenPhrase = [
+    'Missing detail',
+    'Insufficient',
+    'Required field missing'
+  ].some(phrase => recommendationText.toLowerCase().includes(phrase.toLowerCase()));
+
+  const followUpEl = recommendationBox.querySelector('div');
+  const followUpText = followUpEl ? followUpEl.textContent : '';
+  console.log('Suggested follow-up text:', followUpText);
+  const hasOwnershipAccountability = followUpText.toLowerCase().includes('own') && (followUpText.toLowerCase().includes('accountable') || followUpText.toLowerCase().includes('efficiency'));
+
+  console.log('Includes expected terms:', hasStrategicObj && hasPropPrep && hasConsUtil && hasClarWhoOwns);
+  console.log('Does NOT include forbidden terms:', !hasForbiddenPhrase);
+  console.log('Suggested follow-up includes ownership/accountability:', hasOwnershipAccountability);
+
+  if (!hasStrategicObj || !hasPropPrep || !hasConsUtil || !hasClarWhoOwns || hasForbiddenPhrase) {
+    console.error('FAIL: Recommendation content requirements violated for proposal creation answer!');
+    process.exit(1);
+  }
+  if (!hasOwnershipAccountability) {
+    console.error('FAIL: Suggested follow-up does not include ownership/accountability terms!');
     process.exit(1);
   }
 

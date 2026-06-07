@@ -4042,17 +4042,95 @@ function analyzeDiscoveryAnswer(question, answer) {
     }
   }
 
-  let recommendationText = "I identified a standard operational workflow. Before moving on, I recommend capturing client observations.";
+  let recommendationText = "";
   let suggestedQuestion = question.followUp;
   
-  if (optionalClarifications.some(c => c.includes('Timeline'))) {
-    recommendationText = "I identified business goals, but the target timeline is undefined. Before moving on, I recommend clarifying the strategic schedule.";
-    suggestedQuestion = "What is the target launch date or deadline for these system improvements?";
-  } else if (optionalClarifications.some(c => c.includes('Outcome') || c.includes('Metrics'))) {
-    recommendationText = "I identified a strong operational visibility initiative. Before moving on, I recommend clarifying success metrics.";
-    suggestedQuestion = "What measurable business outcome would indicate this initiative was successful?";
-  } else if (optionalClarifications.some(c => c.includes('Ownership'))) {
-    recommendationText = "I identified business goals, but ownership is undefined. Before moving on, I recommend clarifying ownership of this objective.";
+  if (optionalClarifications.length === 0) {
+    recommendationText = "The answer is strong enough to capture as a discovery finding. I would proceed to the next question.";
+  } else {
+    // Sentence 1: Summarize what was identified
+    let s1 = "";
+    if (question.field === 'primaryGoals') {
+      if (text.includes('proposal') && text.includes('utilization')) {
+        s1 = "I identified a strategic objective focused on proposal preparation efficiency and consultant utilization.";
+      } else {
+        s1 = "I identified client business goals addressing high-level strategic objectives.";
+      }
+    } else if (question.field === 'expectedOutcomes') {
+      s1 = "I identified the expected outcomes and operational improvements for this project.";
+    } else if (question.field === 'currentChallenges') {
+      s1 = "I identified the operational friction points and key pain points the client is facing.";
+    } else if (question.section === 'People') {
+      s1 = "I identified key roles, team dynamics, and stakeholder context for this initiative.";
+    } else if (question.section === 'Process') {
+      s1 = "I identified the critical operational workflows and current process steps.";
+    } else if (question.section === 'Systems') {
+      s1 = "I identified the core software platforms and tools currently used in this workflow.";
+    } else if (question.section === 'Data') {
+      s1 = "I identified reporting structures and KPI metrics that are tracked by the client.";
+    } else {
+      s1 = "I identified standard operational details regarding this discovery field.";
+    }
+
+    // Sentence 2: Explain why it matters
+    let s2 = "";
+    if (question.field === 'primaryGoals' && text.includes('proposal') && text.includes('utilization')) {
+      s2 = "The answer provides a clear priority, measurable target, and 12-month timeline.";
+    } else {
+      const details = [];
+      if (text.includes('priority') || text.includes('critical') || text.includes('important')) details.push("priority indicators");
+      if (text.includes('because') || text.includes('due to') || text.includes('motivation')) details.push("business drivers");
+      if (text.includes('%') || text.includes('percent') || text.includes('target')) details.push("measurable metrics");
+      
+      if (details.length > 0) {
+        s2 = `The answer provides helpful context, including ${details.join(' and ')}.`;
+      } else {
+        s2 = "The answer provides initial qualitative context on this topic.";
+      }
+    }
+
+    // Sentence 3: Recommend what to clarify next
+    let s3 = "";
+    const firstMissing = optionalClarifications[0] ? optionalClarifications[0].replace(/^•\s*/, '') : '';
+    if (firstMissing === 'Ownership / Responsible Role' || firstMissing === 'Ownership' || firstMissing === 'Process Owner' || firstMissing === 'System Owner' || firstMissing === 'KPI Owner' || firstMissing === 'Source Owner' || firstMissing === 'Team Ownership') {
+      s3 = "Before moving forward, I recommend clarifying who owns this initiative internally.";
+      suggestedQuestion = `Who will own this initiative internally, and which team will be accountable for improving ${question.field === 'primaryGoals' ? 'proposal preparation efficiency' : 'this process'}?`;
+    } else if (firstMissing === 'Timeline') {
+      s3 = "Before moving forward, I recommend clarifying the target timeline or strategic schedule.";
+      suggestedQuestion = "What is the target launch date or deadline for these improvements?";
+    } else if (firstMissing === 'Success Metrics' || firstMissing === 'KPI Targets') {
+      s3 = "Before moving forward, I recommend clarifying success metrics and measurable targets.";
+      suggestedQuestion = "What measurable business outcome or KPI target would indicate this was successful?";
+    } else if (firstMissing) {
+      s3 = `Before moving forward, I recommend clarifying the ${firstMissing.toLowerCase()} to complete the picture.`;
+      suggestedQuestion = `Could you clarify the ${firstMissing.toLowerCase()} for this?`;
+    } else {
+      s3 = "Before moving forward, I recommend clarifying the remaining operational details.";
+    }
+
+    // Sentence 4: Explain how this affects discovery direction
+    let s4 = "";
+    if (question.field === 'primaryGoals') {
+      if (text.includes('proposal') && text.includes('utilization')) {
+        s4 = "This will help determine whether the primary opportunity is knowledge management, workflow improvement, or both.";
+      } else {
+        s4 = "This will help align the proposed system design with the strategic roadmap.";
+      }
+    } else if (question.field === 'expectedOutcomes') {
+      s4 = "This will help establish clear tracking mechanisms for business value.";
+    } else if (question.field === 'currentChallenges') {
+      s4 = "This will clarify the business impact of the obstacles and prioritize automation efforts.";
+    } else if (question.section === 'People') {
+      s4 = "This will ensure alignment with key sponsors and identify change management risks.";
+    } else if (question.section === 'Process') {
+      s4 = "This will help locate the exact steps where automation or integration provides the most leverage.";
+    } else if (question.section === 'Systems') {
+      s4 = "This will clarify the technical feasibility of the proposed integrations.";
+    } else if (question.section === 'Data') {
+      s4 = "This will help design the target reporting pipeline and select authoritative data sources.";
+    }
+
+    recommendationText = `${s1}\n\n${s2}\n\n${s3}${s4 ? `\n\n${s4}` : ''}`;
   }
 
   const numCriteria = question.criteria.length;
@@ -5150,9 +5228,10 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
   // Recommendation Card (Always displayed in the Copilot layer)
   const recommendationCardHTML = `
     <div class="meeting-recommendation-box" style="margin-top: 12px; padding: 12px; background: var(--bg-primary); border: 1px dashed rgba(66, 153, 225, 0.3); border-radius: var(--radius-md); font-size: 13px;">
-      <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-mono);">Copilot Recommendation:</strong>
+      <strong style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; font-family: var(--font-mono);">Discovery Copilot Recommendation</strong>
       <span style="color: var(--text-primary); line-height: 1.4; display: block; margin-bottom: 8px;">${escapeHTML(res.recommendationText)}</span>
       
+      ${res.optionalClarifications.length > 0 ? `
       <div style="font-style: italic; color: var(--text-secondary); margin-bottom: 8px; border-left: 2px solid var(--border-color); padding-left: 8px;">
         Suggested Follow-up: "${escapeHTML(res.suggestedQuestion)}"
       </div>
@@ -5162,6 +5241,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
           ${getIconHTML('plus', 'width: 12px; height: 12px;')} Use Follow-up Question
         </button>
       </div>
+      ` : ''}
     </div>
   `;
 
