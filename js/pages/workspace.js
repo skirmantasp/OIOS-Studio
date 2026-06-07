@@ -4762,22 +4762,6 @@ function renderMeetingMode(company, overlay) {
   
   const activeQuestion = getNextDiscoveryQuestion(plan, session.currentIndex);
   const questionText = getQuestionText(activeQuestion, company);
-  const hasAnalysis = hasAnalysisResultAndCopy(activeQuestion, session);
-  
-  const targetField = activeQuestion.section.toLowerCase() + '.' + activeQuestion.field;
-  const originalAnswer = session.answers[activeQuestion.field] || '';
-  const suggestedCopy = session.suggestedCopies[activeQuestion.field] || '';
-  const isCaptured = session.capturedFindings?.some(f => 
-    f.targetField === targetField &&
-    f.originalAnswer === originalAnswer &&
-    f.suggestedCopy === suggestedCopy
-  ) || false;
-  
-  const completeBtnText = isCaptured ? '✓ Finding Captured' : 'Save as Discovery Finding';
-  const isCompleteDisabled = (isCaptured || !hasAnalysis) ? 'disabled' : '';
-  const completeStatusHTML = isCaptured
-    ? `<div class="captured-status-text" style="font-size: 11px; color: var(--color-success); font-family: var(--font-mono); text-transform: uppercase; margin-top: 4px;">Saved to Captured Findings</div>`
-    : '';
   
   overlay.innerHTML = `
     <div class="meeting-topbar">
@@ -4848,10 +4832,6 @@ function renderMeetingMode(company, overlay) {
             </div>
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
               <button id="btn-meeting-skip" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Skip</button>
-              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                <button id="btn-meeting-complete" class="btn btn-primary" style="padding: 8px 16px; height: 38px;" ${isCompleteDisabled}>${completeBtnText}</button>
-                ${completeStatusHTML}
-              </div>
               <button id="btn-meeting-prev" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Previous Question</button>
               <button id="btn-meeting-next" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Next Question</button>
               <button id="btn-meeting-finish" class="btn btn-danger" style="padding: 8px 16px; height: 38px;">Finish Session</button>
@@ -4919,15 +4899,6 @@ function renderMeetingMode(company, overlay) {
     
     saveGuidedDiscoverySession(company.id, session);
     
-    // Disable Capture button
-    const captureBtn = overlay.querySelector('#btn-meeting-complete');
-    if (captureBtn) {
-      captureBtn.textContent = 'Save as Discovery Finding';
-      captureBtn.disabled = true;
-      const statusText = captureBtn.parentNode.querySelector('.captured-status-text');
-      if (statusText) statusText.remove();
-    }
-    
     // Clear results container
     const container = overlay.querySelector('#meeting-result-container');
     if (container) {
@@ -4967,39 +4938,6 @@ function renderMeetingMode(company, overlay) {
     saveGuidedDiscoverySession(company.id, session);
     showMeetingAnalysisResult(activeQuestion, res, overlay, session, company);
     
-    // Update Capture button state
-    const captureBtn = overlay.querySelector('#btn-meeting-complete');
-    if (captureBtn) {
-      const targetField = activeQuestion.section.toLowerCase() + '.' + activeQuestion.field;
-      const originalAnswer = val;
-      const currentSuggestedCopy = session.suggestedCopies[activeQuestion.field] || '';
-      
-      const isNewCaptured = session.capturedFindings?.some(f => 
-        f.targetField === targetField &&
-        f.originalAnswer === originalAnswer &&
-        f.suggestedCopy === currentSuggestedCopy
-      ) || false;
-      
-      if (isNewCaptured) {
-        captureBtn.textContent = '✓ Finding Captured';
-        captureBtn.disabled = true;
-        
-        let statusText = captureBtn.parentNode.querySelector('.captured-status-text');
-        if (!statusText) {
-          statusText = document.createElement('div');
-          statusText.className = 'captured-status-text';
-          statusText.style.cssText = 'font-size: 11px; color: var(--color-success); font-family: var(--font-mono); text-transform: uppercase; margin-top: 4px;';
-          statusText.textContent = 'Saved to Captured Findings';
-          captureBtn.parentNode.appendChild(statusText);
-        }
-      } else {
-        captureBtn.textContent = 'Save as Discovery Finding';
-        captureBtn.disabled = !hasAnalysisResultAndCopy(activeQuestion, session);
-        const statusText = captureBtn.parentNode.querySelector('.captured-status-text');
-        if (statusText) statusText.remove();
-      }
-    }
-    
     // Update themes card dynamically
     const themesContainer = overlay.querySelector('#meeting-themes-container');
     if (themesContainer) {
@@ -5015,18 +4953,6 @@ function renderMeetingMode(company, overlay) {
     session.completedQuestions = session.completedQuestions.filter(f => f !== activeQuestion.field);
     
     advanceMeetingQuestion(plan, session, company, overlay);
-  });
-  
-  // Complete button handler (renamed to Capture This Finding)
-  overlay.querySelector('#btn-meeting-complete').addEventListener('click', () => {
-    const val = textarea.value;
-    session.answers[activeQuestion.field] = val;
-    saveGuidedDiscoverySession(company.id, session);
-
-    // Run analysis to get confidence and potential findings
-    const res = analyzeDiscoveryAnswer(activeQuestion, val);
-    const suggestedCopy = session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, val);
-    openCaptureFindingModal(activeQuestion, res, session, company, overlay, suggestedCopy);
   });
   
   // Previous button handler
@@ -5252,7 +5178,7 @@ function openCaptureFindingModal(activeQuestion, res, session, company, overlay,
     showToast('Discovery Finding Saved', 'success');
     closeModal();
 
-    // Re-render meeting mode to show the updated captured findings sidebar card and ✓ Finding Captured button state
+    // Re-render meeting mode to show the updated captured findings sidebar card and ✓ Finding Saved button state
     renderMeetingMode(company, overlay);
   });
 }
@@ -5318,7 +5244,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
     f.suggestedCopy === suggestedCopy
   ) || false;
   
-  const captureBtnText = isCaptured ? '✓ Finding Captured' : 'Save as Discovery Finding';
+  const captureBtnText = isCaptured ? '✓ Finding Saved' : 'Save as Discovery Finding';
   const isCaptureDisabled = isCaptured ? 'disabled' : '';
   const captureStatusTextHTML = isCaptured
     ? `<div class="captured-status-text" style="font-size: 11px; color: var(--color-success); font-family: var(--font-mono); text-transform: uppercase; margin-top: 4px; text-align: center; width: 100%;">Saved to Captured Findings</div>`

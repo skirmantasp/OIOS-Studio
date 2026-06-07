@@ -172,17 +172,11 @@ async function runTest() {
     process.exit(1);
   }
 
-  // 4. Verify rename of "Capture Finding" button to "Save as Discovery Finding" and initial disabled state
-  const getCaptureBtn = () => document.getElementById('btn-meeting-complete');
-  console.log('Capture Finding button exists:', !!getCaptureBtn());
-  console.log('Capture Finding button text:', getCaptureBtn().textContent.trim());
-  if (!getCaptureBtn() || getCaptureBtn().textContent.trim() !== 'Save as Discovery Finding') {
-    console.error('FAIL: Primary button not renamed to Save as Discovery Finding!');
-    process.exit(1);
-  }
-  console.log('Capture Finding button is initially disabled:', getCaptureBtn().disabled);
-  if (!getCaptureBtn().disabled) {
-    console.error('FAIL: Capture button should be disabled initially!');
+  // 4. Verify that the bottom action bar does NOT contain the "Save as Discovery Finding" button
+  const getCompleteBtn = () => document.getElementById('btn-meeting-complete');
+  console.log('Bottom action bar complete button exists:', !!getCompleteBtn());
+  if (getCompleteBtn()) {
+    console.error('FAIL: Bottom action bar contains Save as Discovery Finding button!');
     process.exit(1);
   }
 
@@ -222,26 +216,40 @@ async function runTest() {
   answerTextarea.value = 'We consolidate data using Excel manually to compile reports.';
   answerTextarea.dispatchEvent(new dom.window.Event('input'));
   
-  console.log('Capture button is disabled on text input:', getCaptureBtn().disabled);
-  if (!getCaptureBtn().disabled) {
-    console.error('FAIL: Capture button should be disabled on text input!');
+  const getCardCaptureBtn = () => document.getElementById('btn-card-capture-finding');
+  console.log('Card Capture button does not exist in DOM after text input:', !getCardCaptureBtn());
+  if (getCardCaptureBtn()) {
+    console.error('FAIL: Card Capture button should not exist on text input!');
     process.exit(1);
   }
 
   analyzeBtn.click();
   
-  console.log('Capture button is enabled after analyze:', !getCaptureBtn().disabled);
-  if (getCaptureBtn().disabled) {
-    console.error('FAIL: Capture button should be enabled after analysis!');
+  console.log('Card Capture button exists after analyze:', !!getCardCaptureBtn());
+  if (!getCardCaptureBtn()) {
+    console.error('FAIL: Card Capture button should exist after analysis!');
+    process.exit(1);
+  }
+  console.log('Card Capture button is enabled after analyze:', !getCardCaptureBtn().disabled);
+  if (getCardCaptureBtn().disabled) {
+    console.error('FAIL: Card Capture button should be enabled after analysis!');
     process.exit(1);
   }
 
-  // Verify that editing the answer disables the Capture button again
+  // Assert that exactly one visible Save button exists
+  const allSaveButtons = Array.from(document.querySelectorAll('button')).filter(btn => btn.textContent.trim().includes('Save as Discovery Finding'));
+  console.log('Number of Save as Discovery Finding buttons after analysis:', allSaveButtons.length);
+  if (allSaveButtons.length !== 1) {
+    console.error('FAIL: There should be exactly one visible Save as Discovery Finding button after analysis!');
+    process.exit(1);
+  }
+
+  // Verify that editing the answer removes the Card Capture button again
   answerTextarea.value = 'We consolidate data using Excel manually to compile reports. (edited)';
   answerTextarea.dispatchEvent(new dom.window.Event('input'));
-  console.log('Capture button is disabled after edit:', getCaptureBtn().disabled);
-  if (!getCaptureBtn().disabled) {
-    console.error('FAIL: Capture button should be disabled after editing the answer!');
+  console.log('Card Capture button does not exist in DOM after edit:', !getCardCaptureBtn());
+  if (getCardCaptureBtn()) {
+    console.error('FAIL: Card Capture button should be removed after editing the answer!');
     process.exit(1);
   }
   
@@ -287,7 +295,7 @@ async function runTest() {
 
   // 9. Test Capture Finding Click
   console.log('Clicking "Save as Discovery Finding"...');
-  const activeCaptureBtn = document.getElementById('btn-meeting-complete');
+  const activeCaptureBtn = document.getElementById('btn-card-capture-finding');
   activeCaptureBtn.click();
 
   // Verify select options style class
@@ -311,14 +319,14 @@ async function runTest() {
   }
 
   // Assert button and status text entered captured state
-  const postCaptureBtn = document.getElementById('btn-meeting-complete');
+  const postCaptureBtn = document.getElementById('btn-card-capture-finding');
   console.log('Capture button text after save:', postCaptureBtn.textContent.trim());
   console.log('Capture button is disabled after save:', postCaptureBtn.disabled);
   const statusTextEl = postCaptureBtn.parentNode.querySelector('.captured-status-text');
   console.log('Status text element exists:', !!statusTextEl);
   console.log('Status text content:', statusTextEl ? statusTextEl.textContent : 'NONE');
 
-  if (postCaptureBtn.textContent.trim() !== '✓ Finding Captured' || !postCaptureBtn.disabled) {
+  if (postCaptureBtn.textContent.trim() !== '✓ Finding Saved' || !postCaptureBtn.disabled) {
     console.error('FAIL: Capture button did not enter captured state after save!');
     process.exit(1);
   }
@@ -326,6 +334,48 @@ async function runTest() {
     console.error('FAIL: Status text "Saved to Captured Findings" not displayed below button!');
     process.exit(1);
   }
+
+  // Verify that clicking again does not silently create duplicate
+  console.log('Checking that clicking again does not silently create duplicate...');
+  let freshSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  console.log('Number of captured findings after first save:', freshSession.capturedFindings.length);
+  if (freshSession.capturedFindings.length !== 1) {
+    console.error('FAIL: Expected exactly 1 captured finding!');
+    process.exit(1);
+  }
+
+  const originalConfirm = global.confirm;
+  global.confirm = () => {
+    global.confirm.called = true;
+    return false;
+  };
+  global.confirm.called = false;
+
+  // Temporarily enable and click to simulate programmatically triggering duplicate save modal
+  postCaptureBtn.disabled = false;
+  postCaptureBtn.click();
+  
+  const saveFindingBtnDuplicate = document.getElementById('modal-save-finding');
+  if (saveFindingBtnDuplicate) {
+    saveFindingBtnDuplicate.click();
+  }
+  
+  freshSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  console.log('Duplicate check confirmation was triggered:', global.confirm.called);
+  console.log('Number of captured findings after canceled duplicate save:', freshSession.capturedFindings.length);
+  
+  if (!global.confirm.called) {
+    console.error('FAIL: Duplicate confirmation dialog was not shown!');
+    process.exit(1);
+  }
+  if (freshSession.capturedFindings.length !== 1) {
+    console.error('FAIL: Duplicate was saved despite user canceling confirmation!');
+    process.exit(1);
+  }
+
+  // Restore confirm
+  global.confirm = originalConfirm;
+  postCaptureBtn.disabled = true; // restore disabled state
 
   // 10. Test Previous/Next Question Navigation
   const prevBtn = document.getElementById('btn-meeting-prev');
