@@ -337,6 +337,80 @@ async function runTest() {
     process.exit(1);
   }
 
+  // 10.5 Verify Confidence Engine with missing ownership vs fully-satisfied answer
+  console.log('\n--- 10.5 CONFIDENCE ENGINE VERIFICATION ---');
+  const proposalAnswerText = `Our highest priority is reducing proposal creation time.
+Today consultants spend time searching previous proposals, industry research, and internal frameworks.
+This impacts consultant utilization.
+Over the next 12 months we want to reduce proposal preparation effort by at least 50% and increase consultant utilization from 72% to 80%.`;
+  
+  console.log('Testing proposal creation answer (missing ownership)...');
+  const dynamicTextarea = document.getElementById('meeting-answer-input');
+  const dynamicAnalyzeBtn = document.getElementById('btn-meeting-analyze');
+  
+  dynamicTextarea.value = proposalAnswerText;
+  dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
+  dynamicAnalyzeBtn.click();
+  
+  const activeQuestionField = document.querySelector('.meeting-question-header span:last-child').textContent.trim();
+  console.log('Active Question Field:', activeQuestionField);
+  
+  let currentSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  let analysisRes = currentSession.analysisResults[activeQuestionField];
+  
+  console.log('Calculated Confidence:', analysisRes.confidence);
+  console.log('Is Confidence below 100:', analysisRes.confidence < 100);
+  console.log('Is Confidence between 80 and 90:', analysisRes.confidence >= 80 && analysisRes.confidence <= 90);
+  console.log('Optional Clarifications:', analysisRes.optionalClarifications);
+  
+  const hasOwnershipClarification = analysisRes.optionalClarifications.some(c => c.toLowerCase().includes('ownership / responsible role'));
+  console.log('Optional Clarifications includes ownership / responsible role:', hasOwnershipClarification);
+  
+  const resContainer = document.getElementById('meeting-result-container');
+  const hasAllCriteriaMet = resContainer.textContent.includes('All criteria met');
+  console.log('All criteria met is NOT displayed:', !hasAllCriteriaMet);
+  
+  if (analysisRes.confidence >= 100 || analysisRes.confidence < 80 || analysisRes.confidence > 90) {
+    console.error('FAIL: Confidence score for missing ownership not in the 80-90% range!');
+    process.exit(1);
+  }
+  if (!hasOwnershipClarification) {
+    console.error('FAIL: Missing ownership clarification not listed in optional clarifications!');
+    process.exit(1);
+  }
+  if (hasAllCriteriaMet) {
+    console.error('FAIL: "All criteria met" displayed despite missing ownership component!');
+    process.exit(1);
+  }
+  
+  // Test full-answer case (all 6 components present)
+  console.log('Testing full-answer case (all 6 components present)...');
+  const fullAnswerText = `Our strategic objective is to improve the proposal creation process. 
+In order to achieve this, the Operations Director will be responsible for the transition.
+By Q4, we expect to reduce proposal preparation effort by 50% using our custom SharePoint system because we need to save time.`;
+  
+  dynamicTextarea.value = fullAnswerText;
+  dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
+  dynamicAnalyzeBtn.click();
+  
+  currentSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  analysisRes = currentSession.analysisResults[activeQuestionField];
+  
+  console.log('Calculated Confidence (Full Answer):', analysisRes.confidence);
+  console.log('Is Confidence 95-100%:', analysisRes.confidence >= 95 && analysisRes.confidence <= 100);
+  console.log('Optional Clarifications (Full Answer):', analysisRes.optionalClarifications);
+  
+  if (analysisRes.confidence < 95 || analysisRes.confidence > 100) {
+    console.error('FAIL: Confidence score for full answer not in the 95-100% range!');
+    process.exit(1);
+  }
+  if (analysisRes.optionalClarifications.length > 0) {
+    console.error('FAIL: Optional clarifications listed when all components are present!');
+    process.exit(1);
+  }
+  
+  console.log('CONFIDENCE ENGINE VERIFICATION PASSED!\n');
+
   // 11. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');
   console.log('Exit Session button exists:', !!exitBtn);

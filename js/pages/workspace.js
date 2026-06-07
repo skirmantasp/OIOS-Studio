@@ -3883,11 +3883,11 @@ function analyzeDiscoveryAnswer(question, answer) {
   
   const text = answer.toLowerCase();
   const identifiedTags = [];
-  const optionalClarifications = [];
   
-  const hasPriority = /\b(priority|urgent|critical|important|must|required|essential|key|main|highest|primary)\b/i.test(text);
-  const hasBusinessDriver = /\b(motivation|why|need|because|demand|drive|competition|growth|revenue|improve|reduce|save|cost|value)\b/i.test(text);
+  const hasPriority = /\b(priority|highest\s+priority|critical|important|main\s+goal|objective|strategic\s+objective|primary|urgent|must|required|essential|key|main|highest)\b/i.test(text);
+  const hasBusinessDriver = /\b(because|due\s+to|impacts|limits|affects|drives|reason|so\s+that|in\s+order\s+to|motivation|why|need|demand|drive|competition|growth|revenue|improve|reduce|save|cost|value)\b/i.test(text);
   const hasTimeline = (
+    /\b(next\s+12\s+months|next\s+6\s+months|over\s+the\s+next\s+year|within|by\s+q[1-4]|this\s+year|next\s+year|deadline|target\s+period)\b/i.test(text) ||
     /next\s+(\d+|[a-zA-Z]+)\s+months?/i.test(text) ||
     /next\s+(\d+|[a-zA-Z]+)\s+weeks?/i.test(text) ||
     /next\s+(\d+|[a-zA-Z]+)\s+years?/i.test(text) ||
@@ -3898,9 +3898,9 @@ function analyzeDiscoveryAnswer(question, answer) {
     /within\s+(\d+|[a-zA-Z]+)\s+weeks?/i.test(text) ||
     /\b(by|months|year|weeks|timeline|deadline|target|schedule)\b/i.test(text)
   );
-  const hasKPI = /\b(kpi|metric|percent|reduce|increase|save|outcome|measurable|measure|%|hours|dollars|metrics|numbers)\b/i.test(text);
-  const hasOwner = /\b(role|owner|manager|supervisor|director|user|champion|team|sponsor|cfo|staff|lead|person|operations|who)\b/i.test(text);
-  const hasProcessOrSystem = /\b(process|system|sap|excel|power bi|database|tool|workflow|reporting|software|platform|intake)\b/i.test(text);
+  const hasKPI = /\b(increase|reduce|decrease|improve|percent|hours|days|utilization|kpi|metric|target|from|to|measurable|measure|dollars|metrics|numbers)\b/i.test(text) || text.includes('%');
+  const hasOwner = /\b(owner|responsible|accountable|sponsor|manager|director|operations\s+director|finance\s+director|it\s+manager|team\s+lead|department\s+owner|process\s+owner|champion|role|supervisor|user|team|cfo|staff|lead|person|operations|who)\b/i.test(text);
+  const hasProcessOrSystem = /\b(process|workflow|reporting|proposal\s+creation|production|inventory|sap|excel|power\s+bi|sharepoint|onedrive|teams|outlook|database|system|tool|spreadsheet|sheet|software|platform|intake)\b/i.test(text);
   
   question.criteria.forEach(criterion => {
     let matched = false;
@@ -3917,8 +3917,6 @@ function analyzeDiscoveryAnswer(question, answer) {
     const friendlyName = getFriendlyCriterionLabel(criterion.text);
     if (matched) {
       identifiedTags.push(`✓ ${friendlyName}`);
-    } else {
-      optionalClarifications.push(`• ${friendlyName}`);
     }
   });
 
@@ -3934,6 +3932,17 @@ function analyzeDiscoveryAnswer(question, answer) {
   if (text.includes('bottleneck') || text.includes('slow') || text.includes('delay')) {
     if (!identifiedTags.includes('✓ Process Bottleneck')) identifiedTags.push('✓ Process Bottleneck');
   }
+
+  const optionalClarifications = [];
+  if (!hasPriority) optionalClarifications.push('• Priority');
+  if (!hasBusinessDriver) optionalClarifications.push('• Business Driver');
+  if (!hasTimeline) optionalClarifications.push('• Timeline');
+  if (!hasKPI) optionalClarifications.push('• Measurable Outcome / KPI');
+  if (!hasOwner) {
+    optionalClarifications.push('• Ownership / responsible role');
+    optionalClarifications.push('• Stakeholder or sponsor');
+  }
+  if (!hasProcessOrSystem) optionalClarifications.push('• Affected Process / System');
 
   const potentialFindings = [];
   if (text.includes('excel') && (text.includes('manual') || text.includes('consolidate') || text.includes('compile'))) {
@@ -3980,13 +3989,14 @@ function analyzeDiscoveryAnswer(question, answer) {
     return identifiedTags.includes(`✓ ${friendlyName}`);
   }).length;
   
-  let baseConf = numCriteria > 0 ? (metCriteria / numCriteria) * 75 : 50;
+  const componentsList = [hasPriority, hasBusinessDriver, hasTimeline, hasKPI, hasOwner, hasProcessOrSystem];
+  const presentCount = componentsList.filter(Boolean).length;
+  const missingCount = 6 - presentCount;
+
+  let baseConf = (presentCount / 6) * 75;
   const len = answer.trim().length;
   const lengthModifier = Math.min(25, len / 10);
   let confidence = Math.round(baseConf + lengthModifier);
-  
-  const allSixPresent = hasPriority && hasBusinessDriver && hasTimeline && hasKPI && hasOwner && hasProcessOrSystem;
-  if (allSixPresent) confidence = Math.min(100, confidence + 20);
   
   let status = 'Insufficient';
   let statusColor = '🔴';
@@ -3999,6 +4009,19 @@ function analyzeDiscoveryAnswer(question, answer) {
     status = 'Partial';
     statusColor = '🟡';
     confidence = Math.max(40, confidence);
+  }
+
+  // Capping rules based on missing count
+  if (missingCount === 1) {
+    confidence = Math.min(90, confidence);
+  } else if (missingCount === 2) {
+    confidence = Math.min(80, confidence);
+  } else if (missingCount === 3) {
+    confidence = Math.min(70, confidence);
+  } else if (missingCount > 3) {
+    confidence = Math.min(60, confidence);
+  } else if (missingCount === 0) {
+    confidence = Math.max(95, confidence);
   }
 
   const destinationMap = {
