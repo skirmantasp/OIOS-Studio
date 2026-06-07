@@ -4314,25 +4314,196 @@ function extractDetectedInformation(answer, question) {
   }
   
   // AI Observations with Confidence classifications and careful phrasing
+  const themes = [];
+  const themeDefinitions = {
+    'Proposal Creation': [
+      'proposal', 'proposals', 'proposal creation', 'proposal preparation',
+      'drafting', 'pitch deck', 'deck template', 'client brief'
+    ],
+    'Knowledge Access': [
+      'knowledge', 'internal frameworks', 'research', 'previous proposals',
+      'ip library', 'intellectual property', 'reusable assets', 'document library',
+      'knowledge base', 'archives'
+    ],
+    'Consultant Utilization': [
+      'consultant utilization', 'utilization', 'billable time', 'consultant capacity',
+      'client engagements', 'associate consultants', 'onboarding consultants'
+    ],
+    'Operational Efficiency': [
+      'efficiency', 'reduce time', 'time saving', 'faster', 'streamline',
+      'productivity', 'reduce effort', 'cycle time'
+    ],
+    'Research Reuse': [
+      'industry research', 'research papers', 'past briefs', 'prior work',
+      'reusable research', 'template reuse'
+    ],
+    'Manual Work': [
+      'manual', 'manually', 'spreadsheet', 'copy-paste', 'searching email',
+      'searching archives'
+    ],
+    'Manual Reporting': [
+      'manual reporting', 'weekly reporting', 'reporting cycle',
+      'reports are assembled', 'reporting completed', 'manual', 'manually',
+      'spreadsheet', 'copy-paste'
+    ],
+    'Data Fragmentation': [
+      'fragmented', 'scattered', 'siloed', 'local drives', 'disconnected',
+      'no central repository'
+    ],
+    'System Integration': [
+      'integration', 'sharepoint', 'onedrive', 'teams', 'outlook',
+      'intranet', 'search engine', 'database'
+    ],
+    'Reporting / Visibility': [
+      'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility'
+    ],
+    'Operational Visibility': [
+      'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility',
+      'operational visibility'
+    ],
+    'Process Bottleneck': [
+      'bottleneck', 'delay', 'slow', 'waits', 'takes hours', 'approval delay',
+      'preparation time'
+    ],
+    'Inventory Planning': [
+      'inventory', 'stock', 'materials', 'procurement'
+    ],
+    'Production Performance': [
+      'production performance', 'production floor', 'production orders', 'output'
+    ]
+  };
+
+  for (const [themeName, keywords] of Object.entries(themeDefinitions)) {
+    const matched = keywords.some(kw => text.includes(kw));
+    if (matched) {
+      themes.push(themeName);
+    }
+  }
+
+  const aiObservations = [];
+  
   if (!text || text.trim().length < 10) {
-    detected.push({
+    aiObservations.push({
       label: 'AI Observation',
       value: 'Client data suggests insufficient detail is currently available for analysis.',
       confidence: 'Low'
     });
-  } else if (text.includes('excel') || text.includes('manual') || text.includes('consolidate') || text.includes('manually')) {
-    detected.push({ 
-      label: 'AI Observation', 
-      value: 'Operational reporting appears heavily dependent on manual consolidation.', 
-      confidence: 'High' 
-    });
   } else {
-    detected.push({ 
-      label: 'AI Observation', 
-      value: 'Process automation could reduce manual entry workload.', 
-      confidence: 'Medium' 
-    });
+    const hasImpact = /\b(impact|limit|prevent|loss|cost|utilization|engagement|constraint|friction|bottleneck|delay|waste|affect)\b/i.test(text);
+    
+    // 1. Proposal Creation + Knowledge Access
+    if (themes.includes('Proposal Creation') && themes.includes('Knowledge Access')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'Proposal preparation appears heavily dependent on locating and reusing institutional knowledge across previous proposals, research materials, and internal frameworks.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'This may indicate that knowledge accessibility is a major constraint in the proposal workflow.',
+        confidence: 'Medium'
+      });
+    } else {
+      if (themes.includes('Proposal Creation')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Proposal preparation appears to require significant manual drafting and template coordination.',
+          confidence: 'Medium'
+        });
+      }
+      if (themes.includes('Knowledge Access')) {
+        aiObservations.push({
+          label: 'AI Observation',
+          value: 'Knowledge access and reuse of past materials could point to a need for a centralized repository.',
+          confidence: 'Medium'
+        });
+      }
+    }
+    
+    // 2. Consultant Utilization
+    if (themes.includes('Consultant Utilization')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'Consultant utilization appears directly affected by time spent on non-billable proposal preparation and knowledge retrieval work.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+    }
+    
+    // 3. Operational Visibility / Reporting
+    if (themes.includes('Operational Visibility') || themes.includes('Reporting / Visibility')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'Management visibility appears constrained by delayed reporting cycles and fragmented operational data.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+    }
+    
+    // 4. Manual Reporting
+    if (themes.includes('Manual Reporting') && !themes.includes('Proposal Creation')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'Reporting workflows appear dependent on manual consolidation, which may create delay, reconciliation effort, and inconsistent visibility.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+    }
+    
+    // 5. Data Fragmentation
+    if (themes.includes('Data Fragmentation')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'Operational information appears distributed across disconnected sources, which may reduce trust in reporting and decision-making speed.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+    }
+    
+    // 6. System Integration
+    if (themes.includes('System Integration')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'System integration gaps may be contributing to duplicated work and limited end-to-end visibility.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+    }
+    
+    // 7. Process Bottleneck
+    if (themes.includes('Process Bottleneck')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'The described workflow suggests a process bottleneck that may be affecting speed, capacity, or decision quality.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+    }
+    
+    // 8. Inventory Planning
+    if (themes.includes('Inventory Planning')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'Inventory planning appears affected by limited visibility into stock status, lead times, or procurement signals.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+    }
+    
+    // 9. Production Performance
+    if (themes.includes('Production Performance')) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'Production performance monitoring appears dependent on delayed or fragmented information flows.',
+        confidence: hasImpact ? 'High' : 'Medium'
+      });
+    }
+    
+    if (aiObservations.length === 0) {
+      aiObservations.push({
+        label: 'AI Observation',
+        value: 'The described activities suggest a standard operational workflow that could point to optimization opportunities.',
+        confidence: 'Low'
+      });
+    }
   }
+  
+  aiObservations.slice(0, 2).forEach(obs => {
+    detected.push(obs);
+  });
   
   return detected;
 }

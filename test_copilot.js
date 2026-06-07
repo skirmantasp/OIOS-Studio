@@ -510,6 +510,36 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     console.error('FAIL: Suggested Copy synthesis rules not satisfied for proposal creation answer!');
     process.exit(1);
   }
+
+  // Verify AI Observations for proposal creation answer
+  let aiObsElements = Array.from(document.querySelectorAll('.meeting-detected-info-panel li')).filter(li => li.textContent.includes('AI Observation'));
+  console.log('Proposal AI Observations found:', aiObsElements.map(li => li.textContent));
+  if (aiObsElements.length === 0) {
+    console.error('FAIL: No AI Observations found in DOM for proposal creation answer!');
+    process.exit(1);
+  }
+  const allProposalAiObsText = aiObsElements.map(li => li.textContent).join(' ');
+  
+  const hasExpectedProposalPhrase = [
+    'Proposal preparation appears',
+    'knowledge accessibility',
+    'institutional knowledge',
+    'consultant utilization appears'
+  ].some(phrase => allProposalAiObsText.includes(phrase));
+  
+  const hasForbiddenProposalPhrase = [
+    'manual entry workload',
+    'production reporting',
+    'inventory reporting'
+  ].some(phrase => allProposalAiObsText.toLowerCase().includes(phrase));
+  
+  console.log('Includes expected proposal phrase:', hasExpectedProposalPhrase);
+  console.log('Does NOT include forbidden proposal phrase:', !hasForbiddenProposalPhrase);
+  
+  if (!hasExpectedProposalPhrase || hasForbiddenProposalPhrase) {
+    console.error('FAIL: AI Observation rules violated for proposal creation answer!');
+    process.exit(1);
+  }
   
   let themesContainer = document.getElementById('meeting-themes-container');
   console.log('Themes Text Content:', themesContainer.textContent);
@@ -556,6 +586,29 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     console.error('FAIL: MFG Suggested Copy is conversational transcript!');
     process.exit(1);
   }
+
+  // Verify AI Observations for MFG answer
+  let mfgAiObsElements = Array.from(document.querySelectorAll('.meeting-detected-info-panel li')).filter(li => li.textContent.includes('AI Observation'));
+  console.log('MFG AI Observations found:', mfgAiObsElements.map(li => li.textContent));
+  if (mfgAiObsElements.length === 0) {
+    console.error('FAIL: No MFG AI Observations found in DOM!');
+    process.exit(1);
+  }
+  const allMfgAiObsText = mfgAiObsElements.map(li => li.textContent).join(' ');
+  
+  const hasExpectedMfgPhrase = [
+    'manual consolidation',
+    'delayed reporting cycles',
+    'management visibility',
+    'fragmented operational data'
+  ].some(phrase => allMfgAiObsText.includes(phrase));
+  
+  console.log('Includes expected MFG phrase:', hasExpectedMfgPhrase);
+  
+  if (!hasExpectedMfgPhrase) {
+    console.error('FAIL: Expected AI Observation phrase not found for MFG answer!');
+    process.exit(1);
+  }
   
   themesContainer = document.getElementById('meeting-themes-container');
   console.log('Themes Text Content (MFG):', themesContainer.textContent);
@@ -573,7 +626,7 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
     process.exit(1);
   }
   
-  console.log('DISCOVERY THEMES DETECTION VERIFICATION PASSED!\n');
+  console.log('DISCOVERY THEMES DETECTION and AI OBSERVATION VERIFICATION PASSED!\n');
 
   // 11. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');
