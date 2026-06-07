@@ -216,7 +216,7 @@ async function runTest() {
   answerTextarea.value = 'We consolidate data using Excel manually to compile reports.';
   answerTextarea.dispatchEvent(new dom.window.Event('input'));
   
-  const getCardCaptureBtn = () => document.getElementById('btn-card-capture-finding');
+  const getCardCaptureBtn = () => document.getElementById('btn-card-save-discovery-finding');
   console.log('Card Capture button does not exist in DOM after text input:', !getCardCaptureBtn());
   if (getCardCaptureBtn()) {
     console.error('FAIL: Card Capture button should not exist on text input!');
@@ -295,33 +295,24 @@ async function runTest() {
 
   // 9. Test Capture Finding Click
   console.log('Clicking "Save as Discovery Finding"...');
-  const activeCaptureBtn = document.getElementById('btn-card-capture-finding');
+  
+  // Verify capturedFindings length before click
+  let initialSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
+  const initialCount = (initialSession.capturedFindings || []).length;
+  console.log('capturedFindings count before save:', initialCount);
+  
+  const activeCaptureBtn = document.getElementById('btn-card-save-discovery-finding');
+  if (!activeCaptureBtn) {
+    console.error('FAIL: Save as Discovery Finding button not found!');
+    process.exit(1);
+  }
   activeCaptureBtn.click();
 
-  // Verify select options style class
-  const sourceTypeSelect = document.getElementById('modal-finding-source-type');
-  const targetFieldSelect = document.getElementById('modal-finding-target-field');
-  console.log('Source Type select class:', sourceTypeSelect ? sourceTypeSelect.className : 'NOT FOUND');
-  console.log('Target Field select class:', targetFieldSelect ? targetFieldSelect.className : 'NOT FOUND');
-  if (!sourceTypeSelect || !targetFieldSelect || !sourceTypeSelect.classList.contains('select-control') || !targetFieldSelect.classList.contains('select-control')) {
-    console.error('FAIL: Dropdowns do not have select-control styling class!');
-    process.exit(1);
-  }
-
-  // Click Save Finding button in the modal to complete the action
-  const saveFindingBtn = document.getElementById('modal-save-finding');
-  console.log('Save Finding button exists in modal:', !!saveFindingBtn);
-  if (saveFindingBtn) {
-    saveFindingBtn.click();
-  } else {
-    console.error('FAIL: Save Finding button not found in modal!');
-    process.exit(1);
-  }
-
   // Assert button and status text entered captured state
-  const postCaptureBtn = document.getElementById('btn-card-capture-finding');
+  const postCaptureBtn = document.getElementById('btn-card-save-discovery-finding');
   console.log('Capture button text after save:', postCaptureBtn.textContent.trim());
   console.log('Capture button is disabled after save:', postCaptureBtn.disabled);
+  
   const statusTextEl = postCaptureBtn.parentNode.querySelector('.captured-status-text');
   console.log('Status text element exists:', !!statusTextEl);
   console.log('Status text content:', statusTextEl ? statusTextEl.textContent : 'NONE');
@@ -335,46 +326,51 @@ async function runTest() {
     process.exit(1);
   }
 
-  // Verify that clicking again does not silently create duplicate
-  console.log('Checking that clicking again does not silently create duplicate...');
+  // Verify that clicking increases session.capturedFindings.length by 1
   let freshSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
   console.log('Number of captured findings after first save:', freshSession.capturedFindings.length);
-  if (freshSession.capturedFindings.length !== 1) {
-    console.error('FAIL: Expected exactly 1 captured finding!');
+  if (freshSession.capturedFindings.length !== initialCount + 1) {
+    console.error(`FAIL: Expected exactly ${initialCount + 1} captured findings!`);
     process.exit(1);
   }
 
-  const originalConfirm = global.confirm;
-  global.confirm = () => {
-    global.confirm.called = true;
-    return false;
-  };
-  global.confirm.called = false;
+  // Verify finding object structure in localStorage
+  const lastFinding = freshSession.capturedFindings[freshSession.capturedFindings.length - 1];
+  const requiredKeys = [
+    'id', 'timestamp', 'sourceType', 'questionId', 'targetField', 
+    'originalAnswer', 'suggestedCopy', 'aiObservation', 'confidence', 
+    'identifiedTags', 'optionalClarifications'
+  ];
+  console.log('Checking finding object keys in localStorage...');
+  for (const key of requiredKeys) {
+    const hasKey = key in lastFinding;
+    console.log(`- Finding has key "${key}":`, hasKey);
+    if (!hasKey) {
+      console.error(`FAIL: Finding object is missing key "${key}"!`);
+      process.exit(1);
+    }
+  }
 
-  // Temporarily enable and click to simulate programmatically triggering duplicate save modal
-  postCaptureBtn.disabled = false;
+  // Verify Captured Findings sidebar updates immediately
+  const meetingSidebarPanel = document.querySelector('.meeting-sidebar-panel');
+  const sidebarText = meetingSidebarPanel ? meetingSidebarPanel.textContent : '';
+  console.log('Sidebar updates immediately and includes the saved finding:', sidebarText.includes('The primary strategic objective is to reduce manual reporting work'));
+  if (!sidebarText.includes('The primary strategic objective is to reduce manual reporting work')) {
+    console.error('FAIL: Captured Findings sidebar did not update immediately!');
+    process.exit(1);
+  }
+
+  // Verify that clicking again does not silently create duplicate
+  console.log('Checking that clicking again does not silently create duplicate...');
+  postCaptureBtn.disabled = false; // temporarily enable
   postCaptureBtn.click();
   
-  const saveFindingBtnDuplicate = document.getElementById('modal-save-finding');
-  if (saveFindingBtnDuplicate) {
-    saveFindingBtnDuplicate.click();
-  }
-  
   freshSession = JSON.parse(localStorage.getItem('oios_studio_copilot_session_nordic_precision'));
-  console.log('Duplicate check confirmation was triggered:', global.confirm.called);
-  console.log('Number of captured findings after canceled duplicate save:', freshSession.capturedFindings.length);
-  
-  if (!global.confirm.called) {
-    console.error('FAIL: Duplicate confirmation dialog was not shown!');
+  console.log('Number of captured findings after clicking duplicate:', freshSession.capturedFindings.length);
+  if (freshSession.capturedFindings.length !== initialCount + 1) {
+    console.error('FAIL: Duplicate was saved silently!');
     process.exit(1);
   }
-  if (freshSession.capturedFindings.length !== 1) {
-    console.error('FAIL: Duplicate was saved despite user canceling confirmation!');
-    process.exit(1);
-  }
-
-  // Restore confirm
-  global.confirm = originalConfirm;
   postCaptureBtn.disabled = true; // restore disabled state
 
   // 10. Test Previous/Next Question Navigation

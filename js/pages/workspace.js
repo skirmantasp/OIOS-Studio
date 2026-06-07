@@ -5291,7 +5291,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         </div>
       </div>
       <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%;">
-        <button id="btn-card-capture-finding" class="btn btn-primary" ${isCaptureDisabled} style="margin-top: 4px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px; width: 100%;">
+        <button id="btn-card-save-discovery-finding" class="btn btn-primary" ${isCaptureDisabled} style="margin-top: 4px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px; width: 100%;">
           ${getIconHTML('check', 'width: 14px; height: 14px;')} ${captureBtnText}
         </button>
         ${captureStatusTextHTML}
@@ -5456,10 +5456,57 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
   }
 
   // Bind card capture finding button
-  const cardCaptureBtn = container.querySelector('#btn-card-capture-finding');
-  if (cardCaptureBtn) {
-    cardCaptureBtn.addEventListener('click', () => {
-      openCaptureFindingModal(activeQuestion, res, session, company, overlay, suggestedCopy);
+  const cardSaveBtn = container.querySelector('#btn-card-save-discovery-finding');
+  if (cardSaveBtn) {
+    cardSaveBtn.addEventListener('click', () => {
+      const targetField = activeQuestion.section.toLowerCase() + '.' + activeQuestion.field;
+      const originalAnswer = session.answers[activeQuestion.field] || '';
+      
+      if (!session.capturedFindings) {
+        session.capturedFindings = [];
+      }
+      
+      const isDuplicate = session.capturedFindings.some(f => 
+        f.targetField === targetField &&
+        f.originalAnswer === originalAnswer &&
+        f.suggestedCopy === suggestedCopy
+      );
+      
+      if (isDuplicate) {
+        return;
+      }
+      
+      const detected = extractDetectedInformation(originalAnswer, activeQuestion);
+      const aiObs = detected.find(d => d.label === 'AI Observation');
+      const aiObservation = aiObs ? aiObs.value : '';
+      
+      const newFinding = {
+        id: generateUUID(),
+        timestamp: new Date().toISOString(),
+        sourceType: 'Client Statement',
+        questionId: activeQuestion.field,
+        targetField,
+        originalAnswer,
+        suggestedCopy,
+        aiObservation,
+        confidence: res.confidence,
+        identifiedTags: res.identifiedTags,
+        optionalClarifications: res.optionalClarifications
+      };
+      
+      session.capturedFindings.push(newFinding);
+      
+      // Also mark the current question field as completed
+      if (!session.completedQuestions.includes(activeQuestion.field)) {
+        session.completedQuestions.push(activeQuestion.field);
+      }
+      session.skippedQuestions = session.skippedQuestions.filter(f => f !== activeQuestion.field);
+      
+      saveGuidedDiscoverySession(company.id, session);
+      showToast('Discovery Finding Saved', 'success');
+      
+      // Immediately update the UI
+      renderMeetingMode(company, overlay);
     });
   }
   
