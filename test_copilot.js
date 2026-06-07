@@ -485,6 +485,32 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
   dynamicAnalyzeBtn.click();
   
+  // Verify Suggested Copy for proposal creation answer
+  const suggestedCopyDiv = document.getElementById('meeting-suggested-text');
+  console.log('Suggested Copy:', suggestedCopyDiv ? suggestedCopyDiv.textContent : 'NOT FOUND');
+  if (!suggestedCopyDiv) {
+    console.error('FAIL: Suggested Copy block not found in DOM!');
+    process.exit(1);
+  }
+  const suggestedCopyText = suggestedCopyDiv.textContent;
+  
+  const includesStrategic = suggestedCopyText.includes('Primary strategic objective');
+  const includesReduceEffort = suggestedCopyText.includes('reduce proposal preparation effort');
+  const includesNext12 = suggestedCopyText.includes('over the next 12 months');
+  const includesIncreaseUtil = suggestedCopyText.includes('increase consultant utilization from 72% to 80%');
+  const startsWithHighestPriority = suggestedCopyText.trim().startsWith('Our highest priority is');
+  
+  console.log('Includes "Primary strategic objective":', includesStrategic);
+  console.log('Includes "reduce proposal preparation effort":', includesReduceEffort);
+  console.log('Includes "over the next 12 months":', includesNext12);
+  console.log('Includes "increase consultant utilization from 72% to 80%":', includesIncreaseUtil);
+  console.log('Does NOT start with "Our highest priority is":', !startsWithHighestPriority);
+  
+  if (!includesStrategic || !includesReduceEffort || !includesNext12 || !includesIncreaseUtil || startsWithHighestPriority) {
+    console.error('FAIL: Suggested Copy synthesis rules not satisfied for proposal creation answer!');
+    process.exit(1);
+  }
+  
   let themesContainer = document.getElementById('meeting-themes-container');
   console.log('Themes Text Content:', themesContainer.textContent);
   
@@ -514,6 +540,22 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   dynamicTextarea.value = mfgAnswer;
   dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
   dynamicAnalyzeBtn.click();
+  
+  // Verify Suggested Copy for MFG answer
+  const mfgSuggestedCopyDiv = document.getElementById('meeting-suggested-text');
+  console.log('MFG Suggested Copy:', mfgSuggestedCopyDiv ? mfgSuggestedCopyDiv.textContent : 'NOT FOUND');
+  if (!mfgSuggestedCopyDiv) {
+    console.error('FAIL: MFG Suggested Copy block not found!');
+    process.exit(1);
+  }
+  const mfgSuggestedText = mfgSuggestedCopyDiv.textContent;
+  
+  const mfgIsConversational = mfgSuggestedText.includes('We manually') || mfgSuggestedText.includes('which creates');
+  console.log('MFG Suggested Copy is NOT conversational transcript:', !mfgIsConversational);
+  if (mfgIsConversational) {
+    console.error('FAIL: MFG Suggested Copy is conversational transcript!');
+    process.exit(1);
+  }
   
   themesContainer = document.getElementById('meeting-themes-container');
   console.log('Themes Text Content (MFG):', themesContainer.textContent);
