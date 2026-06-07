@@ -3885,8 +3885,9 @@ function analyzeDiscoveryAnswer(question, answer) {
   const identifiedTags = [];
   const optionalClarifications = [];
   
-  // Timeline indicators
-  const hasTimeline = 
+  const hasPriority = /\b(priority|urgent|critical|important|must|required|essential|key|main|highest|primary)\b/i.test(text);
+  const hasBusinessDriver = /\b(motivation|why|need|because|demand|drive|competition|growth|revenue|improve|reduce|save|cost|value)\b/i.test(text);
+  const hasTimeline = (
     /next\s+(\d+|[a-zA-Z]+)\s+months?/i.test(text) ||
     /next\s+(\d+|[a-zA-Z]+)\s+weeks?/i.test(text) ||
     /next\s+(\d+|[a-zA-Z]+)\s+years?/i.test(text) ||
@@ -3895,27 +3896,20 @@ function analyzeDiscoveryAnswer(question, answer) {
     /\bnext\s+year\b/i.test(text) ||
     /within\s+(\d+|[a-zA-Z]+)\s+months?/i.test(text) ||
     /within\s+(\d+|[a-zA-Z]+)\s+weeks?/i.test(text) ||
-    /\b(by|months|year|weeks|timeline|deadline|target|schedule)\b/i.test(text);
-
-  // Urgency indicators
-  const hasUrgency = 
-    /\bpriority\b/i.test(text) ||
-    /\burgent\b/i.test(text) ||
-    /\bcritical\b/i.test(text) ||
-    /\bimportant\b/i.test(text) ||
-    /\bneed\s+to\b/i.test(text) ||
-    /\bmust\b/i.test(text) ||
-    /\brequired\b/i.test(text) ||
-    /\b(motivation|why|need|because|demand|drive|competition)\b/i.test(text);
+    /\b(by|months|year|weeks|timeline|deadline|target|schedule)\b/i.test(text)
+  );
+  const hasKPI = /\b(kpi|metric|percent|reduce|increase|save|outcome|measurable|measure|%|hours|dollars|metrics|numbers)\b/i.test(text);
+  const hasOwner = /\b(role|owner|manager|supervisor|director|user|champion|team|sponsor|cfo|staff|lead|person|operations|who)\b/i.test(text);
+  const hasProcessOrSystem = /\b(process|system|sap|excel|power bi|database|tool|workflow|reporting|software|platform|intake)\b/i.test(text);
   
   question.criteria.forEach(criterion => {
     let matched = false;
     const cTextLower = criterion.text.toLowerCase();
     
     if (cTextLower.includes('timeline') || cTextLower.includes('deadline')) {
-      matched = hasTimeline || hasUrgency;
+      matched = hasTimeline || hasPriority;
     } else if (cTextLower.includes('motivation') || cTextLower.includes('urgency') || cTextLower.includes('driver')) {
-      matched = hasUrgency || hasTimeline;
+      matched = hasBusinessDriver || hasPriority;
     } else {
       matched = criterion.words.some(word => text.includes(word));
     }
@@ -3928,7 +3922,6 @@ function analyzeDiscoveryAnswer(question, answer) {
     }
   });
 
-  // Additional dynamic tags based on keywords
   if (text.includes('excel') || text.includes('spreadsheet') || text.includes('sheet')) {
     if (!identifiedTags.includes('✓ Excel Dependency')) identifiedTags.push('✓ Excel Dependency');
   }
@@ -3942,7 +3935,6 @@ function analyzeDiscoveryAnswer(question, answer) {
     if (!identifiedTags.includes('✓ Process Bottleneck')) identifiedTags.push('✓ Process Bottleneck');
   }
 
-  // Potential Discovery Findings
   const potentialFindings = [];
   if (text.includes('excel') && (text.includes('manual') || text.includes('consolidate') || text.includes('compile'))) {
     potentialFindings.push("Weekly KPI reporting relies on manual Excel consolidation.");
@@ -3971,7 +3963,6 @@ function analyzeDiscoveryAnswer(question, answer) {
     }
   }
 
-  // Recommendation & suggested question
   let recommendationText = "I identified a standard operational workflow. Before moving on, I recommend capturing client observations.";
   let suggestedQuestion = question.followUp;
   
@@ -3981,9 +3972,6 @@ function analyzeDiscoveryAnswer(question, answer) {
   } else if (optionalClarifications.some(c => c.includes('Outcome') || c.includes('Metrics'))) {
     recommendationText = "I identified a strong operational visibility initiative. Before moving on, I recommend clarifying success metrics.";
     suggestedQuestion = "What measurable business outcome would indicate this initiative was successful?";
-  } else if (optionalClarifications.some(c => c.includes('Decision') || c.includes('Budget'))) {
-    recommendationText = "I identified system stakeholders, but budget ownership is unclear. Before moving on, I recommend clarifying budget lines.";
-    suggestedQuestion = "Who holds final budget approval, and what is the estimated budget range?";
   }
 
   const numCriteria = question.criteria.length;
@@ -3991,40 +3979,27 @@ function analyzeDiscoveryAnswer(question, answer) {
     const friendlyName = getFriendlyCriterionLabel(criterion.text);
     return identifiedTags.includes(`✓ ${friendlyName}`);
   }).length;
-  let baseConf = numCriteria > 0 ? (metCriteria / numCriteria) * 100 : 100;
   
-  let lengthModifier = 0;
+  let baseConf = numCriteria > 0 ? (metCriteria / numCriteria) * 75 : 50;
   const len = answer.trim().length;
-  if (len < 40) {
-    lengthModifier = -15;
-  } else if (len < 80) {
-    lengthModifier = -5;
-  } else if (len > 150) {
-    lengthModifier = 10;
-  } else if (len > 100) {
-    lengthModifier = 5;
-  }
-  
+  const lengthModifier = Math.min(25, len / 10);
   let confidence = Math.round(baseConf + lengthModifier);
+  
+  const allSixPresent = hasPriority && hasBusinessDriver && hasTimeline && hasKPI && hasOwner && hasProcessOrSystem;
+  if (allSixPresent) confidence = Math.min(100, confidence + 20);
   
   let status = 'Insufficient';
   let statusColor = '🔴';
   
-  if (metCriteria === numCriteria) {
+  if (metCriteria === numCriteria && len > 50) {
     status = 'Sufficient';
     statusColor = '🟢';
-    confidence = Math.max(80, Math.min(100, confidence));
+    confidence = Math.max(85, confidence);
   } else if (metCriteria > 0) {
     status = 'Partial';
     statusColor = '🟡';
-    confidence = Math.max(40, Math.min(79, confidence));
-  } else {
-    status = 'Insufficient';
-    statusColor = '🔴';
-    confidence = Math.max(0, Math.min(39, confidence));
+    confidence = Math.max(40, confidence);
   }
-  
-  const isSufficient = status === 'Sufficient';
 
   const destinationMap = {
     primaryGoals: { label: 'Business > Primary Goals', value: 'business.primaryGoals' },
@@ -4046,7 +4021,7 @@ function analyzeDiscoveryAnswer(question, answer) {
   const suggestedDestination = destinationMap[question.field] || { label: 'Business > Primary Goals', value: 'business.primaryGoals' };
   
   return {
-    isSufficient,
+    isSufficient: status === 'Sufficient',
     status,
     statusColor,
     confidence,
@@ -4066,19 +4041,32 @@ function generateSuggestedCopy(question, answer) {
   text = text.replace(/^(well|honestly|basically|currently|actually|we have|the client said|the client stated|our team|we currently|we just|so basically|in terms of that,)\s*,?\s*/i, '');
   
   const sentences = text.split(/(?<=[.!?])\s+/);
-  const bullets = [];
+  const processed = [];
   
   for (let s of sentences) {
-    s = s.trim();
-    if (!s) continue;
-    s = s.charAt(0).toUpperCase() + s.slice(1);
-    if (!/[.!?]$/.test(s)) {
-      s += '.';
+    let clean = s.trim();
+    if (!clean) continue;
+    
+    clean = clean.charAt(0).toUpperCase() + clean.slice(1);
+    
+    clean = clean.replace(/^our biggest priority is to\s+/i, 'The highest strategic priority is to ');
+    clean = clean.replace(/^our biggest priority is\s+/i, 'The highest strategic priority is ');
+    clean = clean.replace(/^our primary goal is to\s+/i, 'The primary strategic objective is to ');
+    clean = clean.replace(/^our primary goal is\s+/i, 'The primary strategic objective is ');
+    clean = clean.replace(/^we want to\s+/i, 'The target state is to ');
+    clean = clean.replace(/^we need to\s+/i, 'It is required to ');
+    clean = clean.replace(/^we currently\s+/i, 'The current process involves ');
+    clean = clean.replace(/^we use\s+/i, 'The organization utilizes ');
+    clean = clean.replace(/^right now\s+/i, 'Currently, ');
+    clean = clean.replace(/because we need to save time for\s+/i, 'to optimize time allocation for ');
+    
+    if (!/[.!?]$/.test(clean)) {
+      clean += '.';
     }
-    bullets.push(`- ${s}`);
+    processed.push(clean);
   }
   
-  return bullets.join('\n');
+  return processed.join('\n\n');
 }
 
 function saveGuidedDiscoverySession(companyId, session) {
@@ -4172,11 +4160,25 @@ function extractDetectedInformation(answer, question) {
     detected.push({ label: 'Process', value: 'Inventory Management' });
   }
   
-  // Potential Insights
-  if (text.includes('excel') || text.includes('manual') || text.includes('consolidate') || text.includes('manually')) {
-    detected.push({ label: 'Potential Insight', value: 'Reporting workflow depends on manual consolidation' });
+  // AI Observations with Confidence classifications and careful phrasing
+  if (!text || text.trim().length < 10) {
+    detected.push({
+      label: 'AI Observation',
+      value: 'Client data suggests insufficient detail is currently available for analysis.',
+      confidence: 'Low'
+    });
+  } else if (text.includes('excel') || text.includes('manual') || text.includes('consolidate') || text.includes('manually')) {
+    detected.push({ 
+      label: 'AI Observation', 
+      value: 'Operational reporting appears heavily dependent on manual consolidation.', 
+      confidence: 'High' 
+    });
   } else {
-    detected.push({ label: 'Potential Insight', value: 'Process automation can eliminate manual entry' });
+    detected.push({ 
+      label: 'AI Observation', 
+      value: 'Process automation could reduce manual entry workload.', 
+      confidence: 'Medium' 
+    });
   }
   
   return detected;
@@ -4247,28 +4249,36 @@ function extractSessionThemes(session) {
   const themes = new Set();
   const allText = Object.values(session.answers || {}).join(' ').toLowerCase();
   
-  if (allText.includes('excel') || allText.includes('spreadsheet') || allText.includes('sheet')) {
-    themes.add('Excel Dependency');
-  }
-  if (allText.includes('manual') || allText.includes('paper') || allText.includes('copy') || allText.includes('paste')) {
-    themes.add('Manual Reporting');
-  }
-  if (allText.includes('visibility') || allText.includes('track') || allText.includes('see') || allText.includes('real-time')) {
+  // Operational Visibility
+  if (['visibility', 'real-time visibility', 'management visibility', 'operational visibility'].some(kw => allText.includes(kw))) {
     themes.add('Operational Visibility');
   }
-  if (allText.includes('inventory') || allText.includes('stock') || allText.includes('planning') || allText.includes('warehouse')) {
+  // Manual Reporting
+  if (['manual reporting', 'weekly reporting', 'reporting cycle', 'reports are assembled', 'reporting completed'].some(kw => allText.includes(kw))) {
+    themes.add('Manual Reporting');
+  }
+  // Reporting Bottleneck
+  if (['reporting delay', 'delayed reports', 'waits until reporting', 'reporting takes', 'several hours'].some(kw => allText.includes(kw))) {
+    themes.add('Reporting Bottleneck');
+  }
+  // Inventory Planning
+  if (['inventory', 'stock', 'materials', 'procurement'].some(kw => allText.includes(kw))) {
     themes.add('Inventory Planning');
   }
-  if (allText.includes('integrate') || allText.includes('api') || allText.includes('connect') || allText.includes('sync')) {
-    themes.add('System Integration');
+  // Production Performance
+  if (['production performance', 'production floor', 'production orders', 'output'].some(kw => allText.includes(kw))) {
+    themes.add('Production Performance');
   }
-  if (allText.includes('fragment') || allText.includes('silo') || allText.includes('separate')) {
+  // Data Fragmentation
+  if (['multiple excel files', 'spreadsheets', 'disconnected sources', 'fragmented information', 'scattered data'].some(kw => allText.includes(kw))) {
     themes.add('Data Fragmentation');
   }
-  if (allText.includes('decision') || allText.includes('approve') || allText.includes('owner') || allText.includes('sign')) {
-    themes.add('Stakeholder Alignment');
+  // System Integration
+  if (['integration', 'connected systems', 'data flow', 'sap', 'power bi', 'excel'].some(kw => allText.includes(kw))) {
+    themes.add('System Integration');
   }
-  if (allText.includes('slow') || allText.includes('delay') || allText.includes('wait') || allText.includes('bottleneck')) {
+  // Process Bottleneck
+  if (['bottleneck', 'delayed decision', 'decision-making delay', 'operational bottleneck'].some(kw => allText.includes(kw))) {
     themes.add('Process Bottleneck');
   }
   
@@ -4289,6 +4299,17 @@ function renderDiscoveryThemes(session) {
   `).join('');
 }
 
+function hasAnalysisResultAndCopy(activeQuestion, session) {
+  const val = session.answers[activeQuestion.field] || '';
+  if (!val.trim()) return false;
+  const res = session.analysisResults[activeQuestion.field];
+  if (!res) return false;
+  const suggestedCopy = session.suggestedCopies[activeQuestion.field] || generateSuggestedCopy(activeQuestion, val);
+  const detected = extractDetectedInformation(val, activeQuestion);
+  const hasAiObs = detected.some(d => d.label === 'AI Observation');
+  return !!suggestedCopy || hasAiObs;
+}
+
 function renderMeetingMode(company, overlay) {
   const session = loadGuidedDiscoverySession(company.id);
   const plan = buildDiscoveryPlan(company);
@@ -4299,6 +4320,7 @@ function renderMeetingMode(company, overlay) {
   
   const activeQuestion = getNextDiscoveryQuestion(plan, session.currentIndex);
   const questionText = getQuestionText(activeQuestion, company);
+  const hasAnalysis = hasAnalysisResultAndCopy(activeQuestion, session);
   
   overlay.innerHTML = `
     <div class="meeting-topbar">
@@ -4369,7 +4391,7 @@ function renderMeetingMode(company, overlay) {
             </div>
             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
               <button id="btn-meeting-skip" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Skip</button>
-              <button id="btn-meeting-complete" class="btn btn-primary" style="padding: 8px 16px; height: 38px;">Capture Finding</button>
+              <button id="btn-meeting-complete" class="btn btn-primary" style="padding: 8px 16px; height: 38px;" ${hasAnalysis ? '' : 'disabled'}>Capture This Finding</button>
               <button id="btn-meeting-prev" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Previous Question</button>
               <button id="btn-meeting-next" class="btn btn-secondary" style="padding: 8px 16px; height: 38px;">Next Question</button>
               <button id="btn-meeting-finish" class="btn btn-danger" style="padding: 8px 16px; height: 38px;">Finish Session</button>
@@ -4410,7 +4432,7 @@ function renderMeetingMode(company, overlay) {
           <!-- Card 4: Discovery Themes -->
           <div class="meeting-sidebar-card">
             <h3 style="font-size: 13px; margin: 0; color: var(--text-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Discovery Themes</h3>
-            <div style="font-size: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div id="meeting-themes-container" style="font-size: 12px; display: flex; flex-direction: column; gap: 8px;">
               ${renderDiscoveryThemes(session)}
             </div>
           </div>
@@ -4426,10 +4448,28 @@ function renderMeetingMode(company, overlay) {
   
   const textarea = overlay.querySelector('#meeting-answer-input');
   
-  // Save answer on input
+  // Save answer and manage state on input
   textarea.addEventListener('input', () => {
-    session.answers[activeQuestion.field] = textarea.value;
+    const val = textarea.value;
+    session.answers[activeQuestion.field] = val;
+    
+    // Clear cached analysis results and suggested copy for this field on input
+    delete session.analysisResults[activeQuestion.field];
+    delete session.suggestedCopies[activeQuestion.field];
+    
     saveGuidedDiscoverySession(company.id, session);
+    
+    // Disable Capture button
+    const captureBtn = overlay.querySelector('#btn-meeting-complete');
+    if (captureBtn) {
+      captureBtn.disabled = true;
+    }
+    
+    // Clear results container
+    const container = overlay.querySelector('#meeting-result-container');
+    if (container) {
+      container.innerHTML = '';
+    }
   });
   
   // Bind toggle listener for guidance accordion to persist expand/collapse state
@@ -4463,6 +4503,18 @@ function renderMeetingMode(company, overlay) {
     
     saveGuidedDiscoverySession(company.id, session);
     showMeetingAnalysisResult(activeQuestion, res, overlay, session, company);
+    
+    // Update Capture button state
+    const captureBtn = overlay.querySelector('#btn-meeting-complete');
+    if (captureBtn) {
+      captureBtn.disabled = !hasAnalysisResultAndCopy(activeQuestion, session);
+    }
+    
+    // Update themes card dynamically
+    const themesContainer = overlay.querySelector('#meeting-themes-container');
+    if (themesContainer) {
+      themesContainer.innerHTML = renderDiscoveryThemes(session);
+    }
   });
   
   // Skip button handler
@@ -4475,7 +4527,7 @@ function renderMeetingMode(company, overlay) {
     advanceMeetingQuestion(plan, session, company, overlay);
   });
   
-  // Complete button handler (renamed to Capture Finding in UI)
+  // Complete button handler (renamed to Capture This Finding)
   overlay.querySelector('#btn-meeting-complete').addEventListener('click', () => {
     const val = textarea.value;
     session.answers[activeQuestion.field] = val;
@@ -4614,12 +4666,20 @@ function openCaptureFindingModal(activeQuestion, res, session, company, overlay,
     return `<option value="${val}" ${isSelected}>${escapeHTML(label)}</option>`;
   }).join('');
 
+  // Extract AI Observation context to pre-fill the consultant note
+  const detected = extractDetectedInformation(originalAnswer, activeQuestion);
+  const aiObs = detected.find(d => d.label === 'AI Observation');
+  const defaultNote = aiObs ? `${aiObs.label} (${aiObs.confidence}): ${aiObs.value}` : (res.recommendationText || '');
+
   const modalBody = `
     <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
       <div>
         <label style="display: block; font-weight: 600; margin-bottom: 4px;">Source Type</label>
         <select id="modal-finding-source-type" class="form-control" style="width: 100%;">
-          <option value="Meeting Note" selected>Meeting Note</option>
+          <option value="Client Statement" selected>Client Statement</option>
+          <option value="AI Observation">AI Observation</option>
+          <option value="Consultant Observation">Consultant Observation</option>
+          <option value="Meeting Note">Meeting Note</option>
           <option value="Interview">Interview</option>
           <option value="Assessment">Assessment</option>
           <option value="Observation">Observation</option>
@@ -4642,7 +4702,7 @@ function openCaptureFindingModal(activeQuestion, res, session, company, overlay,
       </div>
       <div>
         <label style="display: block; font-weight: 600; margin-bottom: 4px;">AI Observation / Consultant Note</label>
-        <textarea id="modal-finding-note" class="form-control" style="width: 100%; min-height: 60px;" placeholder="Add any details, context, or AI recommendations here...">${escapeHTML(res.recommendationText || '')}</textarea>
+        <textarea id="modal-finding-note" class="form-control" style="width: 100%; min-height: 60px;" placeholder="Add any details, context, or AI recommendations here...">${escapeHTML(defaultNote)}</textarea>
       </div>
     </div>
   `;
@@ -4706,7 +4766,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         ${detected.map(item => `
           <li style="font-size: 12px; display: flex; align-items: center; gap: 6px; color: var(--text-secondary);">
             <span style="color: var(--color-success); font-weight: 600;">✓</span> 
-            <strong>${escapeHTML(item.label)}:</strong> <span>${escapeHTML(item.value)}</span>
+            <strong>${escapeHTML(item.label)}${item.confidence ? ` (${item.confidence})` : ''}:</strong> <span>${escapeHTML(item.value)}</span>
           </li>
         `).join('')}
       </ul>
@@ -4737,9 +4797,6 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
         <button id="btn-use-follow-up" class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 4px; height: 26px;">
           ${getIconHTML('plus', 'width: 12px; height: 12px;')} Use Follow-up Question
         </button>
-        <button id="btn-card-capture-finding" class="btn btn-primary" style="font-size: 11px; padding: 4px 10px; display: flex; align-items: center; gap: 4px; height: 26px;">
-          ${getIconHTML('check', 'width: 12px; height: 12px;')} Capture Current Finding
-        </button>
       </div>
     </div>
   `;
@@ -4763,6 +4820,31 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
       </div>
     `;
   }
+
+  // Capture Preview Card
+  const firstSentence = suggestedCopy.split('\n')[0] || '';
+  const capturePreviewCardHTML = `
+    <div class="meeting-capture-preview-card" style="margin-top: 12px; padding: 16px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 10px;">
+      <h4 style="font-size: 12px; margin: 0; color: var(--text-primary); text-transform: uppercase; font-family: var(--font-mono); letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">Capture Preview</h4>
+      <div>
+        <strong style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono);">Finding:</strong>
+        <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px; font-style: italic;">"${escapeHTML(firstSentence)}"</div>
+      </div>
+      <div style="display: flex; gap: 16px; font-size: 12px;">
+        <div>
+          <strong style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono);">Destination:</strong>
+          <span style="color: var(--text-secondary); display: block; margin-top: 2px;">${escapeHTML(res.suggestedDestination?.label || 'Business > Primary Goals')}</span>
+        </div>
+        <div>
+          <strong style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-family: var(--font-mono);">Source Type:</strong>
+          <span style="color: var(--text-secondary); display: block; margin-top: 2px;">Client Statement</span>
+        </div>
+      </div>
+      <button id="btn-card-capture-finding" class="btn btn-primary" style="margin-top: 4px; font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px;">
+        ${getIconHTML('check', 'width: 14px; height: 14px;')} Capture This Finding
+      </button>
+    </div>
+  `;
 
   container.innerHTML = `
     <div class="meeting-result-card" style="margin-top: 12px; padding: 16px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-lg); display: flex; flex-direction: column; gap: 12px;">
@@ -4790,6 +4872,7 @@ function showMeetingAnalysisResult(activeQuestion, res, overlay, session, compan
     ${detectedHTML}
     ${recommendationCardHTML}
     ${copyCardHTML}
+    ${capturePreviewCardHTML}
   `;
 
   // Bind copy button if it exists

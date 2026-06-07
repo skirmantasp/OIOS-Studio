@@ -172,12 +172,17 @@ async function runTest() {
     process.exit(1);
   }
 
-  // 4. Verify rename of "Capture Finding" button
-  const captureBtn = document.getElementById('btn-meeting-complete');
-  console.log('Capture Finding button exists:', !!captureBtn);
-  console.log('Capture Finding button text:', captureBtn.textContent.trim());
-  if (!captureBtn || captureBtn.textContent.trim() !== 'Capture Finding') {
-    console.error('FAIL: Primary button not renamed to Capture Finding!');
+  // 4. Verify rename of "Capture Finding" button to "Capture This Finding" and initial disabled state
+  const getCaptureBtn = () => document.getElementById('btn-meeting-complete');
+  console.log('Capture Finding button exists:', !!getCaptureBtn());
+  console.log('Capture Finding button text:', getCaptureBtn().textContent.trim());
+  if (!getCaptureBtn() || getCaptureBtn().textContent.trim() !== 'Capture This Finding') {
+    console.error('FAIL: Primary button not renamed to Capture This Finding!');
+    process.exit(1);
+  }
+  console.log('Capture Finding button is initially disabled:', getCaptureBtn().disabled);
+  if (!getCaptureBtn().disabled) {
+    console.error('FAIL: Capture button should be disabled initially!');
     process.exit(1);
   }
 
@@ -209,20 +214,45 @@ async function runTest() {
   console.log('Overlay reopened in DOM:', !!document.getElementById('meeting-mode-overlay'));
   console.log('Floating Resume button removed from DOM:', !document.getElementById('btn-floating-resume-session'));
 
-  // 6. Test AI Detected Information list on Analyze
+  // 6. Test AI Detected Information list on Analyze and Capture button state controls
   const answerTextarea = document.getElementById('meeting-answer-input');
   const analyzeBtn = document.getElementById('btn-meeting-analyze');
   
   console.log('Submitting notes matching Excel and manual reporting...');
   answerTextarea.value = 'We consolidate data using Excel manually to compile reports.';
   answerTextarea.dispatchEvent(new dom.window.Event('input'));
+  
+  console.log('Capture button is disabled on text input:', getCaptureBtn().disabled);
+  if (!getCaptureBtn().disabled) {
+    console.error('FAIL: Capture button should be disabled on text input!');
+    process.exit(1);
+  }
+
+  analyzeBtn.click();
+  
+  console.log('Capture button is enabled after analyze:', !getCaptureBtn().disabled);
+  if (getCaptureBtn().disabled) {
+    console.error('FAIL: Capture button should be enabled after analysis!');
+    process.exit(1);
+  }
+
+  // Verify that editing the answer disables the Capture button again
+  answerTextarea.value = 'We consolidate data using Excel manually to compile reports. (edited)';
+  answerTextarea.dispatchEvent(new dom.window.Event('input'));
+  console.log('Capture button is disabled after edit:', getCaptureBtn().disabled);
+  if (!getCaptureBtn().disabled) {
+    console.error('FAIL: Capture button should be disabled after editing the answer!');
+    process.exit(1);
+  }
+  
+  // Re-analyze to restore state
   analyzeBtn.click();
 
   const resultContainer = document.getElementById('meeting-result-container');
   console.log('Result container includes Detected Information:', resultContainer.textContent.includes('Detected Information'));
   console.log('Result container includes System: Excel:', resultContainer.textContent.includes('System') && resultContainer.textContent.includes('Excel'));
   console.log('Result container includes Pain Point: Manual Reporting:', resultContainer.textContent.includes('Pain Point') && resultContainer.textContent.includes('Manual Reporting'));
-  console.log('Result container includes Potential Insight:', resultContainer.textContent.includes('Potential Insight'));
+  console.log('Result container includes AI Observation:', resultContainer.textContent.includes('AI Observation'));
   if (!resultContainer.textContent.includes('Detected Information') || !resultContainer.textContent.includes('Excel') || !resultContainer.textContent.includes('Manual Reporting')) {
     console.error('FAIL: AI Detected Information keyword matching failed!');
     process.exit(1);
@@ -249,14 +279,14 @@ async function runTest() {
   if (copyBtn) {
     copyBtn.click();
     console.log('Text copied to simulated clipboard:', navigator.clipboard.lastCopied);
-    if (!navigator.clipboard.lastCopied.includes('Our primary goal is to reduce manual reporting work by next month because we need to save time for supervisors.')) {
+    if (!navigator.clipboard.lastCopied.includes('The primary strategic objective is to reduce manual reporting work by next month to optimize time allocation for supervisors.')) {
       console.error('FAIL: Copied text mismatch!');
       process.exit(1);
     }
   }
 
   // 9. Test Capture Finding Click
-  console.log('Clicking "Capture Finding"...');
+  console.log('Clicking "Capture This Finding"...');
   const activeCaptureBtn = document.getElementById('btn-meeting-complete');
   activeCaptureBtn.click();
 
