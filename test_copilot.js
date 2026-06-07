@@ -172,12 +172,12 @@ async function runTest() {
     process.exit(1);
   }
 
-  // 4. Verify rename of "Capture Finding" button to "Capture This Finding" and initial disabled state
+  // 4. Verify rename of "Capture Finding" button to "Save as Discovery Finding" and initial disabled state
   const getCaptureBtn = () => document.getElementById('btn-meeting-complete');
   console.log('Capture Finding button exists:', !!getCaptureBtn());
   console.log('Capture Finding button text:', getCaptureBtn().textContent.trim());
-  if (!getCaptureBtn() || getCaptureBtn().textContent.trim() !== 'Capture This Finding') {
-    console.error('FAIL: Primary button not renamed to Capture This Finding!');
+  if (!getCaptureBtn() || getCaptureBtn().textContent.trim() !== 'Save as Discovery Finding') {
+    console.error('FAIL: Primary button not renamed to Save as Discovery Finding!');
     process.exit(1);
   }
   console.log('Capture Finding button is initially disabled:', getCaptureBtn().disabled);
@@ -286,9 +286,19 @@ async function runTest() {
   }
 
   // 9. Test Capture Finding Click
-  console.log('Clicking "Capture This Finding"...');
+  console.log('Clicking "Save as Discovery Finding"...');
   const activeCaptureBtn = document.getElementById('btn-meeting-complete');
   activeCaptureBtn.click();
+
+  // Verify select options style class
+  const sourceTypeSelect = document.getElementById('modal-finding-source-type');
+  const targetFieldSelect = document.getElementById('modal-finding-target-field');
+  console.log('Source Type select class:', sourceTypeSelect ? sourceTypeSelect.className : 'NOT FOUND');
+  console.log('Target Field select class:', targetFieldSelect ? targetFieldSelect.className : 'NOT FOUND');
+  if (!sourceTypeSelect || !targetFieldSelect || !sourceTypeSelect.classList.contains('select-control') || !targetFieldSelect.classList.contains('select-control')) {
+    console.error('FAIL: Dropdowns do not have select-control styling class!');
+    process.exit(1);
+  }
 
   // Click Save Finding button in the modal to complete the action
   const saveFindingBtn = document.getElementById('modal-save-finding');
@@ -297,6 +307,23 @@ async function runTest() {
     saveFindingBtn.click();
   } else {
     console.error('FAIL: Save Finding button not found in modal!');
+    process.exit(1);
+  }
+
+  // Assert button and status text entered captured state
+  const postCaptureBtn = document.getElementById('btn-meeting-complete');
+  console.log('Capture button text after save:', postCaptureBtn.textContent.trim());
+  console.log('Capture button is disabled after save:', postCaptureBtn.disabled);
+  const statusTextEl = postCaptureBtn.parentNode.querySelector('.captured-status-text');
+  console.log('Status text element exists:', !!statusTextEl);
+  console.log('Status text content:', statusTextEl ? statusTextEl.textContent : 'NONE');
+
+  if (postCaptureBtn.textContent.trim() !== '✓ Finding Captured' || !postCaptureBtn.disabled) {
+    console.error('FAIL: Capture button did not enter captured state after save!');
+    process.exit(1);
+  }
+  if (!statusTextEl || statusTextEl.textContent !== 'Saved to Captured Findings') {
+    console.error('FAIL: Status text "Saved to Captured Findings" not displayed below button!');
     process.exit(1);
   }
 
@@ -341,9 +368,7 @@ async function runTest() {
   console.log('\n--- 10.5 CONFIDENCE ENGINE VERIFICATION ---');
   
   // Navigate back to Business > Primary Goals question (from index 2 to 0)
-  console.log('Navigating to Business > Primary Goals...');
-  document.getElementById('btn-meeting-prev').click();
-  document.getElementById('btn-meeting-prev').click();
+  console.log('Already at Business > Primary Goals (no navigation needed)...');
 
   const proposalAnswerText = `Our highest priority is reducing proposal creation time.
 Today consultants spend time searching previous proposals, industry research, and internal frameworks.
