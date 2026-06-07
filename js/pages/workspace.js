@@ -4342,41 +4342,81 @@ function renderCapturedFindings(plan, session, company) {
 
 function extractSessionThemes(session) {
   const themes = new Set();
-  const allText = Object.values(session.answers || {}).join(' ').toLowerCase();
   
-  // Operational Visibility
-  if (['visibility', 'real-time visibility', 'management visibility', 'operational visibility'].some(kw => allText.includes(kw))) {
-    themes.add('Operational Visibility');
+  const texts = [];
+  if (session.answers) {
+    Object.values(session.answers).forEach(val => {
+      if (val) texts.push(val);
+    });
   }
-  // Manual Reporting
-  if (['manual reporting', 'weekly reporting', 'reporting cycle', 'reports are assembled', 'reporting completed'].some(kw => allText.includes(kw))) {
-    themes.add('Manual Reporting');
-  }
-  // Reporting Bottleneck
-  if (['reporting delay', 'delayed reports', 'waits until reporting', 'reporting takes', 'several hours'].some(kw => allText.includes(kw))) {
-    themes.add('Reporting Bottleneck');
-  }
-  // Inventory Planning
-  if (['inventory', 'stock', 'materials', 'procurement'].some(kw => allText.includes(kw))) {
-    themes.add('Inventory Planning');
-  }
-  // Production Performance
-  if (['production performance', 'production floor', 'production orders', 'output'].some(kw => allText.includes(kw))) {
-    themes.add('Production Performance');
-  }
-  // Data Fragmentation
-  if (['multiple excel files', 'spreadsheets', 'disconnected sources', 'fragmented information', 'scattered data'].some(kw => allText.includes(kw))) {
-    themes.add('Data Fragmentation');
-  }
-  // System Integration
-  if (['integration', 'connected systems', 'data flow', 'sap', 'power bi', 'excel'].some(kw => allText.includes(kw))) {
-    themes.add('System Integration');
-  }
-  // Process Bottleneck
-  if (['bottleneck', 'delayed decision', 'decision-making delay', 'operational bottleneck'].some(kw => allText.includes(kw))) {
-    themes.add('Process Bottleneck');
+  if (session.capturedFindings) {
+    session.capturedFindings.forEach(f => {
+      if (f.suggestedCopy) texts.push(f.suggestedCopy);
+      if (f.note) texts.push(f.note);
+    });
   }
   
+  const allText = texts.join(' ').toLowerCase();
+
+  const themeDefinitions = {
+    'Proposal Creation': [
+      'proposal', 'proposals', 'proposal creation', 'proposal preparation',
+      'drafting', 'pitch deck', 'deck template', 'client brief'
+    ],
+    'Knowledge Access': [
+      'knowledge', 'internal frameworks', 'research', 'previous proposals',
+      'ip library', 'intellectual property', 'reusable assets', 'document library',
+      'knowledge base', 'archives'
+    ],
+    'Consultant Utilization': [
+      'consultant utilization', 'utilization', 'billable time', 'consultant capacity',
+      'client engagements', 'associate consultants', 'onboarding consultants'
+    ],
+    'Operational Efficiency': [
+      'efficiency', 'reduce time', 'time saving', 'faster', 'streamline',
+      'productivity', 'reduce effort', 'cycle time'
+    ],
+    'Research Reuse': [
+      'industry research', 'research papers', 'past briefs', 'prior work',
+      'reusable research', 'template reuse'
+    ],
+    'Manual Work': [
+      'manual', 'manually', 'spreadsheet', 'copy-paste', 'searching email',
+      'searching archives'
+    ],
+    'Manual Reporting': [
+      'manual reporting', 'weekly reporting', 'reporting cycle',
+      'reports are assembled', 'reporting completed', 'manual', 'manually',
+      'spreadsheet', 'copy-paste'
+    ],
+    'Data Fragmentation': [
+      'fragmented', 'scattered', 'siloed', 'local drives', 'disconnected',
+      'no central repository'
+    ],
+    'System Integration': [
+      'integration', 'sharepoint', 'onedrive', 'teams', 'outlook',
+      'intranet', 'search engine', 'database'
+    ],
+    'Reporting / Visibility': [
+      'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility'
+    ],
+    'Operational Visibility': [
+      'reporting', 'visibility', 'dashboard', 'kpi', 'management visibility',
+      'operational visibility'
+    ],
+    'Process Bottleneck': [
+      'bottleneck', 'delay', 'slow', 'waits', 'takes hours', 'approval delay',
+      'preparation time'
+    ]
+  };
+
+  for (const [themeName, keywords] of Object.entries(themeDefinitions)) {
+    const matched = keywords.some(kw => allText.includes(kw));
+    if (matched) {
+      themes.add(themeName);
+    }
+  }
+
   return Array.from(themes);
 }
 

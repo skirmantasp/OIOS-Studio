@@ -468,6 +468,71 @@ By Q4, we expect to reduce proposal preparation effort by 50% using our custom S
   
   console.log('CONTEXT-AWARE CLARIFICATION ENGINE VERIFICATION PASSED!\n');
 
+  // 10.7 Test Discovery Themes Detection
+  console.log('\n--- 10.7 DISCOVERY THEMES DETECTION VERIFICATION ---');
+  console.log('Navigating to Business > Primary Goals...');
+  document.getElementById('btn-meeting-prev').click();
+  document.getElementById('btn-meeting-prev').click();
+  document.getElementById('btn-meeting-prev').click();
+
+  dynamicTextarea = document.getElementById('meeting-answer-input');
+  dynamicAnalyzeBtn = document.getElementById('btn-meeting-analyze');
+  
+  const proposalThemeAnswer = `Our highest priority is reducing proposal creation time. Today consultants spend a significant amount of time searching previous proposals, industry research, and internal frameworks before they can start drafting. This directly impacts consultant utilization and limits how many client engagements we can support. Over the next 12 months we want to reduce proposal preparation effort by at least 50% and increase consultant utilization from 72% to 80%.`;
+  
+  console.log('Submitting proposal creation answer...');
+  dynamicTextarea.value = proposalThemeAnswer;
+  dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
+  dynamicAnalyzeBtn.click();
+  
+  let themesContainer = document.getElementById('meeting-themes-container');
+  console.log('Themes Text Content:', themesContainer.textContent);
+  
+  let hasProposalCreation = themesContainer.textContent.includes('Proposal Creation');
+  let hasKnowledgeAccess = themesContainer.textContent.includes('Knowledge Access');
+  let hasConsultantUtilization = themesContainer.textContent.includes('Consultant Utilization');
+  let hasNoThemesText = themesContainer.textContent.includes('No themes identified yet.');
+  
+  console.log('Includes Proposal Creation:', hasProposalCreation);
+  console.log('Includes Knowledge Access:', hasKnowledgeAccess);
+  console.log('Includes Consultant Utilization:', hasConsultantUtilization);
+  console.log('Does NOT show "No themes identified yet.":', !hasNoThemesText);
+  
+  if (!hasProposalCreation || !hasKnowledgeAccess || !hasConsultantUtilization) {
+    console.error('FAIL: Expected themes (Proposal Creation, Knowledge Access, Consultant Utilization) not all present!');
+    process.exit(1);
+  }
+  if (hasNoThemesText) {
+    console.error('FAIL: "No themes identified yet." is displayed!');
+    process.exit(1);
+  }
+  
+  // Test manufacturing/reporting answer
+  console.log('Testing manufacturing/reporting answer...');
+  const mfgAnswer = `We manually compile reports using spreadsheets, which creates a process bottleneck and delays visibility for management.`;
+  
+  dynamicTextarea.value = mfgAnswer;
+  dynamicTextarea.dispatchEvent(new dom.window.Event('input'));
+  dynamicAnalyzeBtn.click();
+  
+  themesContainer = document.getElementById('meeting-themes-container');
+  console.log('Themes Text Content (MFG):', themesContainer.textContent);
+  
+  let hasOperationalVisibility = themesContainer.textContent.includes('Operational Visibility');
+  let hasManualReporting = themesContainer.textContent.includes('Manual Reporting');
+  let hasProcessBottleneck = themesContainer.textContent.includes('Process Bottleneck');
+  
+  console.log('Includes Operational Visibility:', hasOperationalVisibility);
+  console.log('Includes Manual Reporting:', hasManualReporting);
+  console.log('Includes Process Bottleneck:', hasProcessBottleneck);
+  
+  if (!hasOperationalVisibility || !hasManualReporting || !hasProcessBottleneck) {
+    console.error('FAIL: Expected MFG themes (Operational Visibility, Manual Reporting, Process Bottleneck) not all present!');
+    process.exit(1);
+  }
+  
+  console.log('DISCOVERY THEMES DETECTION VERIFICATION PASSED!\n');
+
   // 11. Test Exit Session
   const exitBtn = document.getElementById('btn-exit-meeting');
   console.log('Exit Session button exists:', !!exitBtn);
