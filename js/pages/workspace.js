@@ -1490,6 +1490,80 @@ function renderProjectsTab(company, container) {
   });
 }
 
+function generateProjectMarkdown(projId) {
+  const proj = db.getProject(projId);
+  if (!proj) return '';
+  
+  const progress = (db && typeof db.calcProjectProgress === 'function') ? db.calcProjectProgress(proj) : proj.progress;
+  
+  let md = `# PROJEKTAS: ${proj.title}\n\n`;
+  md += `## 1. Bendra informacija ir būsena\n`;
+  md += `- **Būsena:** ${proj.status.replace('_', ' ').toUpperCase()}\n`;
+  md += `- **Progresas:** ${progress}%\n`;
+  md += `- **Laikotarpis:** ${formatDate(proj.startDate)} iki ${formatDate(proj.endDate)}\n`;
+  md += `- **Strategija:** ${proj.description || 'Nėra aprašymo.'}\n\n`;
+  
+  // Milestones
+  md += `## 2. Projekto etapai (Milestones)\n`;
+  if (proj.milestones && proj.milestones.length > 0) {
+    proj.milestones.forEach(ms => {
+      const status = ms.completed ? '[x]' : '[ ]';
+      const dateStr = ms.completedAt ? ` (Pabaigta: ${formatDate(ms.completedAt)})` : '';
+      md += `- ${status} ${ms.title}${dateStr}\n`;
+    });
+  } else {
+    md += `*Nėra apibrėžtų etapų.*\n`;
+  }
+  md += `\n`;
+  
+  // Traceability Chain
+  md += `## 3. Atsekamumo grandinė (Traceability Chain)\n`;
+  const linkedIdeas = proj.linkedSystemIdeas.map(id => db.getSystemIdea(id)).filter(Boolean);
+  if (linkedIdeas.length > 0) {
+    linkedIdeas.forEach(idea => {
+      md += `### 💡 Sistemos idėja: ${idea.title}\n`;
+      md += `- **Dizaino koncepcija:** ${idea.description || 'Nėra aprašymo.'}\n`;
+      md += `- **Prioritetas:** ${idea.priority.toUpperCase()} | **Įgyvendinamumas:** ${idea.feasibility.toUpperCase()} | **Būsena:** ${idea.status.toUpperCase()}\n`;
+      
+      const insights = idea.linkedInsights ? idea.linkedInsights.map(insId => db.getInsight(insId)).filter(Boolean) : [];
+      if (insights.length > 0) {
+        md += `- **Susieti pastebėjimai (Insights):**\n`;
+        insights.forEach(ins => {
+          md += `  - ✨ **Insight:** ${ins.title}\n`;
+          md += `    - *Aprašymas:* ${ins.description || 'Nėra aprašymo.'}\n`;
+          md += `    - *Įtaka:* ${ins.impact.toUpperCase()} | *Kategorija:* ${ins.category.toUpperCase()}\n`;
+          
+          const notes = ins.sourceNotes ? ins.sourceNotes.map(nId => db.getDiscoveryNote(nId)).filter(Boolean) : [];
+          if (notes.length > 0) {
+            md += `    - *Šaltiniai (Discovery Notes):*\n`;
+            notes.forEach(note => {
+              md += `      - 📝 **Note:** ${note.title} (Data: ${note.date} | Kategorija: ${note.category})\n`;
+              md += `        - *Turinys:* ${note.content.replace(/\n/g, '\n          ')}\n`;
+            });
+          }
+        });
+      } else {
+        md += `- *Nėra susietų pastebėjimų.*\n`;
+      }
+      md += `\n`;
+    });
+  } else {
+    md += `*Nėra susietų atsekamumo įrašų.*\n\n`;
+  }
+  
+  // Activity Log
+  md += `## 4. Projekto veiklos žurnalas (Activity Log)\n`;
+  if (proj.activityLog && proj.activityLog.length > 0) {
+    [...proj.activityLog].reverse().forEach(act => {
+      md += `- [${formatDate(act.createdAt, true)}] [${act.type.toUpperCase()}] ${act.message}\n`;
+    });
+  } else {
+    md += `*Veiklos žurnalas tuščias.*\n`;
+  }
+  
+  return md;
+}
+
 function openProjectDrawer(company, projId, container, skipHistoryPush = false) {
   let proj = db.getProject(projId);
   if (!proj) return;
@@ -1514,6 +1588,7 @@ function openProjectDrawer(company, projId, container, skipHistoryPush = false) 
   if (proj.status === 'in_progress') statusBadge = 'badge-info';
   if (proj.status === 'completed') statusBadge = 'badge-success';
   if (proj.status === 'on_hold') statusBadge = 'badge-danger';
+
 
   // 1. Milestones section
   const milestonesHTML = (proj.milestones && proj.milestones.length > 0) ? `
@@ -1608,6 +1683,17 @@ function openProjectDrawer(company, projId, container, skipHistoryPush = false) 
 
   const bodyHTML = `
     ${navHTML}
+    
+    <!-- AI Export Actions -->
+    <div class="flex-row project-export-actions" style="gap: 8px; margin-bottom: 16px; border-bottom: 1px dashed var(--border-color); padding-bottom: 12px; margin-top:-8px;">
+      <button id="btn-copy-project-ai" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px; height: 24px; display: inline-flex; align-items: center; gap: 4px;">
+        ${getIconHTML('copy', 'width: 12px; height: 12px;')} Kopijuoti AI agentui
+      </button>
+      <button id="btn-download-project-md" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px; height: 24px; display: inline-flex; align-items: center; gap: 4px;">
+        ${getIconHTML('download', 'width: 12px; height: 12px;')} Atsisiųsti .md
+      </button>
+    </div>
+
     <div class="project-drawer-content flex-column" style="gap:16px;">
       <!-- Column 1: Metadata & Strategy -->
       <div class="project-col project-col-meta">
@@ -1670,6 +1756,39 @@ function openProjectDrawer(company, projId, container, skipHistoryPush = false) 
 
   const drawerBody = document.getElementById('drawer-body-content');
   bindDrawerNavigationListeners(company, container);
+
+  // Bind AI Export Actions
+  const btnCopyAI = drawerBody.querySelector('#btn-copy-project-ai');
+  const btnDownloadMD = drawerBody.querySelector('#btn-download-project-md');
+
+  if (btnCopyAI) {
+    btnCopyAI.addEventListener('click', () => {
+      const markdown = generateProjectMarkdown(proj.id);
+      navigator.clipboard.writeText(markdown)
+        .then(() => showToast('Projektas nukopijuotas į iškarpinę!', 'success'))
+        .catch(err => {
+          console.error('Failed to copy text:', err);
+          showToast('Nepavyko nukopijuoti į iškarpinę.', 'danger');
+        });
+    });
+  }
+
+  if (btnDownloadMD) {
+    btnDownloadMD.addEventListener('click', () => {
+      const markdown = generateProjectMarkdown(proj.id);
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${proj.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_brief.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Markdown ataskaita atsisiųsta!', 'success');
+    });
+  }
+
   
   // Bind milestone checkboxes
   drawerBody.querySelectorAll('.ms-checkbox').forEach(cb => {
