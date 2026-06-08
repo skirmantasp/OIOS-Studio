@@ -168,6 +168,15 @@ async function initDatabase() {
           text TEXT NOT NULL,
           completed BOOLEAN NOT NULL DEFAULT FALSE
         );
+
+        CREATE TABLE IF NOT EXISTS logs (
+          id SERIAL PRIMARY KEY,
+          timestamp TEXT NOT NULL,
+          level TEXT NOT NULL,
+          message TEXT NOT NULL,
+          stack TEXT,
+          context TEXT
+        );
       `);
       
       client.release();
@@ -186,7 +195,8 @@ async function initDatabase() {
         systemIdeas: [],
         projects: [],
         reports: [],
-        nextActions: []
+        nextActions: [],
+        logs: []
       };
       fs.writeFileSync(DB_FILE, JSON.stringify(emptyDb, null, 2), 'utf8');
       console.log('Local db.json file initialized.');
@@ -197,9 +207,11 @@ async function initDatabase() {
 // Helper: read local DB file
 function readLocalDb() {
   try {
-    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    if (!data.logs) data.logs = [];
+    return data;
   } catch (e) {
-    return { companies: [], discoveryNotes: [], insights: [], systemIdeas: [], projects: [], reports: [], nextActions: [] };
+    return { companies: [], discoveryNotes: [], insights: [], systemIdeas: [], projects: [], reports: [], nextActions: [], logs: [] };
   }
 }
 
@@ -207,6 +219,41 @@ function readLocalDb() {
 function writeLocalDb(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
 }
+
+// Helper: write log entry to DB
+async function writeLog(level, message, stack = '', context = '') {
+  const timestamp = new Date().toISOString();
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO logs (timestamp, level, message, stack, context) VALUES ($1, $2, $3, $4, $5)`,
+        [timestamp, level, message, stack, context]
+      );
+    } catch (err) {
+      console.error('Failed to write log to Postgres:', err.message);
+    }
+  } else {
+    try {
+      const dbData = readLocalDb();
+      dbData.logs.push({
+        id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        timestamp,
+        level,
+        message,
+        stack,
+        context
+      });
+      // Cap at 100 entries
+      if (dbData.logs.length > 100) {
+        dbData.logs = dbData.logs.slice(-100);
+      }
+      writeLocalDb(dbData);
+    } catch (err) {
+      console.error('Failed to write log to local file:', err.message);
+    }
+  }
+}
+
 
 // --- REST API ENDPOINTS ---
 
@@ -825,6 +872,68 @@ app.delete('/api/nextActions/:id', async (req, res) => {
     res.json({ success: true });
   }
 });
+
+// --- LOGS API ENDPOINTS ---
+
+// 1. Get recent logs (latest 100 entries)
+app.get('/api/logs', async (req, res) => {
+  if (usePostgres) {
+    try {
+      const result = await pool.query('SELECT * FROM logs ORDER BY timestamp DESC LIMIT 100');
+      res.json(result.rows);
+    } catch (err) {
+      await writeLog('error', 'Failed to fetch logs from Postgres: ' + err.message, err.stack);
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    try {
+      const dbData = readLocalDb();
+      const logs = [...dbData.logs].reverse().slice(0, 100);
+      res.json(logs);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+
+// 2. Post a new log entry (from client-side)
+app.post('/api/logs', async (req, res) => {
+  const { level, message, stack, context } = req.body;
+  if (!level || !message) {
+    return res.status(400).json({ error: 'Level and message are required' });
+  }
+  try {
+    await writeLog(level, message, stack || '', typeof context === 'object' ? JSON.stringify(context) : (context || ''));
+    res.status(201).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. Clear all logs
+app.delete('/api/logs', async (req, res) => {
+  if (usePostgres) {
+    try {
+      await pool.query('DELETE FROM logs');
+      await writeLog('info', 'Database logs cleared by user');
+      res.json({ success: true });
+    } catch (err) {
+      await writeLog('error', 'Failed to clear logs: ' + err.message, err.stack);
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    try {
+      const dbData = readLocalDb();
+      dbData.logs = [];
+      writeLocalDb(dbData);
+      // We don't log "cleared" locally since it would immediately re-populate the logs
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+
 
 
 // Serve static assets from root directory

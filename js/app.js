@@ -10,6 +10,48 @@ import renderSettings from './pages/settings.js';
 // Signal to the HTML fallback detector that the module loaded successfully
 window._oiosModuleLoaded = true;
 
+// Global Error Logging Interceptors
+window.addEventListener('error', (event) => {
+  // Ignore minor cross-origin script errors or empty messages
+  if (!event.message && !event.error) return;
+  
+  const payload = {
+    level: 'error',
+    message: event.message || (event.error && event.error.message) || 'Uncaught Script Error',
+    stack: (event.error && event.error.stack) || '',
+    context: {
+      url: window.location.href,
+      filename: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0
+    }
+  };
+  
+  fetch('/api/logs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(err => console.error('Failed to post client error to server log:', err));
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  const payload = {
+    level: 'error',
+    message: reason ? (reason.message || String(reason)) : 'Unhandled Promise Rejection',
+    stack: (reason && reason.stack) || '',
+    context: {
+      url: window.location.href
+    }
+  };
+  
+  fetch('/api/logs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(err => console.error('Failed to post promise rejection to server log:', err));
+});
+
 // Route Registry
 const ROUTES = {
   '#/dashboard': { renderer: renderDashboard, title: 'Dashboard' },
