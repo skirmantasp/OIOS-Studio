@@ -1,32 +1,792 @@
 #!/usr/bin/env node
 /**
- * OIOS Studio — Production Start Script
- * Cross-platform. Reads PORT env variable (Railway injects this) or defaults to 3000.
+ * OIOS Studio — Production Express API & Static Server
  */
 
-const { spawn } = require('child_process');
+const express = require('express');
+const { Pool } = require('pg');
+const fs = require('fs');
 const path = require('path');
 
+const app = express();
+app.use(express.json({ limit: '50mb' }));
+
 const port = process.env.PORT || 3000;
-const isWin = process.platform === 'win32';
+const DB_FILE = path.join(__dirname, 'db.json');
 
-// On Windows: use shell + .cmd shim. On Linux/Mac (Railway): direct binary, no shell.
-const serveBin = isWin
-  ? path.join(__dirname, 'node_modules', '.bin', 'serve.cmd')
-  : path.join(__dirname, 'node_modules', '.bin', 'serve');
+// Initialize database connection
+let pool = null;
+const usePostgres = !!process.env.DATABASE_URL;
 
-console.log(`Starting OIOS Studio on port ${port}...`);
+if (usePostgres) {
+  console.log('Connecting to PostgreSQL database...');
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+} else {
+  console.log('No DATABASE_URL environment variable found. Falling back to local file-based database (db.json)...');
+}
 
-const child = spawn(serveBin, ['.', '--listen', String(port), '--single'], {
-  stdio: 'inherit',
-  shell: isWin
+// Initialize database schema (PostgreSQL) or create local file (fallback)
+async function initDatabase() {
+  if (usePostgres) {
+    try {
+      const client = await pool.connect();
+      
+      // Create tables using camelCase columns in double quotes
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS companies (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          industry TEXT NOT NULL,
+          status TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          "createdAt" TEXT,
+          description TEXT,
+          website TEXT,
+          "contactName" TEXT,
+          "contactEmail" TEXT,
+          assessment JSONB,
+          "discoveryIntake" JSONB
+        );
+
+        CREATE TABLE IF NOT EXISTS "discoveryNotes" (
+          id TEXT PRIMARY KEY,
+          "companyId" TEXT REFERENCES companies(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          content TEXT,
+          date TEXT,
+          category TEXT,
+          source TEXT,
+          "generatedNoteType" TEXT,
+          "generatedFrom" TEXT,
+          "createdAt" TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS insights (
+          id TEXT PRIMARY KEY,
+          "companyId" TEXT REFERENCES companies(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          description TEXT,
+          "sourceNotes" JSONB,
+          impact TEXT,
+          category TEXT,
+          "evidenceConfidence" INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS "systemIdeas" (
+          id TEXT PRIMARY KEY,
+          "companyId" TEXT REFERENCES companies(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          description TEXT,
+          "linkedInsights" JSONB,
+          priority TEXT,
+          feasibility TEXT,
+          status TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS projects (
+          id TEXT PRIMARY KEY,
+          "companyId" TEXT REFERENCES companies(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          description TEXT,
+          "linkedSystemIdeas" JSONB,
+          status TEXT,
+          "startDate" TEXT,
+          "endDate" TEXT,
+          progress INTEGER,
+          milestones JSONB,
+          "activityLog" JSONB
+        );
+
+        CREATE TABLE IF NOT EXISTS reports (
+          id TEXT PRIMARY KEY,
+          "companyId" TEXT REFERENCES companies(id) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          summary TEXT,
+          content TEXT,
+          "createdAt" TEXT,
+          status TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS "nextActions" (
+          id TEXT PRIMARY KEY,
+          text TEXT NOT NULL,
+          completed BOOLEAN NOT NULL DEFAULT FALSE
+        );
+      `);
+      
+      client.release();
+      console.log('PostgreSQL database schema initialized successfully.');
+    } catch (err) {
+      console.error('Failed to initialize PostgreSQL database:', err.message);
+      process.exit(1);
+    }
+  } else {
+    // Local file initialization
+    if (!fs.existsSync(DB_FILE)) {
+      const emptyDb = {
+        companies: [],
+        discoveryNotes: [],
+        insights: [],
+        systemIdeas: [],
+        projects: [],
+        reports: [],
+        nextActions: []
+      };
+      fs.writeFileSync(DB_FILE, JSON.stringify(emptyDb, null, 2), 'utf8');
+      console.log('Local db.json file initialized.');
+    }
+  }
+}
+
+// Helper: read local DB file
+function readLocalDb() {
+  try {
+    return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+  } catch (e) {
+    return { companies: [], discoveryNotes: [], insights: [], systemIdeas: [], projects: [], reports: [], nextActions: [] };
+  }
+}
+
+// Helper: write local DB file
+function writeLocalDb(data) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+}
+
+// --- REST API ENDPOINTS ---
+
+// 1. Get entire database state
+app.get('/api/state', async (req, res) => {
+  if (usePostgres) {
+    try {
+      const client = await pool.connect();
+      
+      const compRes = await client.query('SELECT * FROM companies');
+      const noteRes = await client.query('SELECT * FROM "discoveryNotes"');
+      const insRes = await client.query('SELECT * FROM insights');
+      const ideaRes = await client.query('SELECT * FROM "systemIdeas"');
+      const projRes = await client.query('SELECT * FROM projects');
+      const repRes = await client.query('SELECT * FROM reports');
+      const actRes = await client.query('SELECT * FROM "nextActions"');
+      
+      client.release();
+      
+      res.json({
+        companies: compRes.rows,
+        discoveryNotes: noteRes.rows,
+        insights: insRes.rows,
+        systemIdeas: ideaRes.rows,
+        projects: projRes.rows,
+        reports: repRes.rows,
+        nextActions: actRes.rows
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    res.json(readLocalDb());
+  }
 });
 
-child.on('error', (err) => {
-  console.error('Failed to start serve:', err.message);
-  process.exit(1);
+// 2. Migrate / Overwrite entire state
+app.post('/api/state/migrate', async (req, res) => {
+  const data = req.body;
+  if (usePostgres) {
+    let client;
+    try {
+      client = await pool.connect();
+      await client.query('BEGIN');
+      
+      // Wipe existing tables in reverse order of foreign keys
+      await client.query('DELETE FROM "nextActions"');
+      await client.query('DELETE FROM reports');
+      await client.query('DELETE FROM projects');
+      await client.query('DELETE FROM "systemIdeas"');
+      await client.query('DELETE FROM insights');
+      await client.query('DELETE FROM "discoveryNotes"');
+      await client.query('DELETE FROM companies');
+
+      // Insert companies
+      if (data.companies && data.companies.length > 0) {
+        for (const c of data.companies) {
+          await client.query(
+            `INSERT INTO companies (id, name, industry, status, stage, "createdAt", description, website, "contactName", "contactEmail", assessment, "discoveryIntake")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            [c.id, c.name, c.industry, c.status, c.stage, c.createdAt, c.description, c.website, c.contactName, c.contactEmail, JSON.stringify(c.assessment), JSON.stringify(c.discoveryIntake)]
+          );
+        }
+      }
+
+      // Insert notes
+      if (data.discoveryNotes && data.discoveryNotes.length > 0) {
+        for (const n of data.discoveryNotes) {
+          await client.query(
+            `INSERT INTO "discoveryNotes" (id, "companyId", title, content, date, category, source, "generatedNoteType", "generatedFrom", "createdAt")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [n.id, n.companyId, n.title, n.content, n.date, n.category, n.source, n.generatedNoteType, n.generatedFrom, n.createdAt]
+          );
+        }
+      }
+
+      // Insert insights
+      if (data.insights && data.insights.length > 0) {
+        for (const i of data.insights) {
+          await client.query(
+            `INSERT INTO insights (id, "companyId", title, description, "sourceNotes", impact, category, "evidenceConfidence")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [i.id, i.companyId, i.title, i.description, JSON.stringify(i.sourceNotes), i.impact, i.category, i.evidenceConfidence]
+          );
+        }
+      }
+
+      // Insert system ideas
+      if (data.systemIdeas && data.systemIdeas.length > 0) {
+        for (const s of data.systemIdeas) {
+          await client.query(
+            `INSERT INTO "systemIdeas" (id, "companyId", title, description, "linkedInsights", priority, feasibility, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+            [s.id, s.companyId, s.title, s.description, JSON.stringify(s.linkedInsights), s.priority, s.feasibility, s.status]
+          );
+        }
+      }
+
+      // Insert projects
+      if (data.projects && data.projects.length > 0) {
+        for (const p of data.projects) {
+          await client.query(
+            `INSERT INTO projects (id, "companyId", title, description, "linkedSystemIdeas", status, "startDate", "endDate", progress, milestones, "activityLog")
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [p.id, p.companyId, p.title, p.description, JSON.stringify(p.linkedSystemIdeas), p.status, p.startDate, p.endDate, p.progress, JSON.stringify(p.milestones), JSON.stringify(p.activityLog)]
+          );
+        }
+      }
+
+      // Insert reports
+      if (data.reports && data.reports.length > 0) {
+        for (const r of data.reports) {
+          await client.query(
+            `INSERT INTO reports (id, "companyId", title, summary, content, "createdAt", status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [r.id, r.companyId, r.title, r.summary, r.content, r.createdAt, r.status]
+          );
+        }
+      }
+
+      // Insert nextActions
+      if (data.nextActions && data.nextActions.length > 0) {
+        for (const a of data.nextActions) {
+          await client.query(
+            `INSERT INTO "nextActions" (id, text, completed)
+             VALUES ($1, $2, $3)`,
+            [a.id, a.text, a.completed]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      client.release();
+      res.json({ success: true, message: 'Database state migrated successfully.' });
+    } catch (err) {
+      if (client) await client.query('ROLLBACK');
+      if (client) client.release();
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    writeLocalDb(data);
+    res.json({ success: true, message: 'Local database state migrated successfully.' });
+  }
 });
 
-child.on('close', (code) => {
-  process.exit(code ?? 0);
+// 3. CRUD: Companies
+app.post('/api/companies', async (req, res) => {
+  const c = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO companies (id, name, industry, status, stage, "createdAt", description, website, "contactName", "contactEmail", assessment, "discoveryIntake")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [c.id, c.name, c.industry, c.status, c.stage, c.createdAt, c.description, c.website, c.contactName, c.contactEmail, JSON.stringify(c.assessment), JSON.stringify(c.discoveryIntake)]
+      );
+      res.status(201).json(c);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.companies.push(c);
+    writeLocalDb(dbData);
+    res.status(201).json(c);
+  }
+});
+
+app.put('/api/companies/:id', async (req, res) => {
+  const { id } = req.params;
+  const c = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `UPDATE companies 
+         SET name=$1, industry=$2, status=$3, stage=$4, "createdAt"=$5, description=$6, website=$7, "contactName"=$8, "contactEmail"=$9, assessment=$10, "discoveryIntake"=$11
+         WHERE id=$12`,
+        [c.name, c.industry, c.status, c.stage, c.createdAt, c.description, c.website, c.contactName, c.contactEmail, JSON.stringify(c.assessment), JSON.stringify(c.discoveryIntake), id]
+      );
+      res.json(c);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    const idx = dbData.companies.findIndex(x => x.id === id);
+    if (idx !== -1) {
+      dbData.companies[idx] = { ...dbData.companies[idx], ...c };
+      writeLocalDb(dbData);
+      res.json(dbData.companies[idx]);
+    } else {
+      res.status(404).json({ error: 'Company not found' });
+    }
+  }
+});
+
+app.delete('/api/companies/:id', async (req, res) => {
+  const { id } = req.params;
+  if (usePostgres) {
+    try {
+      await pool.query('DELETE FROM companies WHERE id=$1', [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.companies = dbData.companies.filter(x => x.id !== id);
+    dbData.discoveryNotes = dbData.discoveryNotes.filter(x => x.companyId !== id);
+    dbData.insights = dbData.insights.filter(x => x.companyId !== id);
+    dbData.systemIdeas = dbData.systemIdeas.filter(x => x.companyId !== id);
+    dbData.projects = dbData.projects.filter(x => x.companyId !== id);
+    dbData.reports = dbData.reports.filter(x => x.companyId !== id);
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+// 4. CRUD: Discovery Notes
+app.post('/api/discoveryNotes', async (req, res) => {
+  const n = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO "discoveryNotes" (id, "companyId", title, content, date, category, source, "generatedNoteType", "generatedFrom", "createdAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [n.id, n.companyId, n.title, n.content, n.date, n.category, n.source, n.generatedNoteType, n.generatedFrom, n.createdAt]
+      );
+      res.status(201).json(n);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.discoveryNotes.push(n);
+    writeLocalDb(dbData);
+    res.status(201).json(n);
+  }
+});
+
+app.put('/api/discoveryNotes/:id', async (req, res) => {
+  const { id } = req.params;
+  const n = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `UPDATE "discoveryNotes" 
+         SET "companyId"=$1, title=$2, content=$3, date=$4, category=$5, source=$6, "generatedNoteType"=$7, "generatedFrom"=$8, "createdAt"=$9
+         WHERE id=$10`,
+        [n.companyId, n.title, n.content, n.date, n.category, n.source, n.generatedNoteType, n.generatedFrom, n.createdAt, id]
+      );
+      res.json(n);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    const idx = dbData.discoveryNotes.findIndex(x => x.id === id);
+    if (idx !== -1) {
+      dbData.discoveryNotes[idx] = { ...dbData.discoveryNotes[idx], ...n };
+      writeLocalDb(dbData);
+      res.json(dbData.discoveryNotes[idx]);
+    } else {
+      res.status(404).json({ error: 'Note not found' });
+    }
+  }
+});
+
+app.delete('/api/discoveryNotes/:id', async (req, res) => {
+  const { id } = req.params;
+  if (usePostgres) {
+    try {
+      await pool.query('DELETE FROM "discoveryNotes" WHERE id=$1', [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.discoveryNotes = dbData.discoveryNotes.filter(x => x.id !== id);
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+// 5. CRUD: Insights
+app.post('/api/insights', async (req, res) => {
+  const i = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO insights (id, "companyId", title, description, "sourceNotes", impact, category, "evidenceConfidence")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [i.id, i.companyId, i.title, i.description, JSON.stringify(i.sourceNotes), i.impact, i.category, i.evidenceConfidence]
+      );
+      res.status(201).json(i);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.insights.push(i);
+    writeLocalDb(dbData);
+    res.status(201).json(i);
+  }
+});
+
+app.put('/api/insights/:id', async (req, res) => {
+  const { id } = req.params;
+  const i = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `UPDATE insights 
+         SET "companyId"=$1, title=$2, description=$3, "sourceNotes"=$4, impact=$5, category=$6, "evidenceConfidence"=$7
+         WHERE id=$8`,
+        [i.companyId, i.title, i.description, JSON.stringify(i.sourceNotes), i.impact, i.category, i.evidenceConfidence, id]
+      );
+      res.json(i);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    const idx = dbData.insights.findIndex(x => x.id === id);
+    if (idx !== -1) {
+      dbData.insights[idx] = { ...dbData.insights[idx], ...i };
+      writeLocalDb(dbData);
+      res.json(dbData.insights[idx]);
+    } else {
+      res.status(404).json({ error: 'Insight not found' });
+    }
+  }
+});
+
+app.delete('/api/insights/:id', async (req, res) => {
+  const { id } = req.params;
+  if (usePostgres) {
+    try {
+      await pool.query('DELETE FROM insights WHERE id=$1', [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.insights = dbData.insights.filter(x => x.id !== id);
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+// 6. CRUD: System Ideas
+app.post('/api/systemIdeas', async (req, res) => {
+  const s = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO "systemIdeas" (id, "companyId", title, description, "linkedInsights", priority, feasibility, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [s.id, s.companyId, s.title, s.description, JSON.stringify(s.linkedInsights), s.priority, s.feasibility, s.status]
+      );
+      res.status(201).json(s);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.systemIdeas.push(s);
+    writeLocalDb(dbData);
+    res.status(201).json(s);
+  }
+});
+
+app.put('/api/systemIdeas/:id', async (req, res) => {
+  const { id } = req.params;
+  const s = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `UPDATE "systemIdeas" 
+         SET "companyId"=$1, title=$2, description=$3, "linkedInsights"=$4, priority=$5, feasibility=$6, status=$7
+         WHERE id=$8`,
+        [s.companyId, s.title, s.description, JSON.stringify(s.linkedInsights), s.priority, s.feasibility, s.status, id]
+      );
+      res.json(s);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    const idx = dbData.systemIdeas.findIndex(x => x.id === id);
+    if (idx !== -1) {
+      dbData.systemIdeas[idx] = { ...dbData.systemIdeas[idx], ...s };
+      writeLocalDb(dbData);
+      res.json(dbData.systemIdeas[idx]);
+    } else {
+      res.status(404).json({ error: 'System Idea not found' });
+    }
+  }
+});
+
+app.delete('/api/systemIdeas/:id', async (req, res) => {
+  const { id } = req.params;
+  if (usePostgres) {
+    try {
+      await pool.query('DELETE FROM "systemIdeas" WHERE id=$1', [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.systemIdeas = dbData.systemIdeas.filter(x => x.id !== id);
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+// 7. CRUD: Projects
+app.post('/api/projects', async (req, res) => {
+  const p = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO projects (id, "companyId", title, description, "linkedSystemIdeas", status, "startDate", "endDate", progress, milestones, "activityLog")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [p.id, p.companyId, p.title, p.description, JSON.stringify(p.linkedSystemIdeas), p.status, p.startDate, p.endDate, p.progress, JSON.stringify(p.milestones), JSON.stringify(p.activityLog)]
+      );
+      res.status(201).json(p);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.projects.push(p);
+    writeLocalDb(dbData);
+    res.status(201).json(p);
+  }
+});
+
+app.put('/api/projects/:id', async (req, res) => {
+  const { id } = req.params;
+  const p = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `UPDATE projects 
+         SET "companyId"=$1, title=$2, description=$3, "linkedSystemIdeas"=$4, status=$5, "startDate"=$6, "endDate"=$7, progress=$8, milestones=$9, "activityLog"=$10
+         WHERE id=$11`,
+        [p.companyId, p.title, p.description, JSON.stringify(p.linkedSystemIdeas), p.status, p.startDate, p.endDate, p.progress, JSON.stringify(p.milestones), JSON.stringify(p.activityLog), id]
+      );
+      res.json(p);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    const idx = dbData.projects.findIndex(x => x.id === id);
+    if (idx !== -1) {
+      dbData.projects[idx] = { ...dbData.projects[idx], ...p };
+      writeLocalDb(dbData);
+      res.json(dbData.projects[idx]);
+    } else {
+      res.status(404).json({ error: 'Project not found' });
+    }
+  }
+});
+
+app.delete('/api/projects/:id', async (req, res) => {
+  const { id } = req.params;
+  if (usePostgres) {
+    try {
+      await pool.query('DELETE FROM projects WHERE id=$1', [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.projects = dbData.projects.filter(x => x.id !== id);
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+// 8. CRUD: Reports
+app.post('/api/reports', async (req, res) => {
+  const r = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO reports (id, "companyId", title, summary, content, "createdAt", status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [r.id, r.companyId, r.title, r.summary, r.content, r.createdAt, r.status]
+      );
+      res.status(201).json(r);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.reports.push(r);
+    writeLocalDb(dbData);
+    res.status(201).json(r);
+  }
+});
+
+app.put('/api/reports/:id', async (req, res) => {
+  const { id } = req.params;
+  const r = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `UPDATE reports 
+         SET "companyId"=$1, title=$2, summary=$3, content=$4, "createdAt"=$5, status=$6
+         WHERE id=$7`,
+        [r.companyId, r.title, r.summary, r.content, r.createdAt, r.status, id]
+      );
+      res.json(r);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    const idx = dbData.reports.findIndex(x => x.id === id);
+    if (idx !== -1) {
+      dbData.reports[idx] = { ...dbData.reports[idx], ...r };
+      writeLocalDb(dbData);
+      res.json(dbData.reports[idx]);
+    } else {
+      res.status(404).json({ error: 'Report not found' });
+    }
+  }
+});
+
+app.delete('/api/reports/:id', async (req, res) => {
+  const { id } = req.params;
+  if (usePostgres) {
+    try {
+      await pool.query('DELETE FROM reports WHERE id=$1', [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.reports = dbData.reports.filter(x => x.id !== id);
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+// 9. CRUD: Next Actions
+app.post('/api/nextActions', async (req, res) => {
+  const a = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO "nextActions" (id, text, completed)
+         VALUES ($1, $2, $3)`,
+        [a.id, a.text, a.completed]
+      );
+      res.status(201).json(a);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.nextActions.push(a);
+    writeLocalDb(dbData);
+    res.status(201).json(a);
+  }
+});
+
+app.put('/api/nextActions/:id', async (req, res) => {
+  const { id } = req.params;
+  const a = req.body;
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `UPDATE "nextActions" 
+         SET text=$1, completed=$2
+         WHERE id=$3`,
+        [a.text, a.completed, id]
+      );
+      res.json(a);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    const idx = dbData.nextActions.findIndex(x => x.id === id);
+    if (idx !== -1) {
+      dbData.nextActions[idx] = { ...dbData.nextActions[idx], ...a };
+      writeLocalDb(dbData);
+      res.json(dbData.nextActions[idx]);
+    } else {
+      res.status(404).json({ error: 'Action item not found' });
+    }
+  }
+});
+
+app.delete('/api/nextActions/:id', async (req, res) => {
+  const { id } = req.params;
+  if (usePostgres) {
+    try {
+      await pool.query('DELETE FROM "nextActions" WHERE id=$1', [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    const dbData = readLocalDb();
+    dbData.nextActions = dbData.nextActions.filter(x => x.id !== id);
+    writeLocalDb(dbData);
+    res.json({ success: true });
+  }
+});
+
+
+// Serve static assets from root directory
+app.use(express.static(__dirname));
+
+// Fallback to index.html for Single Page Application routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Start application
+initDatabase().then(() => {
+  app.listen(port, () => {
+    console.log(`OIOS Studio running on port ${port} (Postgres: ${usePostgres})`);
+  });
 });

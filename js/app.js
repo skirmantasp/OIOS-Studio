@@ -1,6 +1,5 @@
-/* OIOS Studio — Core App Controller & Router */
-
 import { refreshIcons, showToast, closeModal, closeDrawer } from './utils.js';
+import { db } from './state.js';
 
 import renderDashboard from './pages/dashboard.js';
 import renderCompanies from './pages/companies.js';
@@ -107,7 +106,7 @@ function initTheme() {
 }
 
 // --- App Initialization ---
-function initApp() {
+async function initApp() {
   initTheme();
 
   const modalClose = document.getElementById('modal-close');
@@ -119,6 +118,12 @@ function initApp() {
   const appDrawer = document.getElementById('app-drawer');
   if (appModal) appModal.addEventListener('click', e => { if (e.target.id === 'app-modal') closeModal(); });
   if (appDrawer) appDrawer.addEventListener('click', e => { if (e.target.id === 'app-drawer') closeDrawer(); });
+
+  try {
+    await db.init();
+  } catch (err) {
+    console.error('Failed to initialize database:', err);
+  }
 
   window.addEventListener('hashchange', router);
   router();

@@ -264,6 +264,70 @@ class StateManager {
     this.repairSystemIdeaTraceability();
   }
 
+  async init() {
+    try {
+      console.log('[Database] Initializing state from backend...');
+      if (typeof fetch !== 'function') {
+        return; // Safe check for older test runner environments
+      }
+      
+      const response = await fetch('/api/state');
+      if (!response.ok) {
+        throw new Error('Failed to fetch state from backend API');
+      }
+      const remoteData = await response.json();
+      
+      // One-time migration: if database is empty but local browser storage contains data
+      const localRaw = localStorage.getItem(STORAGE_KEY);
+      const hasLocalData = localRaw && JSON.parse(localRaw).companies && JSON.parse(localRaw).companies.length > 0;
+      const hasRemoteData = remoteData.companies && remoteData.companies.length > 0;
+      
+      if (hasLocalData && !hasRemoteData) {
+        console.log('[Database] Performing one-time migration from localStorage to PostgreSQL...');
+        const localData = JSON.parse(localRaw);
+        
+        const migrateRes = await fetch('/api/state/migrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(localData)
+        });
+        
+        if (migrateRes.ok) {
+          console.log('[Database] Migration successful. Clearing localStorage.');
+          localStorage.removeItem(STORAGE_KEY);
+          this.data = localData;
+        } else {
+          this.data = localData;
+        }
+      } else {
+        // If remote database is completely empty, seed it with mock data
+        if (!hasRemoteData) {
+          console.log('[Database] Database is empty. Seeding database with mock templates...');
+          const seedRes = await fetch('/api/state/migrate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(DEFAULT_MOCK_DATA)
+          });
+          if (seedRes.ok) {
+            this.data = JSON.parse(JSON.stringify(DEFAULT_MOCK_DATA));
+          } else {
+            this.data = remoteData;
+          }
+        } else {
+          this.data = remoteData;
+        }
+      }
+    } catch (err) {
+      console.warn('[Database] Backend connection failed. Running in offline/localStorage mode:', err.message);
+    }
+
+    // Run repair routines on final data
+    this.repairDuplicateInsightIds();
+    this.repairDuplicateDiscoveryNoteIds();
+    this.repairDuplicateSystemIdeaIds();
+    this.repairSystemIdeaTraceability();
+  }
+
   generateUniqueId(prefix, collection) {
     let id;
     let attempts = 0;
@@ -494,6 +558,17 @@ class StateManager {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       this.data = data;
+      
+      // Perform background sync to PostgreSQL server
+      if (typeof fetch === 'function') {
+        fetch('/api/state/migrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        }).catch(err => {
+          console.warn('[Database] Background sync to server failed:', err.message);
+        });
+      }
     } catch (e) {
       console.error('Failed to save database to localStorage', e);
     }

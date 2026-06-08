@@ -4,11 +4,16 @@
   "description": "Internal workspace for Organizational Intelligence Architects — manage companies, assessments, discovery notes, insights, system ideas, projects, and reports.",
   "main": "index.html",
   "scripts": {
-    "start": "node -e \"const {execFileSync}=require('child_process'),p=require('path');execFileSync(p.join('node_modules','.bin','serve'),['.','-l',process.env.PORT||'3000','--single'],{stdio:'inherit',shell:true})\"",
-    "dev": "npx serve . -l 3000"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
     "serve": "^14.2.4"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
   },
   "keywords": [
     "oios",
