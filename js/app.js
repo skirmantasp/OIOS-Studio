@@ -167,6 +167,42 @@ async function initApp() {
     console.error('Failed to initialize database:', err);
   }
 
+  // Dynamic Database Status Indicator
+  const dbStatusEl = document.getElementById('sidebar-db-status');
+  if (dbStatusEl) {
+    fetch('/api/status')
+      .then(res => res.ok ? res.json() : null)
+      .then(statusData => {
+        if (statusData) {
+          dbStatusEl.innerText = statusData.postgres ? 'Cloud DB Active' : 'Local DB Active';
+        }
+      })
+      .catch(err => {
+        console.warn('Status check failed:', err);
+        dbStatusEl.innerText = 'Local DB Active';
+      });
+  }
+
+  // Sidebar Log Out Link
+  const sidebarLogout = document.getElementById('btn-sidebar-logout');
+  if (sidebarLogout) {
+    sidebarLogout.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (confirm('Are you sure you want to log out of your workspace?')) {
+        try {
+          const res = await fetch('/api/logout', { method: 'POST' });
+          if (res.ok) {
+            window.location.href = '/login.html';
+          } else {
+            showToast('Failed to log out', 'danger');
+          }
+        } catch (err) {
+          showToast('Network error during log out', 'danger');
+        }
+      }
+    });
+  }
+
   window.addEventListener('hashchange', router);
   router();
 }
