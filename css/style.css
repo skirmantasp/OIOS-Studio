@@ -234,3 +234,19 @@ button, input, select, textarea {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* Dashboard Stage Items Interactivity */
+.dashboard-stage-item.clickable {
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.dashboard-stage-item.clickable:hover {
+  background-color: var(--bg-tertiary);
+  border-color: var(--border-color);
+  transform: translateX(4px);
+}
+

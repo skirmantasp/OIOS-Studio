@@ -1,7 +1,7 @@
 /* Dashboard Page View */
 
 import { db } from '../state.js';
-import { getIconHTML, formatDate, escapeHTML, showToast, openDrawer, refreshIcons } from '../utils.js';
+import { getIconHTML, formatDate, escapeHTML, showToast, openDrawer, closeDrawer, refreshIcons } from '../utils.js';
 
 /**
  * Renders the dashboard in the viewport container
@@ -70,7 +70,7 @@ export default function renderDashboard(viewport, params) {
             const count = stageCounts[stage];
             const percent = totalCompanies > 0 ? (count / totalCompanies) * 100 : 0;
             return `
-              <div>
+              <div class="dashboard-stage-item clickable" data-stage="${stage}" title="View companies in ${stage} stage">
                 <div class="flex-between" style="font-size: 13px; margin-bottom: 4px;">
                   <span style="font-weight: 500;">${stage}</span>
                   <span style="font-family: var(--font-mono); font-weight: 600; color: var(--text-secondary)">${count}</span>
@@ -194,6 +194,9 @@ export default function renderDashboard(viewport, params) {
 
   // Bind KPI card click navigation
   bindKpiCardEvents(viewport);
+
+  // Bind Stage row click navigation
+  bindStageEvents(viewport);
 }
 
 /**
@@ -352,3 +355,68 @@ function bindTodoEvents(container) {
     });
   });
 }
+
+/**
+ * Binds click events to Company By Stage list items
+ */
+function bindStageEvents(container) {
+  container.querySelectorAll('.dashboard-stage-item.clickable').forEach(item => {
+    item.addEventListener('click', () => {
+      const stage = item.getAttribute('data-stage');
+      const companies = db.getCompanies().filter(c => c.stage === stage);
+
+      if (companies.length === 0) {
+        showToast(`No companies in ${stage} stage`, 'info');
+        return;
+      }
+
+      // Compile body HTML for the side drawer
+      const bodyHTML = `
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          ${companies.map(comp => {
+            let badgeClass = 'badge-info';
+            if (comp.status === 'active') badgeClass = 'badge-success';
+            if (comp.status === 'inactive') badgeClass = 'badge-danger';
+            if (comp.status === 'lead') badgeClass = 'badge-warning';
+
+            return `
+              <div style="padding:14px; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-primary); display:flex; flex-direction:column; gap:8px;">
+                <div class="flex-between">
+                  <h4 style="font-size:15px; font-weight:600; color:var(--text-primary); margin:0;">${escapeHTML(comp.name)}</h4>
+                  <span class="badge ${badgeClass}">${comp.status}</span>
+                </div>
+                <div style="font-family:var(--font-mono); font-size:11px; color:var(--text-muted);">
+                  ${escapeHTML(comp.industry)}
+                </div>
+                ${comp.description ? `
+                  <p style="font-size:12px; color:var(--text-secondary); margin:4px 0 8px 0; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">
+                    ${escapeHTML(comp.description)}
+                  </p>
+                ` : ''}
+                <div style="margin-top:4px;">
+                  <a href="#/workspace?id=${comp.id}&tab=${encodeURIComponent(stage)}" class="btn btn-secondary drawer-workspace-link" style="padding:6px 12px; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
+                    ${getIconHTML('external-link', 'width:12px; height:12px;')} Open Stage Workspace
+                  </a>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      openDrawer(`Companies in ${stage} Stage`, bodyHTML);
+      refreshIcons();
+
+      // Bind dynamic click events to close the drawer on navigation
+      const drawer = document.getElementById('app-drawer');
+      if (drawer) {
+        drawer.querySelectorAll('.drawer-workspace-link').forEach(link => {
+          link.addEventListener('click', () => {
+            closeDrawer();
+          });
+        });
+      }
+    });
+  });
+}
+
