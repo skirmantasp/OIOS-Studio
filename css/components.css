@@ -424,7 +424,7 @@ label {
   display: flex;
   flex-direction: column;
   transform: translateX(100%);
-  transition: transform var(--transition-normal);
+  transition: transform var(--transition-normal), width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .drawer-backdrop.active .drawer-container {
@@ -782,5 +782,46 @@ label {
   border-bottom: none;
   padding-bottom: 0;
 }
+
+/* Expanded Fullscreen Drawer Styles */
+.drawer-backdrop.expanded .drawer-container {
+  width: 100%;
+}
+
+/* 3-Column Layout inside Fullscreen Project view */
+.drawer-backdrop.expanded .project-drawer-content {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr 1.25fr;
+  gap: 32px;
+  align-items: start;
+}
+
+/* Styling sub-columns inside expanded mode to feel premium */
+.drawer-backdrop.expanded .project-col {
+  background-color: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* The left column doesn't need additional card background */
+.drawer-backdrop.expanded .project-col-meta {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* Increase height and scroll space in fullscreen dashboard */
+.drawer-backdrop.expanded .milestones-list {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.drawer-backdrop.expanded .project-col-traceability div[style*="max-height:120px"] {
+  max-height: 250px !important;
+}
+
 
 

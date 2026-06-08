@@ -223,6 +223,24 @@ export function openDrawer(title, bodyHTML, onEditClick = null) {
     }
   }
   
+  // Setup drawer expand/maximize button listener
+  const expandBtn = document.getElementById('drawer-expand');
+  if (expandBtn) {
+    // Clear old listeners
+    const newExpandBtn = expandBtn.cloneNode(true);
+    expandBtn.replaceWith(newExpandBtn);
+    
+    newExpandBtn.addEventListener('click', () => {
+      const isExpanded = drawer.classList.toggle('expanded');
+      if (isExpanded) {
+        newExpandBtn.innerHTML = `<i data-lucide="minimize-2" style="width: 14px; height: 14px;"></i>`;
+      } else {
+        newExpandBtn.innerHTML = `<i data-lucide="maximize-2" style="width: 14px; height: 14px;"></i>`;
+      }
+      refreshIcons();
+    });
+  }
+  
   drawer.classList.add('active');
   refreshIcons();
 }
@@ -234,6 +252,13 @@ export function closeDrawer() {
   const drawer = document.getElementById('app-drawer');
   if (drawer) {
     drawer.classList.remove('active');
+    drawer.classList.remove('expanded');
+    
+    // Reset expand button icon back to default maximize-2
+    const expandBtn = document.getElementById('drawer-expand');
+    if (expandBtn) {
+      expandBtn.innerHTML = `<i data-lucide="maximize-2" style="width: 14px; height: 14px;"></i>`;
+    }
   }
 }
 

@@ -34,6 +34,7 @@ const dom = new JSDOM(`
     <div class="drawer-container">
       <div class="drawer-header">
         <h3 id="drawer-title"></h3>
+        <button id="drawer-expand"></button>
         <button id="drawer-edit"></button>
         <button id="drawer-close"></button>
       </div>

@@ -1608,42 +1608,54 @@ function openProjectDrawer(company, projId, container, skipHistoryPush = false) 
 
   const bodyHTML = `
     ${navHTML}
-    <div class="flex-column" style="gap:16px;">
-      <div class="flex-between" style="font-family: var(--font-mono); font-size:11px;">
-        <span>Status: <span class="badge ${statusBadge}">${proj.status.replace('_', ' ')}</span></span>
-        <span>Progress: <strong>${progress}%</strong></span>
-      </div>
+    <div class="project-drawer-content flex-column" style="gap:16px;">
+      <!-- Column 1: Metadata & Strategy -->
+      <div class="project-col project-col-meta">
+        <div class="flex-column" style="gap:16px;">
+          <div class="flex-between" style="font-family: var(--font-mono); font-size:11px;">
+            <span>Status: <span class="badge ${statusBadge}">${proj.status.replace('_', ' ')}</span></span>
+            <span>Progress: <strong>${progress}%</strong></span>
+          </div>
 
-      <div style="margin-bottom: 8px;">
-        <div style="height:6px; background:var(--bg-tertiary); border-radius:3px; overflow:hidden;">
-          <div style="height:100%; width:${progress}%; background:var(--color-success); border-radius:3px;"></div>
+          <div style="margin-bottom: 8px;">
+            <div style="height:6px; background:var(--bg-tertiary); border-radius:3px; overflow:hidden;">
+              <div style="height:100%; width:${progress}%; background:var(--color-success); border-radius:3px;"></div>
+            </div>
+          </div>
+
+          <div>
+            <strong>Implementation Strategy:</strong>
+            <p style="margin-top:6px; color: var(--text-secondary); line-height: 1.5; font-size: 13px;">${escapeHTML(proj.description || 'No description provided.')}</p>
+          </div>
+
+          <div class="grid-cols-2" style="font-size:13px;">
+            <div>
+              <strong>Start Date:</strong>
+              <div style="margin-top:2px; color: var(--text-secondary);">${formatDate(proj.startDate)}</div>
+            </div>
+            <div>
+              <strong>End Target:</strong>
+              <div style="margin-top:2px; color: var(--text-secondary);">${formatDate(proj.endDate)}</div>
+            </div>
+          </div>
+          
+          <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top:16px;" class="project-terminate-btn-wrapper">
+            <button id="btn-delete-project-action" class="btn btn-danger" style="width:100%">${getIconHTML('trash')} Terminate Project</button>
+          </div>
         </div>
       </div>
 
-      <div>
-        <strong>Implementation Strategy:</strong>
-        <p style="margin-top:6px; color: var(--text-secondary); line-height: 1.5;">${escapeHTML(proj.description || 'No description provided.')}</p>
+      <!-- Column 2: Milestones -->
+      <div class="project-col project-col-milestones">
+        ${milestonesHTML}
       </div>
 
-      <div class="grid-cols-2" style="font-size:13px;">
-        <div>
-          <strong>Start Date:</strong>
-          <div style="margin-top:2px; color: var(--text-secondary);">${formatDate(proj.startDate)}</div>
+      <!-- Column 3: Traceability & Logs -->
+      <div class="project-col project-col-traceability">
+        <div class="flex-column" style="gap:20px;">
+          ${traceabilityHTML}
+          ${activityHTML}
         </div>
-        <div>
-          <strong>End Target:</strong>
-          <div style="margin-top:2px; color: var(--text-secondary);">${formatDate(proj.endDate)}</div>
-        </div>
-      </div>
-
-      ${milestonesHTML}
-
-      ${traceabilityHTML}
-
-      ${activityHTML}
-
-      <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top:16px;">
-        <button id="btn-delete-project-action" class="btn btn-danger" style="width:100%">${getIconHTML('trash')} Terminate Project</button>
       </div>
     </div>
   `;
