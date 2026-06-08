@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OIOS — Company Onboarding</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-primary, #0b0f19);
+      color: var(--text-primary, #f3f4f6);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 90% 10%, rgba(2, 136, 209, 0.08) 0%, rgba(11, 15, 25, 0) 60%),
+                  radial-gradient(circle at 10% 90%, rgba(56, 189, 248, 0.06) 0%, rgba(11, 15, 25, 0) 60%),
+                  #0b0f19;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 650px;
+      padding: 40px 20px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-secondary, #9ca3af);
+      text-decoration: none;
+      font-size: 13px;
+      margin-bottom: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      transition: color 0.2s ease;
+    }
+
+    .back-link:hover {
+      color: #38bdf8;
+    }
+
+    .card {
+      background: rgba(17, 24, 39, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 48px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    .step-header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .step-indicator {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 32px;
+      font-weight: 700;
+      margin: 0;
+      background: linear-gradient(135deg, #ffffff 60%, #9ca3af 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-secondary, #9ca3af);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .form-group-full {
+      grid-column: span 2;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary, #9ca3af);
+      text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.5px;
+    }
+
+    .input-control {
+      background: rgba(11, 15, 25, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #f3f4f6;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s ease;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .input-control:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.12);
+    }
+
+    select.input-control {
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      background-size: 16px;
+      padding-right: 40px;
+    }
+
+    textarea.input-control {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .btn {
+      background: #38bdf8;
+      color: #0b0f19;
+      padding: 14px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.2);
+    }
+
+    .btn:hover {
+      background: #7dd3fc;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(56, 189, 248, 0.35);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .error-banner {
+      background: rgba(248, 113, 113, 0.08);
+      border: 1px solid #f87171;
+      color: #f87171;
+      padding: 14px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+      line-height: 1.4;
+    }
+
+    .success-container {
+      display: none;
+      text-align: center;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 0;
+    }
+
+    .success-badge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid #10b981;
+      border-radius: 50%;
+      color: #10b981;
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    @media (max-width: 600px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+      .form-group-full {
+        grid-column: span 1;
+      }
+      .card {
+        padding: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back-link">&larr; Back to Home</a>
+
+    <div class="card" id="onboarding-card">
+      <!-- Onboarding Form -->
+      <div id="form-container">
+        <div class="step-header" style="margin-bottom: 32px;">
+          <div class="step-indicator">Onboarding Session</div>
+          <h2 class="title">Company Profile</h2>
+          <p class="subtitle">Let's start with the basic information about your organization to set up your workspace.</p>
+        </div>
+
+        <div class="error-banner" id="error-banner" style="margin-bottom: 24px;"></div>
+
+        <form id="onboarding-form" class="form-grid">
+          <div class="form-group">
+            <label for="comp-name">Company Name *</label>
+            <input type="text" id="comp-name" class="input-control" placeholder="e.g. Acme Corporation" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="comp-industry">Industry / Sector *</label>
+            <input type="text" id="comp-industry" class="input-control" placeholder="e.g. Financial Services, Manufacturing" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="comp-website">Company Website</label>
+            <input type="url" id="comp-website" class="input-control" placeholder="e.g. https://www.acme.com">
+          </div>
+
+          <div class="form-group">
+            <label for="comp-size">Company Size</label>
+            <select id="comp-size" class="input-control">
+              <option value="" disabled selected>Select size range...</option>
+              <option value="1-10">1-10 employees</option>
+              <option value="11-50">11-50 employees</option>
+              <option value="51-200">51-200 employees</option>
+              <option value="200+">200+ employees</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="contact-name">Contact Person *</label>
+            <input type="text" id="contact-name" class="input-control" placeholder="e.g. John Doe" required>
+          </div>
+
+          <div class="form-group">
+            <label for="contact-email">Contact Email *</label>
+            <input type="email" id="contact-email" class="input-control" placeholder="e.g. john.doe@acme.com" required>
+          </div>
+
+          <div class="form-group-full form-group">
+            <label for="comp-country">Country / Region</label>
+            <input type="text" id="comp-country" class="input-control" placeholder="e.g. Lithuania, Northern Europe">
+          </div>
+          
+          <div class="form-group-full form-group">
+            <label for="comp-desc">Brief Description *</label>
+            <textarea id="comp-desc" class="input-control" placeholder="What does your company do? What are the main products or services?" required></textarea>
+          </div>
+          
+          <div class="form-group-full" style="margin-top: 12px; text-align: right;">
+            <button type="submit" class="btn" id="btn-submit">Complete Onboarding &rarr;</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Success Screen -->
+      <div class="success-container" id="success-container">
+        <div class="success-badge">&check;</div>
+        <h2 class="title">Onboarding Complete!</h2>
+        <p class="subtitle" style="max-width: 450px; margin: 0 auto; line-height: 1.6;">
+          Thank you. Your company profile has been successfully registered in the OIOS system. 
+          You are now ready for the Discovery session. Our AI Consultant will contact you shortly to begin the evaluation conversation.
+        </p>
+        <a href="/" class="btn" style="margin-top: 16px;">Back to Home</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const formContainer = document.getElementById('form-container');
+    const successContainer = document.getElementById('success-container');
+    const form = document.getElementById('onboarding-form');
+    const errorBanner = document.getElementById('error-banner');
+    const btnSubmit = document.getElementById('btn-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBanner.style.display = 'none';
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = 'Processing...';
+
+      const payload = {
+        name: document.getElementById('comp-name').value,
+        industry: document.getElementById('comp-industry').value,
+        website: document.getElementById('comp-website').value,
+        description: document.getElementById('comp-desc').value,
+        contactName: document.getElementById('contact-name').value,
+        contactEmail: document.getElementById('contact-email').value,
+        companySize: document.getElementById('comp-size').value || '',
+        country: document.getElementById('comp-country').value || ''
+      };
+
+      try {
+        const res = await fetch('/api/public/onboarding/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          formContainer.style.display = 'none';
+          successContainer.style.display = 'flex';
+        } else {
+          const errData = await res.json();
+          errorBanner.textContent = errData.error || 'Failed to complete onboarding. Please check inputs.';
+          errorBanner.style.display = 'block';
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = 'Complete Onboarding \u2192';
+        }
+      } catch (err) {
+        errorBanner.textContent = 'Network connection error. Please verify your internet connection.';
+        errorBanner.style.display = 'block';
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Complete Onboarding \u2192';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -40,10 +40,10 @@ function checkAuth(req, res, next) {
     return res.status(404).json({ error: 'Endpoint not found' });
   }
 
-  // Allow login page, public APIs, favicon, and public landing/discovery paths without authentication
+  // Allow login page, public APIs, favicon, and public landing/discovery/onboarding paths without authentication
   const isPublicApi = req.path.startsWith('/api/public/');
-  const isPublicAsset = req.path.startsWith('/css/') || req.path.startsWith('/js/public/') || req.path === '/favicon.ico';
-  const isPublicPage = req.path === '/' || req.path === '/discovery' || req.path === '/login.html';
+  const isPublicAsset = req.path.startsWith('/css/') || req.path.startsWith('/js/') || req.path === '/favicon.ico';
+  const isPublicPage = req.path === '/' || req.path === '/onboarding' || req.path === '/discovery' || req.path === '/login.html';
   const isLoginApi = req.path === '/api/login';
 
   if (isPublicApi || isPublicAsset || isPublicPage || isLoginApi) {
@@ -110,9 +110,9 @@ function getDiscoveryCompanyId(req) {
   return null;
 }
 
-// 1. Start client discovery session
-app.post('/api/public/discovery/start', async (req, res) => {
-  const { name, industry, description, website, contactName, contactEmail } = req.body;
+// 1. Start client onboarding session
+app.post('/api/public/onboarding/start', async (req, res) => {
+  const { name, industry, description, website, contactName, contactEmail, companySize, country } = req.body;
   if (!name || !industry) {
     return res.status(400).json({ error: 'Company name and industry are required.' });
   }
@@ -122,7 +122,7 @@ app.post('/api/public/discovery/start', async (req, res) => {
     id: companyId,
     name,
     industry,
-    status: 'active',
+    status: 'Lead',
     stage: 'Discovery',
     createdAt: new Date().toISOString(),
     description: description || '',
@@ -136,6 +136,8 @@ app.post('/api/public/discovery/start', async (req, res) => {
       techStack: ''
     },
     discoveryIntake: {
+      companySize: companySize || '',
+      country: country || '',
       answers: []
     }
   };
@@ -176,86 +178,6 @@ app.post('/api/public/discovery/start', async (req, res) => {
       const discoveryToken = crypto.createHash('sha256').update(companyId + SALT).digest('hex');
       res.setHeader('Set-Cookie', `discovery_token=${discoveryToken}; Path=/; HttpOnly; Max-Age=86400; SameSite=Strict`);
       res.json({ success: true, companyId });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  }
-});
-
-// 2. Submit discovery answers
-app.post('/api/public/discovery/submit', async (req, res) => {
-  const companyId = getDiscoveryCompanyId(req);
-  if (!companyId) {
-    return res.status(403).json({ error: 'Unauthorized discovery session.' });
-  }
-
-  const { answers } = req.body;
-  if (!answers || !Array.isArray(answers)) {
-    return res.status(400).json({ error: 'Answers array is required.' });
-  }
-
-  if (usePostgres) {
-    try {
-      const client = await pool.connect();
-      await client.query('BEGIN');
-
-      const discoveryIntake = { answers };
-      await client.query(
-        `UPDATE companies SET "discoveryIntake" = $1 WHERE id = $2`,
-        [JSON.stringify(discoveryIntake), companyId]
-      );
-
-      for (const ans of answers) {
-        const noteId = 'note_disc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-        const timestamp = new Date().toISOString();
-        await client.query(
-          `INSERT INTO "discoveryNotes" (id, "companyId", title, content, date, category, source, "createdAt")
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            noteId,
-            companyId,
-            ans.questionTitle || 'Discovery Answer',
-            ans.answerText || '',
-            timestamp.split('T')[0],
-            'intake',
-            'client_discovery',
-            timestamp
-          ]
-        );
-      }
-
-      await client.query('COMMIT');
-      client.release();
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
-  } else {
-    try {
-      const dbData = readLocalDb();
-      const compIdx = dbData.companies.findIndex(c => c.id === companyId);
-      if (compIdx === -1) {
-        return res.status(404).json({ error: 'Company not found.' });
-      }
-
-      dbData.companies[compIdx].discoveryIntake = { answers };
-
-      const timestamp = new Date().toISOString();
-      for (const ans of answers) {
-        dbData.discoveryNotes.push({
-          id: 'note_disc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-          companyId,
-          title: ans.questionTitle || 'Discovery Answer',
-          content: ans.answerText || '',
-          date: timestamp.split('T')[0],
-          category: 'intake',
-          source: 'client_discovery',
-          createdAt: timestamp
-        });
-      }
-
-      writeLocalDb(dbData);
-      res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -1157,7 +1079,11 @@ app.use('/studio', express.static(path.join(__dirname, 'studio')));
 
 // Page route handlers
 app.get('/discovery', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'discovery.html'));
+  res.redirect(302, '/onboarding');
+});
+
+app.get('/onboarding', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'onboarding.html'));
 });
 
 app.get('/studio', (req, res) => {

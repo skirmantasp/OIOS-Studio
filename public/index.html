@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="lt" data-theme="dark">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OIOS — Organizacinio Intelekto Operacinė Sistema</title>
+  <title>OIOS — Organizational Intelligence Operating System</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/components.css">
@@ -22,63 +22,122 @@
                   #0b0f19;
     }
 
+    .header-nav {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    .logo {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-primary, #f3f4f6);
+      text-decoration: none;
+    }
+
+    .logo span {
+      color: #38bdf8;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary, #9ca3af);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      color: #38bdf8;
+    }
+
+    .btn-nav {
+      background: #38bdf8;
+      color: #0b0f19;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      font-size: 14px;
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.2);
+    }
+
+    .btn-nav:hover {
+      background: #7dd3fc;
+      box-shadow: 0 6px 18px rgba(56, 189, 248, 0.35);
+    }
+
     .hero-container {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 40px 20px;
+      padding: 60px 24px;
+      box-sizing: border-box;
     }
 
-    .hero-card {
-      max-width: 800px;
+    .hero-content {
+      max-width: 900px;
       width: 100%;
-      background: rgba(17, 24, 39, 0.6);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 20px;
-      padding: 60px 40px;
+      background: rgba(17, 24, 39, 0.45);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 24px;
+      padding: 80px 48px;
       text-align: center;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45);
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 32px;
+      box-sizing: border-box;
     }
 
-    .logo-container {
+    .badge {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 24px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      padding: 8px 16px;
-      border: 1px solid rgba(56, 189, 248, 0.3);
-      border-radius: 8px;
-      background: rgba(56, 189, 248, 0.05);
-      color: var(--text-primary, #f3f4f6);
-    }
-
-    .logo-container span {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
       color: #38bdf8;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: 20px;
+      background: rgba(56, 189, 248, 0.04);
     }
 
     .hero-title {
       font-family: 'Outfit', sans-serif;
-      font-size: 48px;
+      font-size: 56px;
       font-weight: 800;
-      line-height: 1.15;
-      background: linear-gradient(135deg, #ffffff 30%, #9ca3af 100%);
+      line-height: 1.1;
+      background: linear-gradient(135deg, #ffffff 40%, #9ca3af 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       margin: 0;
+      letter-spacing: -1px;
     }
 
     .hero-subtitle {
       font-size: 18px;
       color: var(--text-secondary, #9ca3af);
       line-height: 1.6;
-      max-width: 600px;
+      max-width: 650px;
       margin: 0;
     }
 
@@ -92,7 +151,7 @@
     }
 
     .btn-large {
-      padding: 16px 32px;
+      padding: 16px 36px;
       font-size: 16px;
       font-weight: 600;
       border-radius: 10px;
@@ -101,6 +160,7 @@
       text-decoration: none;
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       gap: 10px;
     }
 
@@ -108,7 +168,7 @@
       background: #38bdf8;
       color: #0b0f19;
       border: none;
-      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.3);
+      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.25);
     }
 
     .btn-primary-glow:hover {
@@ -121,7 +181,7 @@
       background: transparent;
       color: #38bdf8;
       border: 1px solid rgba(56, 189, 248, 0.3);
-      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.05);
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.03);
     }
 
     .btn-outline-glow:hover {
@@ -131,32 +191,116 @@
       box-shadow: 0 8px 25px rgba(56, 189, 248, 0.15);
     }
 
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      width: 100%;
+      margin-top: 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding-top: 40px;
+    }
+
+    .feature-card {
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .feature-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary, #f3f4f6);
+    }
+
+    .feature-desc {
+      font-size: 13px;
+      color: var(--text-secondary, #9ca3af);
+      line-height: 1.4;
+    }
+
     .footer {
       text-align: center;
-      padding: 24px;
-      font-size: 12px;
+      padding: 32px 24px;
+      font-size: 11px;
       color: var(--text-muted, #6b7280);
       font-family: 'JetBrains Mono', monospace;
       border-top: 1px solid rgba(255, 255, 255, 0.02);
+      letter-spacing: 0.5px;
+    }
+
+    @media (max-width: 900px) {
+      .features-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 32px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .hero-title {
+        font-size: 40px;
+      }
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+      .nav-links {
+        display: none;
+      }
+      .hero-content {
+        padding: 48px 24px;
+      }
     }
   </style>
 </head>
 <body>
+  <div class="header-nav">
+    <a href="/" class="logo">OIOS <span>PLATFORM</span></a>
+    <div class="nav-links">
+      <a href="#about">About</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#benefits">Benefits</a>
+      <a href="#contact">Contact</a>
+      <a href="/onboarding" class="btn-nav">Start Discovery</a>
+    </div>
+  </div>
+
   <div class="hero-container">
-    <div class="hero-card">
-      <div class="logo-container">OIOS <span>PLATFORM</span></div>
-      <h1 class="hero-title">Organizacinio Intelekto Operacinė Sistema</h1>
+    <div class="hero-content">
+      <div class="badge">Intelligence. Structure. Impact.</div>
+      <h1 class="hero-title">Organizational Intelligence Operating System</h1>
       <p class="hero-subtitle">
-        Integruota verslo valdymo ir sprendimų architektūros platforma. Pradėkite Discovery sesiją, kad nustatytumėte procesų kliūtis ir suprojektuotumėte AI strategiją.
+        An integrated platform for managing and scaling organizational intelligence, operational frameworks, and solution architecture.
       </p>
       <div class="cta-group">
-        <a href="/discovery" class="btn-large btn-primary-glow">Pradėti Discovery sesiją</a>
-        <a href="/login.html" class="btn-large btn-outline-glow">OIOS Studio login</a>
+        <a href="/onboarding" class="btn-large btn-primary-glow">Start Discovery</a>
+        <a href="/login.html" class="btn-large btn-outline-glow">Studio Login</a>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-title">Capture Intelligence</div>
+          <div class="feature-desc">Structure insights and organizational knowledge base.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-title">Design Systems</div>
+          <div class="feature-desc">Build connected operating models and architectures.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-title">Drive Impact</div>
+          <div class="feature-desc">Turn high-level strategy into execution and results.</div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-title">AI-Augmented</div>
+          <div class="feature-desc">Leverage AI to scale clarity, speed, and decisions.</div>
+        </div>
       </div>
     </div>
   </div>
+
   <div class="footer">
-    &copy; 2026 OIOS. Visos teisės saugomos.
+    &copy; 2026 OIOS Platform. All rights reserved.
   </div>
 </body>
 </html>
