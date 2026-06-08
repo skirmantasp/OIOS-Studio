@@ -448,9 +448,12 @@
         <h2 class="title">Onboarding Complete!</h2>
         <p class="subtitle" style="max-width: 500px; margin: 0 auto; line-height: 1.6;">
           Thank you. Your company profile has been successfully registered in the OIOS system. 
-          You are now ready for the Discovery session. Our AI Consultant will contact you shortly to begin the evaluation conversation.
+          You are now ready for the Discovery session. Click the button below to start your guided conversational discovery.
         </p>
-        <a href="/" class="btn" style="margin-top: 16px;">Back to Home</a>
+        <div style="display: flex; gap: 12px; margin-top: 16px;">
+          <a href="/" class="btn btn-outline">Back to Home</a>
+          <a id="success-start-discovery" href="/discovery-chat" class="btn">Start Discovery Session &rarr;</a>
+        </div>
       </div>
     </div>
   </div>
@@ -461,6 +464,7 @@
     const form = document.getElementById('onboarding-form');
     const errorBanner = document.getElementById('error-banner');
     const btnSubmit = document.getElementById('btn-submit');
+    const startDiscoveryLink = document.getElementById('success-start-discovery');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -487,6 +491,10 @@
         });
 
         if (res.ok) {
+          const resData = await res.json();
+          if (startDiscoveryLink && resData.companyId) {
+            startDiscoveryLink.href = `/discovery-chat?id=${resData.companyId}`;
+          }
           formContainer.style.display = 'none';
           successContainer.style.display = 'flex';
         } else {

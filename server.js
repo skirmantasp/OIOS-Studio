@@ -20,6 +20,22 @@ const SALT = 'oios_studio_salt_12345';
 const EXPECTED_PASSWORD = process.env.ACCESS_PASSWORD || 'oios2026';
 const EXPECTED_TOKEN = crypto.createHash('sha256').update(EXPECTED_PASSWORD + SALT).digest('hex');
 
+// Initialize database connection
+let pool = null;
+const usePostgres = !!process.env.DATABASE_URL;
+
+if (usePostgres) {
+  console.log('Connecting to PostgreSQL database...');
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+} else {
+  console.log('No DATABASE_URL environment variable found. Falling back to local file-based database (db.json)...');
+}
+
 function getCookie(req, name) {
   if (!req.headers.cookie) return null;
   const value = `; ${req.headers.cookie}`;
@@ -43,7 +59,7 @@ function checkAuth(req, res, next) {
   // Allow login page, public APIs, favicon, and public landing/discovery/onboarding paths without authentication
   const isPublicApi = req.path.startsWith('/api/public/');
   const isPublicAsset = req.path.startsWith('/css/') || req.path.startsWith('/js/') || req.path === '/favicon.ico';
-  const isPublicPage = req.path === '/' || req.path === '/onboarding' || req.path === '/discovery' || req.path === '/login.html';
+  const isPublicPage = req.path === '/' || req.path === '/onboarding' || req.path === '/discovery' || req.path === '/discovery-chat' || req.path === '/login.html';
   const isLoginApi = req.path === '/api/login';
 
   if (isPublicApi || isPublicAsset || isPublicPage || isLoginApi) {
@@ -184,6 +200,751 @@ app.post('/api/public/onboarding/start', async (req, res) => {
   }
 });
 
+// --- DISCOVERY CHATBOT ENGINE & SERVICES ---
+
+const DISCOVERY_QUESTIONS = [
+  {
+    stage: 'business',
+    field: 'primaryGoals',
+    question: "Let's start with your high-level business direction. What are the main strategic priorities or goals you are aiming to achieve over the next 6 to 12 months?",
+    followUp: "You mentioned improving speed or efficiency. What is the target timeline and what is driving the urgency for these goals?",
+    checkType: 'priority_driver_timeline'
+  },
+  {
+    stage: 'business',
+    field: 'expectedOutcomes',
+    question: "If this initiative is successful, what specific, measurable targets (e.g., time or cost savings, or key metrics) will prove its success?",
+    followUp: "Could you specify a target number, percentage, or hours saved that you are aiming for?",
+    checkType: 'kpi'
+  },
+  {
+    stage: 'business',
+    field: 'currentChallenges',
+    question: "What are the main operational challenges or pain points that prevent you from reaching these targets today?",
+    followUp: "What is the primary business impact of this challenge if it remains unresolved?",
+    checkType: 'driver'
+  },
+  {
+    stage: 'process',
+    field: 'coreProcesses',
+    question: "Now that we understand the business goals, let's look at the daily operations. What are the core processes or workflows that directly support these business goals?",
+    followUp: "Could you outline the very first step your team takes when this process starts, and where it ends?",
+    checkType: 'scope'
+  },
+  {
+    stage: 'process',
+    field: 'knownBottlenecks',
+    question: "Where in this workflow do delays or errors happen most frequently, and what causes them?",
+    followUp: "How often do these delays or errors happen, and how long does the process stall as a result?",
+    checkType: 'driver'
+  },
+  {
+    stage: 'process',
+    field: 'manualWorkAreas',
+    question: "Which specific tasks require your team to manually type, copy, or move data between files or systems?",
+    followUp: "What specific spreadsheets or manual tools are team members using to complete these manual steps?",
+    checkType: 'scope'
+  },
+  {
+    stage: 'systems',
+    field: 'currentSystems',
+    question: "To help me map how these tasks are performed, let's look at the tools you use. What software platforms, databases, or legacy systems are currently used by your team, and are they cloud or on-premises?",
+    followUp: "Could you name the specific platforms or versions of software (e.g. Salesforce, Excel, custom ERP) that you use?",
+    checkType: 'scope'
+  },
+  {
+    stage: 'systems',
+    field: 'integrations',
+    question: "How do these systems currently share data? Is it automated, or does it require manual exports, CSV uploads, or re-keying?",
+    followUp: "How does information get from your sales system to your operations system? Is there a direct link, or is it handled manually?",
+    checkType: 'scope'
+  },
+  {
+    stage: 'systems',
+    field: 'technologyIssues',
+    question: "What are the main technical issues (such as slow performance, crashes, sync lags, or missing features) the team faces with these systems?",
+    followUp: "Does the team experience any technical pain points, such as data synchronization errors or slow system response times?",
+    checkType: 'scope'
+  },
+  {
+    stage: 'people',
+    field: 'decisionMakers',
+    question: "Understanding the tech stack is critical. Next, let's talk about the team structure. Who holds final decision-making authority and budget approval for this system modernization?",
+    followUp: "Who has the final sign-off to approve changes to your software stack or operational budgets?",
+    checkType: 'owner'
+  },
+  {
+    stage: 'people',
+    field: 'affectedTeams',
+    question: "Which departments, teams, or roles will be most affected by changes to this process?",
+    followUp: "Who are the daily users of the current tools, and how will their day-to-day workflow change?",
+    checkType: 'owner'
+  },
+  {
+    stage: 'people',
+    field: 'keyStakeholders',
+    question: "Who are the key subject matter experts or team leads we should consult to understand the process details?",
+    followUp: "Who is the primary person we should speak to if we need to trace a transaction step-by-step?",
+    checkType: 'owner'
+  },
+  {
+    stage: 'data',
+    field: 'reports',
+    question: "Finally, let's look at how you measure success. What specific dashboards, reports, or KPIs does your leadership rely on today to monitor this process?",
+    followUp: "How is your weekly progress reported to management? Is it compiled automatically, or is it done manually?",
+    checkType: 'scope'
+  },
+  {
+    stage: 'data',
+    field: 'kpis',
+    question: "What key performance indicators (KPIs) are tracked for this process, and what are the target levels?",
+    followUp: "How does the organization measure if this process is running efficiently? What is the target vs. current value?",
+    checkType: 'kpi'
+  },
+  {
+    stage: 'data',
+    field: 'dataSources',
+    question: "Where does the raw data reside before it is consolidated (e.g., SQL server, local drives, SharePoint, ERP)?",
+    followUp: "Where is the original transaction or log data saved when it is first created?",
+    checkType: 'scope'
+  }
+];
+
+// Sufficiency Checker
+function checkAnswerSufficiency(text, checkType) {
+  if (!text || text.trim().length < 10) {
+    return { sufficient: false, missing: 'length' };
+  }
+
+  const priorityRegex = /\b(priority|highest priority|critical|important|main goal|objective|strategic objective|primary|urgent|must|required|essential|key|main|highest)\b/i;
+  const driverRegex = /\b(because|due to|impacts|limits|affects|drives|reason|so that|in order to|motivation|why|need|demand|drive|competition|growth|revenue|improve|reduce|save|cost|value)\b/i;
+  const timelineRegex = /\b(next 12 months|next 6 months|over the next year|within|by q[1-4]|this year|next year|deadline|target period|month|week|year|day|quarter|schedule|q1|q2|q3|q4|\d+\s*(month|week|year|day)s?)\b/i;
+  const kpiRegex = /\b(increase|reduce|decrease|improve|percent|hours|days|utilization|kpi|metric|target|from|to|measurable|measure|dollars|metrics|numbers|\d+|%)\b/i;
+  const ownerRegex = /\b(owner|responsible|accountable|sponsor|manager|director|vp|cfo|ceo|team lead|department owner|process owner|champion|role|supervisor|user|team|staff|lead|person|operations|who|rep|coordinator|administrator)\b/i;
+  const scopeRegex = /\b(process|workflow|reporting|production|inventory|database|system|tool|spreadsheet|sheet|software|platform|intake|sap|excel|salesforce|jira|sharepoint|erp|crm|outlook|email)\b/i;
+
+  const hasPriority = priorityRegex.test(text);
+  const hasDriver = driverRegex.test(text);
+  const hasTimeline = timelineRegex.test(text);
+  const hasKpi = kpiRegex.test(text);
+  const hasOwner = ownerRegex.test(text);
+  const hasScope = scopeRegex.test(text);
+
+  let criteriaMet = 0;
+  if (hasPriority) criteriaMet++;
+  if (hasDriver) criteriaMet++;
+  if (hasTimeline) criteriaMet++;
+  if (hasKpi) criteriaMet++;
+  if (hasOwner) criteriaMet++;
+  if (hasScope) criteriaMet++;
+
+  if (text.length > 50 && criteriaMet >= 4) {
+    return { sufficient: true };
+  }
+
+  if (checkType === 'priority_driver_timeline') {
+    if (!hasPriority || !hasDriver || !hasTimeline) {
+      return { sufficient: false, missing: 'priority, driver, or timeline details' };
+    }
+  } else if (checkType === 'kpi') {
+    if (!hasKpi) {
+      return { sufficient: false, missing: 'measurable targets or KPIs (e.g. percentages or hours)' };
+    }
+  } else if (checkType === 'driver') {
+    if (!hasDriver) {
+      return { sufficient: false, missing: 'the business driver or underlying reason' };
+    }
+  } else if (checkType === 'owner') {
+    if (!hasOwner) {
+      return { sufficient: false, missing: 'ownership, responsible roles, or affected teams' };
+    }
+  } else if (checkType === 'scope') {
+    if (!hasScope) {
+      return { sufficient: false, missing: 'the specific systems, tools, or processes involved' };
+    }
+  }
+
+  return { sufficient: true };
+}
+
+// Text Normalizer
+function mockNormalizeAnswer(field, answer) {
+  if (!answer || answer.trim().length === 0) return '';
+  if (answer.trim() === '[Skipped by client]') return '[Skipped by client]';
+
+  let text = answer.trim();
+
+  const fillers = [
+    /^\s*well,?\s*/i,
+    /^\s*honestly,?\s*/i,
+    /^\s*basically,?\s*/i,
+    /^\s*today,?\s*/i,
+    /^\s*right now,?\s*/i,
+    /^\s*we currently\s*/i,
+    /^\s*the client said\s*/i
+  ];
+  for (const filler of fillers) {
+    text = text.replace(filler, '');
+  }
+
+  text = text.replace(/\bwe use\b/gi, 'the organization utilizes');
+  text = text.replace(/\bwe are using\b/gi, 'the organization utilizes');
+  text = text.replace(/\bwe need to\b/gi, 'the objective is to');
+  text = text.replace(/\bwe want to\b/gi, 'the objective is to');
+  text = text.replace(/\bour\b/gi, 'the');
+  text = text.replace(/\bmy\b/gi, 'the');
+  text = text.replace(/\bus\b/gi, 'the team');
+  text = text.replace(/\bwe\b/gi, 'the organization');
+
+  text = text.charAt(0).toUpperCase() + text.slice(1);
+
+  let prefix = '';
+  if (field === 'primaryGoals') prefix = 'Primary strategic objective: ';
+  else if (field === 'expectedOutcomes') prefix = 'Target outcome: ';
+  else if (field === 'currentChallenges') prefix = 'Operational challenge: ';
+  else if (field === 'coreProcesses') prefix = 'Core workflow: ';
+  else if (field === 'knownBottlenecks') prefix = 'Identified bottleneck: ';
+  else if (field === 'manualWorkAreas') prefix = 'Manual operation: ';
+  else if (field === 'currentSystems') prefix = 'System environment: ';
+  else if (field === 'integrations') prefix = 'Data integration: ';
+  else if (field === 'technologyIssues') prefix = 'Technical gap: ';
+  else if (field === 'decisionMakers') prefix = 'Decision authority: ';
+  else if (field === 'affectedTeams') prefix = 'Impacted department: ';
+  else if (field === 'keyStakeholders') prefix = 'Subject matter expert: ';
+  else if (field === 'reports') prefix = 'Reporting mechanism: ';
+  else if (field === 'kpis') prefix = 'Key performance indicator: ';
+  else if (field === 'dataSources') prefix = 'Primary data repository: ';
+
+  if (text.startsWith(prefix)) {
+    return text;
+  }
+  return prefix + text;
+}
+
+// Assessment compiler
+function mockCompileAssessment(intakeData) {
+  const business = intakeData.business || {};
+  const people = intakeData.people || {};
+  const process = intakeData.process || {};
+  const systems = intakeData.systems || {};
+  const data = intakeData.data || {};
+
+  const clean = (val) => (val || '').trim();
+
+  const primaryGoals = clean(business.primaryGoals);
+  const expectedOutcomes = clean(business.expectedOutcomes);
+  let businessGoals = '';
+  if (primaryGoals || expectedOutcomes) {
+    businessGoals = `* **Primary Objective:** ${primaryGoals || 'Not specified.'}\n* **Expected Outcomes:** ${expectedOutcomes || 'Not specified.'}`;
+  } else {
+    businessGoals = 'No business goals documented.';
+  }
+
+  const currentChallenges = clean(business.currentChallenges);
+  const affectedTeams = clean(people.affectedTeams);
+  let coreProblems = '';
+  if (currentChallenges || affectedTeams) {
+    coreProblems = `* **Operational Challenges:** ${currentChallenges || 'Not specified.'}\n* **Impacted Departments:** ${affectedTeams || 'Not specified.'}`;
+  } else {
+    coreProblems = 'No operational challenges or pain points documented.';
+  }
+
+  const knownBottlenecks = clean(process.knownBottlenecks);
+  const manualWorkAreas = clean(process.manualWorkAreas);
+  let operationalBottlenecks = '';
+  if (knownBottlenecks || manualWorkAreas) {
+    operationalBottlenecks = `* **Key Bottlenecks:** ${knownBottlenecks || 'Not specified.'}\n* **Manual Work Areas:** ${manualWorkAreas || 'Not specified.'}`;
+  } else {
+    operationalBottlenecks = 'No operational bottlenecks documented.';
+  }
+
+  const currentSystems = clean(systems.currentSystems);
+  const integrations = clean(systems.integrations);
+  const technologyIssues = clean(systems.technologyIssues);
+  let techStack = '';
+  if (currentSystems || integrations || technologyIssues) {
+    techStack = `* **Systems In Use:** ${currentSystems || 'Not specified.'}\n* **Integrations:** ${integrations || 'Not specified.'}\n* **Technical Issues:** ${technologyIssues || 'Not specified.'}`;
+  } else {
+    techStack = 'No technology stack documented.';
+  }
+
+  return {
+    businessGoals,
+    coreProblems,
+    operationalBottlenecks,
+    techStack
+  };
+}
+
+// Database query helpers
+async function dbGetCompany(id) {
+  if (usePostgres) {
+    const res = await pool.query('SELECT * FROM companies WHERE id=$1', [id]);
+    if (res.rows.length === 0) return null;
+    const row = res.rows[0];
+    return {
+      id: row.id,
+      name: row.name,
+      industry: row.industry,
+      status: row.status,
+      stage: row.stage,
+      createdAt: row.createdAt,
+      description: row.description,
+      website: row.website,
+      contactName: row.contactName,
+      contactEmail: row.contactEmail,
+      assessment: typeof row.assessment === 'string' ? JSON.parse(row.assessment) : (row.assessment || {}),
+      discoveryIntake: typeof row.discoveryIntake === 'string' ? JSON.parse(row.discoveryIntake) : (row.discoveryIntake || {})
+    };
+  } else {
+    const dbData = readLocalDb();
+    return dbData.companies.find(x => x.id === id) || null;
+  }
+}
+
+async function dbUpdateCompany(id, company) {
+  if (usePostgres) {
+    await pool.query(
+      `UPDATE companies 
+       SET name=$1, industry=$2, status=$3, stage=$4, "createdAt"=$5, description=$6, website=$7, "contactName"=$8, "contactEmail"=$9, assessment=$10, "discoveryIntake"=$11
+       WHERE id=$12`,
+      [
+        company.name,
+        company.industry,
+        company.status,
+        company.stage,
+        company.createdAt,
+        company.description,
+        company.website,
+        company.contactName,
+        company.contactEmail,
+        JSON.stringify(company.assessment || {}),
+        JSON.stringify(company.discoveryIntake || {}),
+        id
+      ]
+    );
+  } else {
+    const dbData = readLocalDb();
+    const idx = dbData.companies.findIndex(x => x.id === id);
+    if (idx !== -1) {
+      dbData.companies[idx] = company;
+      writeLocalDb(dbData);
+    }
+  }
+}
+
+async function dbGetDiscoverySession(companyId) {
+  if (usePostgres) {
+    const res = await pool.query('SELECT * FROM "discoverySessions" WHERE "companyId" = $1', [companyId]);
+    if (res.rows.length === 0) return null;
+    const row = res.rows[0];
+    return {
+      id: row.id,
+      companyId: row.companyId,
+      currentStage: row.currentStage,
+      currentQuestionIndex: row.currentQuestionIndex,
+      answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : (row.answers || {}),
+      skippedFields: typeof row.skippedFields === 'string' ? JSON.parse(row.skippedFields) : (row.skippedFields || []),
+      messageHistory: typeof row.messageHistory === 'string' ? JSON.parse(row.messageHistory) : (row.messageHistory || []),
+      status: row.status,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt,
+      lastClientMessageAt: row.lastClientMessageAt,
+      expiresAt: row.expiresAt
+    };
+  } else {
+    const dbData = readLocalDb();
+    if (!dbData.discoverySessions) dbData.discoverySessions = [];
+    return dbData.discoverySessions.find(s => s.companyId === companyId) || null;
+  }
+}
+
+async function dbSaveDiscoverySession(session) {
+  if (usePostgres) {
+    const query = `
+      INSERT INTO "discoverySessions" (
+        id, "companyId", "currentStage", "currentQuestionIndex",
+        answers, "skippedFields", "messageHistory", status,
+        "createdAt", "completedAt", "lastClientMessageAt", "expiresAt"
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (id) DO UPDATE SET
+        "currentStage" = EXCLUDED."currentStage",
+        "currentQuestionIndex" = EXCLUDED."currentQuestionIndex",
+        answers = EXCLUDED.answers,
+        "skippedFields" = EXCLUDED."skippedFields",
+        "messageHistory" = EXCLUDED."messageHistory",
+        status = EXCLUDED.status,
+        "completedAt" = EXCLUDED."completedAt",
+        "lastClientMessageAt" = EXCLUDED."lastClientMessageAt",
+        "expiresAt" = EXCLUDED."expiresAt"
+    `;
+    await pool.query(query, [
+      session.id,
+      session.companyId,
+      session.currentStage,
+      session.currentQuestionIndex,
+      JSON.stringify(session.answers || {}),
+      JSON.stringify(session.skippedFields || []),
+      JSON.stringify(session.messageHistory || []),
+      session.status,
+      session.createdAt,
+      session.completedAt,
+      session.lastClientMessageAt,
+      session.expiresAt
+    ]);
+  } else {
+    const dbData = readLocalDb();
+    if (!dbData.discoverySessions) dbData.discoverySessions = [];
+    const idx = dbData.discoverySessions.findIndex(s => s.id === session.id);
+    if (idx !== -1) {
+      dbData.discoverySessions[idx] = session;
+    } else {
+      dbData.discoverySessions.push(session);
+    }
+    writeLocalDb(dbData);
+  }
+}
+
+// --- PUBLIC DISCOVERY CHAT ENDPOINTS ---
+
+app.post('/api/public/discovery/start', async (req, res) => {
+  const { resume } = req.body;
+  const companyId = getDiscoveryCompanyId(req);
+  if (!companyId) {
+    return res.status(401).json({ error: 'Unauthorized discovery session.' });
+  }
+
+  try {
+    const company = await dbGetCompany(companyId);
+    if (!company) {
+      return res.status(404).json({ error: 'Company lead not found.' });
+    }
+
+    let session = await dbGetDiscoverySession(companyId);
+
+    if (session && session.status === 'completed') {
+      return res.json({
+        id: session.id,
+        companyId: session.companyId,
+        companyName: company.name,
+        currentStage: session.currentStage,
+        currentQuestionIndex: session.currentQuestionIndex,
+        messageHistory: session.messageHistory,
+        status: session.status,
+        skippedFields: session.skippedFields
+      });
+    }
+
+    if (session) {
+      if (resume === null) {
+        return res.status(409).json({ message: 'Active draft session exists.' });
+      } else if (resume === false) {
+        session = null;
+      }
+    }
+
+    if (!session) {
+      const sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const openingText = `Hi ${company.contactName || 'there'}, welcome to PRAGMA AI Systems. I'm your virtual discovery partner today. I've reviewed your onboarding info for ${company.name} in the ${company.industry} sector. My goal is to understand your day-to-day operations, processes, and current technical systems. Together, we'll compile a clear picture of your environment to prepare for our consulting team's review. This should take about 10-15 minutes. Let's start with your high-level business direction. What are the main strategic priorities or goals you are aiming to achieve over the next 6 to 12 months?`;
+
+      session = {
+        id: sessionId,
+        companyId,
+        currentStage: 'business',
+        currentQuestionIndex: 0,
+        answers: { _probedQuestions: [] },
+        skippedFields: [],
+        messageHistory: [
+          { sender: 'bot', text: openingText, timestamp: new Date().toISOString() }
+        ],
+        status: 'draft',
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+        lastClientMessageAt: null,
+        expiresAt: null
+      };
+
+      await dbSaveDiscoverySession(session);
+      await writeLog('info', `Discovery session started for company ${company.name} (${companyId})`);
+    }
+
+    res.json({
+      id: session.id,
+      companyId: session.companyId,
+      companyName: company.name,
+      currentStage: session.currentStage,
+      currentQuestionIndex: session.currentQuestionIndex,
+      messageHistory: session.messageHistory,
+      status: session.status,
+      skippedFields: session.skippedFields
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/public/discovery/message', async (req, res) => {
+  const { message } = req.body;
+  const companyId = getDiscoveryCompanyId(req);
+  if (!companyId) {
+    return res.status(401).json({ error: 'Unauthorized discovery session.' });
+  }
+
+  if (!message || message.trim().length === 0) {
+    return res.status(400).json({ error: 'Message cannot be empty.' });
+  }
+
+  try {
+    const company = await dbGetCompany(companyId);
+    if (!company) {
+      return res.status(404).json({ error: 'Company lead not found.' });
+    }
+
+    const session = await dbGetDiscoverySession(companyId);
+    if (!session || session.status === 'completed') {
+      return res.status(400).json({ error: 'No active session found.' });
+    }
+
+    session.messageHistory.push({
+      sender: 'user',
+      text: message,
+      timestamp: new Date().toISOString()
+    });
+    session.lastClientMessageAt = new Date().toISOString();
+
+    const qIdx = session.currentQuestionIndex;
+    const qObj = DISCOVERY_QUESTIONS[qIdx];
+
+    const isSkipText = /^\s*(skip|pass|don't know|dont know|i do not know|i don't know|not sure|no idea|unknown|no clue|na|n\/a)\s*$/i.test(message);
+
+    if (isSkipText) {
+      session.skippedFields = session.skippedFields || [];
+      if (!session.skippedFields.includes(qObj.field)) {
+        session.skippedFields.push(qObj.field);
+      }
+      session.answers[qObj.field] = '[Skipped by client]';
+
+      session.currentQuestionIndex++;
+      if (session.currentQuestionIndex < DISCOVERY_QUESTIONS.length) {
+        const nextQ = DISCOVERY_QUESTIONS[session.currentQuestionIndex];
+        session.currentStage = nextQ.stage;
+        const botReply = `Understood, we will skip this topic. Let's move on: ${nextQ.question}`;
+        session.messageHistory.push({
+          sender: 'bot',
+          text: botReply,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        session.status = 'completed';
+        const closingText = `Thank you, ${company.contactName || 'there'}. We have successfully compiled your Discovery profile and generated your initial operational assessment. I have logged these details directly in our secure OIOS workspace. A PRAGMA consulting architect will review your environment, analyze your system integrations, and extract key insights. We will follow up shortly to schedule a review session. Have a productive day!`;
+        session.messageHistory.push({
+          sender: 'bot',
+          text: closingText,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } else {
+      const sufficiency = checkAnswerSufficiency(message, qObj.checkType);
+      const probedList = session.answers._probedQuestions || [];
+
+      if (!sufficiency.sufficient && !probedList.includes(qObj.field)) {
+        probedList.push(qObj.field);
+        session.answers._probedQuestions = probedList;
+
+        const botReply = qObj.followUp;
+        session.messageHistory.push({
+          sender: 'bot',
+          text: botReply,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        const normalized = mockNormalizeAnswer(qObj.field, message);
+        session.answers[qObj.field] = normalized;
+
+        session.currentQuestionIndex++;
+        if (session.currentQuestionIndex < DISCOVERY_QUESTIONS.length) {
+          const nextQ = DISCOVERY_QUESTIONS[session.currentQuestionIndex];
+          session.currentStage = nextQ.stage;
+          const acks = [
+            "Got it. Let's keep going. ",
+            "Understood, thank you. ",
+            "Thank you for those details. ",
+            "Clear. Next topic: "
+          ];
+          const ack = acks[session.currentQuestionIndex % acks.length];
+          const botReply = ack + nextQ.question;
+          session.messageHistory.push({
+            sender: 'bot',
+            text: botReply,
+            timestamp: new Date().toISOString()
+          });
+        } else {
+          session.status = 'completed';
+          const closingText = `Thank you, ${company.contactName || 'there'}. We have successfully compiled your Discovery profile and generated your initial operational assessment. I have logged these details directly in our secure OIOS workspace. A PRAGMA consulting architect will review your environment, analyze your system integrations, and extract key insights. We will follow up shortly to schedule a review session. Have a productive day!`;
+          session.messageHistory.push({
+            sender: 'bot',
+            text: closingText,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    await dbSaveDiscoverySession(session);
+
+    const lastMsg = session.messageHistory[session.messageHistory.length - 1];
+    res.json({
+      id: session.id,
+      companyId: session.companyId,
+      companyName: company.name,
+      currentStage: session.currentStage,
+      currentQuestionIndex: session.currentQuestionIndex,
+      messageHistory: session.messageHistory,
+      status: session.status,
+      skippedFields: session.skippedFields,
+      reply: lastMsg.sender === 'bot' ? lastMsg.text : ''
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/public/discovery/skip', async (req, res) => {
+  const companyId = getDiscoveryCompanyId(req);
+  if (!companyId) {
+    return res.status(401).json({ error: 'Unauthorized discovery session.' });
+  }
+
+  try {
+    const company = await dbGetCompany(companyId);
+    if (!company) {
+      return res.status(404).json({ error: 'Company lead not found.' });
+    }
+
+    const session = await dbGetDiscoverySession(companyId);
+    if (!session || session.status === 'completed') {
+      return res.status(400).json({ error: 'No active session found.' });
+    }
+
+    const qIdx = session.currentQuestionIndex;
+    const qObj = DISCOVERY_QUESTIONS[qIdx];
+
+    session.skippedFields = session.skippedFields || [];
+    if (!session.skippedFields.includes(qObj.field)) {
+      session.skippedFields.push(qObj.field);
+    }
+    session.answers[qObj.field] = '[Skipped by client]';
+
+    session.currentQuestionIndex++;
+    if (session.currentQuestionIndex < DISCOVERY_QUESTIONS.length) {
+      const nextQ = DISCOVERY_QUESTIONS[session.currentQuestionIndex];
+      session.currentStage = nextQ.stage;
+      const botReply = `Understood, skipping. Let's move on: ${nextQ.question}`;
+      session.messageHistory.push({
+        sender: 'bot',
+        text: botReply,
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      session.status = 'completed';
+      const closingText = `Thank you, ${company.contactName || 'there'}. We have successfully compiled your Discovery profile and generated your initial operational assessment. I have logged these details directly in our secure OIOS workspace. A PRAGMA consulting architect will review your environment, analyze your system integrations, and extract key insights. We will follow up shortly to schedule a review session. Have a productive day!`;
+      session.messageHistory.push({
+        sender: 'bot',
+        text: closingText,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    await dbSaveDiscoverySession(session);
+
+    const lastMsg = session.messageHistory[session.messageHistory.length - 1];
+    res.json({
+      id: session.id,
+      companyId: session.companyId,
+      companyName: company.name,
+      currentStage: session.currentStage,
+      currentQuestionIndex: session.currentQuestionIndex,
+      messageHistory: session.messageHistory,
+      status: session.status,
+      skippedFields: session.skippedFields,
+      reply: lastMsg.sender === 'bot' ? lastMsg.text : ''
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/public/discovery/complete', async (req, res) => {
+  const companyId = getDiscoveryCompanyId(req);
+  if (!companyId) {
+    return res.status(401).json({ error: 'Unauthorized discovery session.' });
+  }
+
+  try {
+    const company = await dbGetCompany(companyId);
+    if (!company) {
+      return res.status(404).json({ error: 'Company lead not found.' });
+    }
+
+    const session = await dbGetDiscoverySession(companyId);
+    if (!session) {
+      return res.status(400).json({ error: 'No session found.' });
+    }
+
+    const intake = company.discoveryIntake || {
+      business: {}, people: {}, process: {}, systems: {}, data: {}
+    };
+
+    intake.skippedFields = session.skippedFields || [];
+
+    intake.business = {
+      primaryGoals: session.answers.primaryGoals || '',
+      expectedOutcomes: session.answers.expectedOutcomes || '',
+      currentChallenges: session.answers.currentChallenges || ''
+    };
+    intake.people = {
+      decisionMakers: session.answers.decisionMakers || '',
+      affectedTeams: session.answers.affectedTeams || '',
+      keyStakeholders: session.answers.keyStakeholders || ''
+    };
+    intake.process = {
+      coreProcesses: session.answers.coreProcesses || '',
+      knownBottlenecks: session.answers.knownBottlenecks || '',
+      manualWorkAreas: session.answers.manualWorkAreas || ''
+    };
+    intake.systems = {
+      currentSystems: session.answers.currentSystems || '',
+      integrations: session.answers.integrations || '',
+      technologyIssues: session.answers.technologyIssues || ''
+    };
+    intake.data = {
+      reports: session.answers.reports || '',
+      kpis: session.answers.kpis || '',
+      dataSources: session.answers.dataSources || ''
+    };
+
+    company.discoveryIntake = intake;
+
+    const asm = mockCompileAssessment(intake);
+    company.assessment = asm;
+
+    company.stage = 'Assessment';
+
+    await dbUpdateCompany(companyId, company);
+
+    session.status = 'completed';
+    session.completedAt = new Date().toISOString();
+    await dbSaveDiscoverySession(session);
+
+    await writeLog('info', `Discovery chatbot session completed and assessment compiled for lead: ${company.name} (${companyId})`);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 3. Public logging endpoint
 app.post('/api/public/logs', async (req, res) => {
   const { level, message, stack, context } = req.body;
@@ -202,22 +963,6 @@ app.post('/api/public/logs', async (req, res) => {
 app.get('/api/status', (req, res) => {
   res.json({ postgres: usePostgres });
 });
-
-// Initialize database connection
-let pool = null;
-const usePostgres = !!process.env.DATABASE_URL;
-
-if (usePostgres) {
-  console.log('Connecting to PostgreSQL database...');
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    }
-  });
-} else {
-  console.log('No DATABASE_URL environment variable found. Falling back to local file-based database (db.json)...');
-}
 
 // Initialize database schema (PostgreSQL) or create local file (fallback)
 async function initDatabase() {
@@ -240,6 +985,21 @@ async function initDatabase() {
           "contactEmail" TEXT,
           assessment JSONB,
           "discoveryIntake" JSONB
+        );
+
+        CREATE TABLE IF NOT EXISTS "discoverySessions" (
+          id TEXT PRIMARY KEY,
+          "companyId" TEXT REFERENCES companies(id) ON DELETE CASCADE,
+          "currentStage" TEXT NOT NULL,
+          "currentQuestionIndex" INTEGER NOT NULL,
+          answers JSONB,
+          "skippedFields" JSONB,
+          "messageHistory" JSONB,
+          status TEXT DEFAULT 'draft',
+          "createdAt" TEXT NOT NULL,
+          "completedAt" TEXT,
+          "lastClientMessageAt" TEXT,
+          "expiresAt" TEXT
         );
 
         CREATE TABLE IF NOT EXISTS "discoveryNotes" (
@@ -334,7 +1094,8 @@ async function initDatabase() {
         projects: [],
         reports: [],
         nextActions: [],
-        logs: []
+        logs: [],
+        discoverySessions: []
       };
       fs.writeFileSync(DB_FILE, JSON.stringify(emptyDb, null, 2), 'utf8');
       console.log('Local db.json file initialized.');
@@ -347,9 +1108,10 @@ function readLocalDb() {
   try {
     const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
     if (!data.logs) data.logs = [];
+    if (!data.discoverySessions) data.discoverySessions = [];
     return data;
   } catch (e) {
-    return { companies: [], discoveryNotes: [], insights: [], systemIdeas: [], projects: [], reports: [], nextActions: [], logs: [] };
+    return { companies: [], discoveryNotes: [], insights: [], systemIdeas: [], projects: [], reports: [], nextActions: [], logs: [], discoverySessions: [] };
   }
 }
 
@@ -408,6 +1170,7 @@ app.get('/api/state', async (req, res) => {
       const projRes = await client.query('SELECT * FROM projects');
       const repRes = await client.query('SELECT * FROM reports');
       const actRes = await client.query('SELECT * FROM "nextActions"');
+      const sessRes = await client.query('SELECT * FROM "discoverySessions"');
       
       client.release();
       
@@ -418,7 +1181,8 @@ app.get('/api/state', async (req, res) => {
         systemIdeas: ideaRes.rows,
         projects: projRes.rows,
         reports: repRes.rows,
-        nextActions: actRes.rows
+        nextActions: actRes.rows,
+        discoverySessions: sessRes.rows
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -444,6 +1208,7 @@ app.post('/api/state/migrate', async (req, res) => {
       await client.query('DELETE FROM "systemIdeas"');
       await client.query('DELETE FROM insights');
       await client.query('DELETE FROM "discoveryNotes"');
+      await client.query('DELETE FROM "discoverySessions"');
       await client.query('DELETE FROM companies');
 
       // Insert companies
@@ -604,6 +1369,9 @@ app.delete('/api/companies/:id', async (req, res) => {
     dbData.systemIdeas = dbData.systemIdeas.filter(x => x.companyId !== id);
     dbData.projects = dbData.projects.filter(x => x.companyId !== id);
     dbData.reports = dbData.reports.filter(x => x.companyId !== id);
+    if (dbData.discoverySessions) {
+      dbData.discoverySessions = dbData.discoverySessions.filter(x => x.companyId !== id);
+    }
     writeLocalDb(dbData);
     res.json({ success: true });
   }
@@ -1084,6 +1852,10 @@ app.get('/discovery', (req, res) => {
 
 app.get('/onboarding', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'onboarding.html'));
+});
+
+app.get('/discovery-chat', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'discovery-chat.html'));
 });
 
 app.get('/studio', (req, res) => {

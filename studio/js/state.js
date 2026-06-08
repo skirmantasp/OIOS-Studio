@@ -1066,6 +1066,56 @@ class StateManager {
     this.saveData();
     return this.data.companies[idx];
   }
+
+  // --- Discovery Sessions ---
+  getDiscoverySessions() {
+    return this.data.discoverySessions || [];
+  }
+
+  getDiscoverySession(companyId) {
+    if (!this.data.discoverySessions) this.data.discoverySessions = [];
+    return this.data.discoverySessions.find(s => s.companyId === companyId);
+  }
+
+  addDiscoverySession(session) {
+    if (!this.data.discoverySessions) this.data.discoverySessions = [];
+    const newSession = {
+      id: session.id || 'sess_' + Date.now(),
+      companyId: session.companyId,
+      currentStage: session.currentStage || 'business',
+      currentQuestionIndex: session.currentQuestionIndex || 0,
+      answers: session.answers || {},
+      skippedFields: session.skippedFields || [],
+      messageHistory: session.messageHistory || [],
+      status: session.status || 'draft',
+      createdAt: session.createdAt || new Date().toISOString(),
+      completedAt: session.completedAt || null,
+      lastClientMessageAt: session.lastClientMessageAt || null,
+      expiresAt: session.expiresAt || null
+    };
+    // Remove duplicate session for company if any
+    this.data.discoverySessions = this.data.discoverySessions.filter(s => s.companyId !== session.companyId);
+    this.data.discoverySessions.push(newSession);
+    this.saveData();
+    return newSession;
+  }
+
+  updateDiscoverySession(companyId, updates) {
+    if (!this.data.discoverySessions) this.data.discoverySessions = [];
+    const idx = this.data.discoverySessions.findIndex(s => s.companyId === companyId);
+    if (idx !== -1) {
+      this.data.discoverySessions[idx] = { ...this.data.discoverySessions[idx], ...updates };
+      this.saveData();
+      return this.data.discoverySessions[idx];
+    }
+    return null;
+  }
+
+  deleteDiscoverySession(companyId) {
+    if (!this.data.discoverySessions) this.data.discoverySessions = [];
+    this.data.discoverySessions = this.data.discoverySessions.filter(s => s.companyId !== companyId);
+    this.saveData();
+  }
 }
 
 // Single instance
