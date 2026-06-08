@@ -1,25 +1,23 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OIOS Studio — Login</title>
+  <title>PRAGMA AI SYSTEMS — Studio Login</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #070a13;
-      --bg-secondary: rgba(13, 18, 30, 0.45);
-      --bg-tertiary: #0e1322;
-      --border-color: rgba(255, 255, 255, 0.04);
-      --border-focus: #2563eb;
-      --text-primary: #f3f4f6;
-      --text-secondary: #9ca3af;
-      --text-muted: #6b7280;
-      --color-info: #60a5fa;
-      --color-danger: #f87171;
-      --radius-md: 8px;
-      --radius-lg: 16px;
+      --bg-white: #ffffff;
+      --bg-offwhite: #f8fafc;
+      --bg-dark: #090d16;
+      --text-dark: #0f172a;
+      --text-gray: #475569;
+      --text-muted: #94a3b8;
+      --border-light: #e2e8f0;
+      --border-focus: #000000;
+      --radius-md: 4px;
       --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-display: 'Outfit', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
 
@@ -30,8 +28,8 @@
     }
 
     body {
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
+      background-color: var(--bg-offwhite);
+      color: var(--text-dark);
       font-family: var(--font-sans);
       display: flex;
       align-items: center;
@@ -40,24 +38,6 @@
       width: 100vw;
       overflow-x: hidden;
       position: relative;
-    }
-
-    /* Glowing Mesh Background */
-    .bg-mesh {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 1;
-      pointer-events: none;
-      overflow: hidden;
-    }
-    
-    .bg-mesh svg {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
     }
 
     .login-container {
@@ -69,12 +49,10 @@
     }
 
     .split-card {
-      background: var(--bg-secondary);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.03);
-      border-radius: var(--radius-lg);
-      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-md);
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
       display: grid;
       grid-template-columns: 1.1fr 1fr;
       overflow: hidden;
@@ -83,9 +61,9 @@
 
     /* Left Info Column */
     .info-panel {
-      background: rgba(8, 12, 21, 0.35);
+      background: var(--bg-offwhite);
       padding: 48px;
-      border-right: 1px solid rgba(255, 255, 255, 0.03);
+      border-right: 1px solid var(--border-light);
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -99,28 +77,36 @@
     }
 
     .logo {
-      font-family: 'Outfit', sans-serif;
-      font-size: 24px;
-      font-weight: 700;
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 800;
       letter-spacing: -0.5px;
-      color: var(--text-primary);
+      color: var(--text-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo svg {
+      fill: var(--text-dark);
     }
 
     .logo span {
-      color: var(--color-info);
-      font-weight: 400;
-      font-size: 16px;
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 13px;
       letter-spacing: 1.5px;
       text-transform: uppercase;
       margin-left: 4px;
     }
 
     .subtitle {
-      font-size: 12px;
+      font-size: 11px;
       font-family: var(--font-mono);
-      color: var(--text-secondary);
+      color: var(--text-gray);
       letter-spacing: 0.5px;
       text-transform: uppercase;
+      margin-top: 4px;
     }
 
     .features-list {
@@ -141,10 +127,10 @@
       justify-content: center;
       width: 40px;
       height: 40px;
-      background: rgba(37, 99, 235, 0.06);
-      border: 1px solid rgba(37, 99, 235, 0.15);
-      border-radius: 8px;
-      color: var(--color-info);
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
+      color: var(--text-dark);
       flex-shrink: 0;
     }
 
@@ -155,15 +141,15 @@
     }
 
     .feature-title {
-      font-family: 'Outfit', sans-serif;
+      font-family: var(--font-display);
       font-size: 15px;
       font-weight: 600;
-      color: var(--text-primary);
+      color: var(--text-dark);
     }
 
     .feature-desc {
       font-size: 13px;
-      color: var(--text-secondary);
+      color: var(--text-gray);
       line-height: 1.4;
     }
 
@@ -174,6 +160,7 @@
       flex-direction: column;
       justify-content: center;
       gap: 32px;
+      background: var(--bg-white);
     }
 
     .form-header {
@@ -183,7 +170,7 @@
     }
 
     .form-title {
-      font-family: 'Outfit', sans-serif;
+      font-family: var(--font-display);
       font-size: 28px;
       font-weight: 700;
       letter-spacing: -0.5px;
@@ -191,7 +178,7 @@
 
     .form-subtitle {
       font-size: 14px;
-      color: var(--text-secondary);
+      color: var(--text-gray);
     }
 
     .form-group {
@@ -203,7 +190,7 @@
     label {
       font-size: 11px;
       font-weight: 600;
-      color: var(--text-secondary);
+      color: var(--text-gray);
       font-family: var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -215,9 +202,9 @@
     }
 
     .input-control {
-      background: rgba(8, 12, 21, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      color: var(--text-primary);
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      color: var(--text-dark);
       padding: 12px 48px 12px 16px;
       border-radius: var(--radius-md);
       font-size: 14px;
@@ -229,7 +216,6 @@
 
     .input-control:focus {
       border-color: var(--border-focus);
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
     }
 
     .toggle-password-btn {
@@ -239,7 +225,7 @@
       transform: translateY(-50%);
       background: none;
       border: none;
-      color: var(--text-secondary);
+      color: var(--text-gray);
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -248,14 +234,14 @@
     }
 
     .toggle-password-btn:hover {
-      color: var(--text-primary);
+      color: var(--text-dark);
     }
 
     .btn {
       background-color: var(--border-focus);
       color: #ffffff;
       padding: 12px 20px;
-      border: none;
+      border: 1px solid var(--border-focus);
       border-radius: var(--radius-md);
       font-size: 14px;
       font-weight: 600;
@@ -266,13 +252,12 @@
       justify-content: center;
       gap: 8px;
       width: 100%;
-      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
     }
 
     .btn:hover {
-      background-color: #3b82f6;
+      background-color: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
     }
 
     .btn:active {
@@ -283,13 +268,12 @@
       opacity: 0.6;
       cursor: not-allowed;
       transform: none;
-      box-shadow: none;
     }
 
     .error-banner {
-      background-color: rgba(248, 113, 113, 0.08);
-      border: 1px solid var(--color-danger);
-      color: var(--color-danger);
+      background-color: rgba(248, 113, 113, 0.05);
+      border: 1px solid #f87171;
+      color: #b91c1c;
       padding: 12px 16px;
       border-radius: var(--radius-md);
       font-size: 13px;
@@ -338,7 +322,7 @@
       .info-panel {
         padding: 32px;
         border-right: none;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        border-bottom: 1px solid var(--border-light);
       }
       .form-panel {
         padding: 32px;
@@ -347,30 +331,16 @@
   </style>
 </head>
 <body>
-  <!-- Glowing Cybernetic Background -->
-  <div class="bg-mesh">
-    <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1440 800" fill="none" preserveAspectRatio="none">
-      <defs>
-        <pattern id="dotGrid" width="32" height="32" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1" fill="rgba(255, 255, 255, 0.05)" />
-        </pattern>
-        <linearGradient id="blueGlow" x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stop-color="#1d4ed8" stop-opacity="0.10" />
-          <stop offset="50%" stop-color="#1e293b" stop-opacity="0.01" />
-          <stop offset="100%" stop-color="#070a13" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      <circle cx="720" cy="300" r="500" fill="url(#blueGlow)" filter="blur(80px)" />
-      <rect width="100%" height="100%" fill="url(#dotGrid)" />
-    </svg>
-  </div>
 
   <div class="login-container">
     <div class="split-card">
       <!-- Left Info Panel -->
       <div class="info-panel">
         <div class="logo-container">
-          <div class="logo">OIOS <span>STUDIO</span></div>
+          <div class="logo">
+            <svg width="16" height="16" viewBox="0 0 24 24" style="margin-top: 1px;"><rect width="24" height="24" rx="2" /></svg>
+            PRAGMA <span>STUDIO</span>
+          </div>
           <div class="subtitle">Internal Workspace Access</div>
         </div>
 
@@ -381,7 +351,7 @@
             </div>
             <div class="feature-text">
               <div class="feature-title">Secure Access</div>
-              <div class="feature-desc">Protected workspace environment for authorized OIOS consultants.</div>
+              <div class="feature-desc">Protected workspace environment for authorized PRAGMA partners.</div>
             </div>
           </div>
 
@@ -439,7 +409,7 @@
         <div class="subtext">Authorized users only</div>
       </div>
     </div>
-    <div class="footer">&copy; 2026 OIOS Platform. All rights reserved.</div>
+    <div class="footer">&copy; 2026 PRAGMA AI SYSTEMS. All rights reserved.</div>
   </div>
 
   <script>

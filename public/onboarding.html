@@ -1,20 +1,22 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OIOS — Company Onboarding</title>
+  <title>PRAGMA AI SYSTEMS — Onboarding</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #070a13;
-      --text-primary: #f3f4f6;
-      --text-secondary: #9ca3af;
-      --text-muted: #6b7280;
-      --color-primary-blue: #2563eb;
-      --color-primary-hover: #3b82f6;
-      --border-color: rgba(255, 255, 255, 0.05);
+      --bg-white: #ffffff;
+      --bg-offwhite: #f8fafc;
+      --text-dark: #0f172a;
+      --text-gray: #475569;
+      --text-muted: #94a3b8;
+      --border-light: #e2e8f0;
+      --color-primary: #000000;
+      --color-primary-hover: #1e293b;
       --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-display: 'Outfit', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
 
@@ -25,73 +27,58 @@
     }
 
     body {
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
+      background-color: var(--bg-offwhite);
+      color: var(--text-dark);
       font-family: var(--font-sans);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      position: relative;
-      overflow-x: hidden;
       align-items: center;
-    }
-
-    /* Glowing Mesh Background */
-    .bg-mesh {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 1;
-      pointer-events: none;
-      overflow: hidden;
-    }
-    
-    .bg-mesh svg {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      position: relative;
     }
 
     /* Navigation Header */
-    .header-nav {
+    header {
       width: 100%;
+      background: var(--bg-white);
+      border-bottom: 1px solid var(--border-light);
+      position: relative;
+      z-index: 10;
+    }
+
+    .header-container {
       max-width: 1200px;
-      padding: 24px;
+      margin: 0 auto;
+      padding: 20px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      position: relative;
-      z-index: 10;
-      box-sizing: border-box;
     }
 
-    .logo {
-      font-family: 'Outfit', sans-serif;
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      color: var(--text-primary);
-      text-decoration: none;
+    .brand-logo {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-dark);
     }
 
-    .logo span {
-      color: #60a5fa;
-      font-weight: 400;
-      font-size: 14px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
+    .brand-logo svg {
+      fill: var(--text-dark);
+    }
+
+    .brand-name {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -0.5px;
     }
 
     .back-link {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      color: var(--text-secondary);
+      color: var(--text-gray);
       text-decoration: none;
       font-size: 13px;
       font-family: var(--font-mono);
@@ -99,23 +86,23 @@
     }
 
     .back-link:hover {
-      color: #60a5fa;
+      color: var(--text-dark);
     }
 
-    /* Onboarding Content Container */
+    /* Form Area Layout */
     .container {
       width: 100%;
       max-width: 750px;
-      padding: 0 24px 60px 24px;
-      position: relative;
-      z-index: 10;
+      padding: 60px 24px;
       display: flex;
       flex-direction: column;
       align-items: center;
+      position: relative;
+      z-index: 10;
       box-sizing: border-box;
     }
 
-    /* Progress Steps Bar */
+    /* Progress Indicators */
     .steps-progress {
       display: flex;
       align-items: center;
@@ -137,9 +124,9 @@
       width: 26px;
       height: 26px;
       border-radius: 50%;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      color: var(--text-secondary);
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      color: var(--text-muted);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -152,39 +139,36 @@
     .step-label {
       font-size: 13px;
       font-weight: 500;
-      color: var(--text-secondary);
+      color: var(--text-muted);
       white-space: nowrap;
-      font-family: 'Outfit', sans-serif;
+      font-family: var(--font-display);
     }
 
     .step.active .step-num {
-      background: var(--color-primary-blue);
-      border-color: var(--color-primary-blue);
+      background: var(--color-primary);
+      border-color: var(--color-primary);
       color: #ffffff;
-      box-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
     }
 
     .step.active .step-label {
-      color: #ffffff;
+      color: var(--text-dark);
       font-weight: 600;
     }
 
     .step-line {
       flex: 1;
       height: 1px;
-      background: rgba(255, 255, 255, 0.04);
+      background: var(--border-light);
       min-width: 20px;
     }
 
-    /* Translucent Card Container */
+    /* Form Card styling */
     .card {
-      background: rgba(13, 18, 30, 0.45);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.03);
-      border-radius: 16px;
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
       padding: 48px;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
       display: flex;
       flex-direction: column;
       gap: 32px;
@@ -201,25 +185,23 @@
     .step-indicator {
       font-family: var(--font-mono);
       font-size: 11px;
-      color: #60a5fa;
+      color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 1.5px;
+      letter-spacing: 1px;
     }
 
     .title {
-      font-family: 'Outfit', sans-serif;
-      font-size: 30px;
+      font-family: var(--font-display);
+      font-size: 28px;
       font-weight: 700;
       margin: 0;
-      background: linear-gradient(135deg, #ffffff 60%, #9ca3af 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: var(--text-dark);
       letter-spacing: -0.5px;
     }
 
     .subtitle {
       font-size: 14px;
-      color: var(--text-secondary);
+      color: var(--text-gray);
       line-height: 1.5;
       margin: 0;
     }
@@ -243,18 +225,18 @@
     label {
       font-size: 11px;
       font-weight: 600;
-      color: var(--text-secondary);
+      color: var(--text-gray);
       text-transform: uppercase;
       font-family: var(--font-mono);
       letter-spacing: 0.5px;
     }
 
     .input-control {
-      background: rgba(8, 12, 21, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      color: #ffffff;
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      color: var(--text-dark);
       padding: 12px 16px;
-      border-radius: 8px;
+      border-radius: 4px;
       font-size: 14px;
       outline: none;
       transition: all 0.2s ease;
@@ -263,23 +245,17 @@
     }
 
     .input-control:focus {
-      border-color: var(--color-primary-blue);
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+      border-color: var(--color-primary);
     }
 
     select.input-control {
       appearance: none;
       -webkit-appearance: none;
-      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
       background-repeat: no-repeat;
       background-position: right 16px center;
       background-size: 16px;
       padding-right: 40px;
-    }
-
-    select.input-control option {
-      background-color: #0b0f19;
-      color: #ffffff;
     }
 
     textarea.input-control {
@@ -288,11 +264,11 @@
     }
 
     .btn {
-      background: var(--color-primary-blue);
+      background: var(--color-primary);
       color: #ffffff;
       padding: 12px 28px;
-      border: none;
-      border-radius: 8px;
+      border: 1px solid var(--color-primary);
+      border-radius: 4px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
@@ -301,28 +277,26 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
     }
 
     .btn:hover {
       background: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
     }
 
     .btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
       transform: none;
-      box-shadow: none;
     }
 
     .error-banner {
-      background: rgba(248, 113, 113, 0.08);
+      background: rgba(248, 113, 113, 0.05);
       border: 1px solid #f87171;
-      color: #f87171;
+      color: #b91c1c;
       padding: 14px 16px;
-      border-radius: 8px;
+      border-radius: 4px;
       font-size: 13px;
       display: none;
       line-height: 1.4;
@@ -362,39 +336,23 @@
         padding: 32px 24px;
       }
       .steps-progress {
-        display: none; /* Hide steps bar on mobile for cleaner card layout */
+        display: none;
       }
     }
   </style>
 </head>
 <body>
-  <!-- Glowing Cybernetic Background -->
-  <div class="bg-mesh">
-    <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1440 800" fill="none" preserveAspectRatio="none">
-      <defs>
-        <pattern id="dotGrid" width="32" height="32" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1" fill="rgba(255, 255, 255, 0.05)" />
-        </pattern>
-        <linearGradient id="blueGlow" x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stop-color="#1d4ed8" stop-opacity="0.12" />
-          <stop offset="50%" stop-color="#1e293b" stop-opacity="0.02" />
-          <stop offset="100%" stop-color="#070a13" stop-opacity="0" />
-        </linearGradient>
-        <linearGradient id="lineGrad" x1="0%" y1="50%" x2="100%" y2="50%">
-          <stop offset="0%" stop-color="#2563eb" stop-opacity="0" />
-          <stop offset="50%" stop-color="#60a5fa" stop-opacity="0.15" />
-          <stop offset="100%" stop-color="#2563eb" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      <circle cx="720" cy="300" r="500" fill="url(#blueGlow)" filter="blur(80px)" />
-      <rect width="100%" height="100%" fill="url(#dotGrid)" />
-    </svg>
-  </div>
 
-  <div class="header-nav">
-    <a href="/" class="logo">OIOS <span>PLATFORM</span></a>
-    <a href="/" class="back-link">&larr; Back to Home</a>
-  </div>
+  <!-- Navigation Header -->
+  <header>
+    <div class="header-container">
+      <a href="/" class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24"><rect width="24" height="24" rx="2" /></svg>
+        <span class="brand-name">PRAGMA AI SYSTEMS</span>
+      </a>
+      <a href="/" class="back-link">&larr; Back to Home</a>
+    </div>
+  </header>
 
   <div class="container">
     <!-- Progress Indicator Roadmap -->
@@ -465,7 +423,7 @@
 
           <div class="form-group">
             <label for="contact-email">Contact Email *</label>
-            <input type="email" id="contact-email" class="input-control" placeholder="e.g. john.doe@acme.com" required>
+            <input type="email" id="contact-email" class="input-control" placeholder="e.g. john.doe@pragma.com" required>
           </div>
 
           <div class="form-group-full form-group">

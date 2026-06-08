@@ -1,20 +1,24 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OIOS — Organizational Intelligence Operating System</title>
+  <title>PRAGMA AI SYSTEMS — AI Strategy & Implementation Partner</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #070a13;
-      --text-primary: #f3f4f6;
-      --text-secondary: #9ca3af;
-      --text-muted: #6b7280;
-      --color-primary-blue: #2563eb;
-      --color-primary-hover: #3b82f6;
-      --border-color: rgba(255, 255, 255, 0.05);
+      --bg-white: #ffffff;
+      --bg-offwhite: #f8fafc;
+      --bg-dark: #090d16;
+      --text-dark: #0f172a;
+      --text-gray: #475569;
+      --text-muted: #94a3b8;
+      --border-light: #e2e8f0;
+      --border-dark: rgba(255, 255, 255, 0.08);
+      --color-primary: #000000;
+      --color-primary-hover: #1e293b;
       --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-display: 'Outfit', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
 
@@ -24,396 +28,1264 @@
       padding: 0;
     }
 
+    html {
+      scroll-behavior: smooth;
+    }
+
     body {
-      background-color: var(--bg-primary);
-      color: var(--text-primary);
+      background-color: var(--bg-white);
+      color: var(--text-dark);
       font-family: var(--font-sans);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      position: relative;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
     }
 
-    /* Glowing Mesh Background */
-    .bg-mesh {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 1;
-      pointer-events: none;
-      overflow: hidden;
-    }
-    
-    .bg-mesh svg {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+    /* Typography Utilities */
+    h1, h2, h3, h4 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      color: var(--text-dark);
+      line-height: 1.25;
     }
 
-    /* Main Navigation Header */
-    .header-nav {
+    p {
+      color: var(--text-gray);
+      font-size: 15px;
+    }
+
+    /* Buttons */
+    .btn-solid {
+      background: var(--color-primary);
+      color: #ffffff;
+      padding: 12px 28px;
+      border: 1px solid var(--color-primary);
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-solid:hover {
+      background: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text-dark);
+      padding: 12px 28px;
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-outline:hover {
+      background: rgba(0, 0, 0, 0.02);
+      border-color: var(--text-dark);
+      transform: translateY(-1px);
+    }
+
+    .badge-mono {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-gray);
+      padding: 6px 12px;
+      border: 1px solid var(--border-light);
+      background: var(--bg-offwhite);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 24px;
+    }
+
+    .badge-mono::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--text-gray);
+      display: inline-block;
+    }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    /* Navigation Header */
+    header {
       width: 100%;
+      background: var(--bg-white);
+      border-bottom: 1px solid var(--border-light);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-container {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 20px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      position: relative;
-      z-index: 10;
     }
 
-    .logo {
-      font-family: 'Outfit', sans-serif;
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      color: var(--text-primary);
-      text-decoration: none;
+    .brand-logo {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-dark);
     }
 
-    .logo span {
-      color: #60a5fa;
-      font-weight: 400;
-      font-size: 14px;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
+    .brand-logo svg {
+      fill: var(--text-dark);
     }
 
-    .nav-links {
+    .brand-name {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: -0.5px;
+    }
+
+    nav {
       display: flex;
       align-items: center;
       gap: 32px;
     }
 
-    .nav-links a {
-      color: var(--text-secondary);
+    nav a {
       text-decoration: none;
+      color: var(--text-gray);
       font-size: 14px;
       font-weight: 500;
       transition: color 0.2s ease;
     }
 
-    .nav-links a:hover {
-      color: #60a5fa;
+    nav a:hover {
+      color: var(--text-dark);
     }
 
-    .btn-nav {
-      background: var(--color-primary-blue);
-      color: #ffffff;
-      padding: 8px 18px;
-      border-radius: 8px;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.2s ease;
-      font-size: 13px;
-      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
-    }
-
-    .btn-nav:hover {
-      background: var(--color-primary-hover);
-      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
-      transform: translateY(-1px);
-    }
-
-    /* Hero Layout */
-    .hero-container {
-      flex: 1;
+    .nav-actions {
       display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 80px 24px;
-      position: relative;
-      z-index: 10;
+      gap: 24px;
     }
 
-    .hero-content {
-      max-width: 900px;
-      width: 100%;
-      text-align: center;
+    .nav-studio-link {
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-studio-link:hover {
+      color: var(--text-dark);
+    }
+
+    .btn-header {
+      background: var(--color-primary);
+      color: #ffffff;
+      padding: 8px 18px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s ease;
+    }
+
+    .btn-header:hover {
+      background: var(--color-primary-hover);
+    }
+
+    /* Hero Section */
+    .hero-section {
+      padding: 100px 24px 80px 24px;
+      background: var(--bg-white);
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 32px;
+      text-align: center;
+      border-bottom: 1px solid var(--border-light);
     }
 
-    .badge {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 1.5px;
-      color: #60a5fa;
-      text-transform: uppercase;
-      padding: 6px 14px;
-      border: 1px solid rgba(96, 165, 250, 0.15);
-      border-radius: 20px;
-      background: rgba(37, 99, 235, 0.05);
-      backdrop-filter: blur(8px);
+    .hero-container {
+      max-width: 800px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
     }
 
     .hero-title {
-      font-family: 'Outfit', sans-serif;
-      font-size: 58px;
-      font-weight: 800;
+      font-size: 52px;
       line-height: 1.15;
-      background: linear-gradient(135deg, #ffffff 50%, #a1a1aa 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin: 0;
       letter-spacing: -1.5px;
+      color: var(--text-dark);
     }
 
     .hero-subtitle {
       font-size: 18px;
-      color: var(--text-secondary);
+      color: var(--text-gray);
+      max-width: 650px;
       line-height: 1.6;
-      max-width: 680px;
-      margin: 0;
     }
 
-    .cta-group {
+    .hero-ctas {
       display: flex;
       gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-      width: 100%;
-      margin-top: 8px;
+      margin-top: 10px;
     }
 
-    .btn-large {
-      padding: 14px 32px;
-      font-size: 15px;
-      font-weight: 600;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.25s ease;
-      text-decoration: none;
-      display: inline-flex;
+    /* Connected Journey Timeline */
+    .timeline-container {
+      width: 100%;
+      max-width: 750px;
+      margin-top: 60px;
+      display: flex;
       align-items: center;
-      justify-content: center;
-      gap: 10px;
+      justify-content: space-between;
+      position: relative;
     }
 
-    .btn-primary-glow {
-      background: var(--color-primary-blue);
-      color: #ffffff;
-      border: none;
-      box-shadow: 0 4px 20px rgba(37, 99, 235, 0.25);
+    .timeline-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: var(--border-light);
+      z-index: 1;
+      top: 12px;
     }
 
-    .btn-primary-glow:hover {
-      background: var(--color-primary-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(37, 99, 235, 0.45);
-    }
-
-    .btn-outline-glow {
-      background: rgba(255, 255, 255, 0.03);
-      color: var(--text-primary);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      backdrop-filter: blur(8px);
-    }
-
-    .btn-outline-glow:hover {
-      background: rgba(255, 255, 255, 0.07);
-      border-color: rgba(255, 255, 255, 0.2);
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-    }
-    
-    .btn-outline-glow svg {
-      opacity: 0.8;
-      transition: transform 0.25s ease;
-    }
-    
-    .btn-outline-glow:hover svg {
-      transform: scale(1.05);
-    }
-
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 32px;
-      width: 100%;
-      margin-top: 48px;
-      padding-top: 48px;
-      border-top: 1px solid rgba(255, 255, 255, 0.04);
-    }
-
-    .feature-card {
-      text-align: left;
+    .timeline-node {
+      position: relative;
+      z-index: 2;
       display: flex;
       flex-direction: column;
+      align-items: center;
       gap: 12px;
-      transition: all 0.3s ease;
+      text-decoration: none;
     }
 
-    .feature-icon-box {
-      width: 44px;
-      height: 44px;
+    .timeline-square {
+      width: 24px;
+      height: 24px;
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      transition: all 0.3s ease;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(37, 99, 235, 0.06);
-      border: 1px solid rgba(37, 99, 235, 0.15);
-      border-radius: 8px;
-      color: #60a5fa;
-      transition: all 0.3s ease;
     }
 
-    .feature-card:hover .feature-icon-box {
-      background: rgba(37, 99, 235, 0.12);
-      border-color: #60a5fa;
-      transform: translateY(-3px);
-      box-shadow: 0 6px 16px rgba(37, 99, 235, 0.15);
+    .timeline-square::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      background: var(--text-muted);
+      display: block;
     }
 
-    .feature-title {
-      font-family: 'Outfit', sans-serif;
-      font-size: 16px;
+    .timeline-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .timeline-node.active .timeline-square {
+      border-color: var(--color-primary);
+    }
+
+    .timeline-node.active .timeline-square::after {
+      background: var(--color-primary);
+      width: 10px;
+      height: 10px;
+    }
+
+    .timeline-node.active .timeline-label {
+      color: var(--text-dark);
+      font-weight: 700;
+    }
+
+    /* The Problem Section */
+    .problem-section {
+      padding: 100px 24px;
+      background: var(--bg-white);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .problem-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 60px;
+    }
+
+    .problem-info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 24px;
+    }
+
+    .problem-title {
+      font-size: 38px;
+      letter-spacing: -1px;
+    }
+
+    .problem-subtitle {
+      font-size: 18px;
       font-weight: 600;
-      color: var(--text-primary);
+      color: var(--text-dark);
     }
 
-    .feature-desc {
+    .problem-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      list-style: none;
+      margin-top: 10px;
+    }
+
+    .problem-list li {
+      font-family: var(--font-mono);
       font-size: 13px;
-      color: var(--text-secondary);
+      color: var(--text-gray);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .problem-list li::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--color-primary);
+      display: block;
+    }
+
+    .problem-callout {
+      border-left: 2px solid var(--color-primary);
+      padding-left: 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--text-dark);
+      margin-top: 16px;
+      text-transform: uppercase;
+    }
+
+    .problem-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    .q-card-light {
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
+      padding: 28px;
+    }
+
+    .q-card-dark {
+      background: var(--bg-dark);
+      border-radius: 4px;
+      padding: 28px;
+      color: #ffffff;
+    }
+
+    .card-label-mono {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 12px;
+    }
+
+    .q-card-light .card-label-mono {
+      color: var(--text-muted);
+    }
+
+    .q-card-dark .card-label-mono {
+      color: #38bdf8;
+    }
+
+    .card-quote-light {
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-decoration: line-through;
+      font-style: italic;
+    }
+
+    .card-quote-dark {
+      font-size: 20px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.4;
+    }
+
+    /* Process Section */
+    .process-section {
+      padding: 100px 24px;
+      background: var(--bg-white);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .process-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .process-header {
+      margin-bottom: 48px;
+    }
+
+    .process-title {
+      font-size: 38px;
+      letter-spacing: -1px;
+    }
+
+    .process-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .process-card {
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
+      padding: 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: border-color 0.2s ease;
+    }
+
+    .process-card:hover {
+      border-color: var(--text-dark);
+    }
+
+    .process-num {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .process-card h3 {
+      font-size: 18px;
+    }
+
+    .process-card p {
+      font-size: 14px;
+    }
+
+    /* Highlighted Process Card */
+    .process-card.highlighted {
+      background: var(--bg-dark);
+      border-color: var(--bg-dark);
+      color: #ffffff;
+    }
+
+    .process-card.highlighted h3 {
+      color: #ffffff;
+    }
+
+    .process-card.highlighted p {
+      color: var(--text-muted);
+    }
+
+    .process-card.highlighted .process-num {
+      color: #38bdf8;
+    }
+
+    /* Services Section */
+    .services-section {
+      padding: 100px 24px;
+      background: var(--bg-dark);
+      color: #ffffff;
+      border-bottom: 1px solid var(--border-dark);
+    }
+
+    .services-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .services-header {
+      margin-bottom: 60px;
+    }
+
+    .services-header h2 {
+      color: #ffffff;
+      font-size: 38px;
+      letter-spacing: -1px;
+    }
+
+    .services-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 40px;
+    }
+
+    .service-item {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      border-top: 1px solid var(--border-dark);
+      padding-top: 24px;
+    }
+
+    .service-item h3 {
+      color: #ffffff;
+      font-size: 18px;
+    }
+
+    .service-item p {
+      color: var(--text-muted);
+      font-size: 14px;
       line-height: 1.5;
     }
 
-    .footer {
-      text-align: center;
-      padding: 32px 24px;
-      font-size: 11px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-      border-top: 1px solid rgba(255, 255, 255, 0.02);
-      letter-spacing: 0.5px;
-      position: relative;
-      z-index: 10;
+    /* Framework Section */
+    .framework-section {
+      padding: 100px 24px;
+      background: var(--bg-white);
+      border-bottom: 1px solid var(--border-light);
     }
 
-    @media (max-width: 900px) {
-      .features-grid {
+    .framework-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .framework-header {
+      margin-bottom: 48px;
+    }
+
+    .framework-title {
+      font-size: 38px;
+      letter-spacing: -1px;
+      margin-bottom: 6px;
+    }
+
+    .framework-subtitle {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .framework-desc {
+      font-size: 16px;
+      max-width: 800px;
+      margin-bottom: 40px;
+    }
+
+    .framework-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+
+    .framework-outcomes {
+      background: var(--bg-offwhite);
+      border: 1px solid var(--border-light);
+      border-radius: 4px;
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .outcomes-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .outcomes-title span {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .outcomes-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      list-style: none;
+    }
+
+    .outcomes-list li {
+      font-size: 14px;
+      color: var(--text-gray);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .outcomes-list li svg {
+      color: #10b981;
+      flex-shrink: 0;
+    }
+
+    /* Framework CSS Flowchart Diagram */
+    .framework-diagram {
+      background: var(--bg-white);
+      border: 1px solid var(--border-light);
+      padding: 40px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .diagram-col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 2;
+    }
+
+    .diagram-node {
+      background: var(--bg-offwhite);
+      border: 1px solid var(--border-light);
+      padding: 8px 14px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-gray);
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .diagram-center {
+      background: var(--bg-dark);
+      color: #ffffff;
+      border: 1px solid var(--bg-dark);
+      padding: 20px;
+      border-radius: 4px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 140px;
+      z-index: 2;
+    }
+
+    .diagram-center h4 {
+      color: #ffffff;
+      font-size: 15px;
+      font-family: var(--font-display);
+    }
+
+    .diagram-center span {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .diagram-center-labels {
+      border-top: 1px solid var(--border-dark);
+      padding-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .diagram-center-labels div {
+      font-size: 8px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .diagram-arrows {
+      position: absolute;
+      left: 10%;
+      right: 10%;
+      top: 50%;
+      height: 1px;
+      background: var(--border-light);
+      z-index: 1;
+    }
+
+    /* Differentiators Section */
+    .differentiators-section {
+      padding: 100px 24px;
+      background: var(--bg-white);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .diff-container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .diff-header {
+      margin-bottom: 48px;
+    }
+
+    .diff-title {
+      font-size: 38px;
+      letter-spacing: -1px;
+    }
+
+    .diff-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 40px;
+    }
+
+    .diff-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      border-top: 1px solid var(--border-light);
+      padding-top: 24px;
+    }
+
+    .diff-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .diff-card p {
+      font-size: 14px;
+    }
+
+    /* About Section */
+    .about-section {
+      padding: 100px 24px;
+      background: var(--bg-offwhite);
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .about-container {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .about-title {
+      font-size: 34px;
+      line-height: 1.3;
+      letter-spacing: -0.5px;
+    }
+
+    .about-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .about-pill {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-gray);
+      padding: 6px 14px;
+      border: 1px solid var(--border-light);
+      background: var(--bg-white);
+      border-radius: 4px;
+    }
+
+    .about-pill.active {
+      background: var(--bg-dark);
+      border-color: var(--bg-dark);
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    .about-quote {
+      border-left: 2px solid var(--color-primary);
+      padding-left: 20px;
+      margin-top: 16px;
+    }
+
+    .about-quote p {
+      font-size: 18px;
+      font-weight: 500;
+      font-style: italic;
+      line-height: 1.5;
+      color: var(--text-dark);
+    }
+
+    /* Footer CTA Callout */
+    .footer-cta-section {
+      padding: 100px 24px;
+      background: var(--bg-dark);
+      color: #ffffff;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .footer-cta-container {
+      max-width: 700px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .footer-cta-container h2 {
+      color: #ffffff;
+      font-size: 42px;
+      letter-spacing: -1px;
+    }
+
+    .footer-cta-container p {
+      color: var(--text-muted);
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    .btn-cta-footer {
+      background: #ffffff;
+      color: var(--bg-dark);
+      padding: 14px 32px;
+      border: none;
+      border-radius: 4px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .btn-cta-footer:hover {
+      background: #e2e8f0;
+      transform: translateY(-1px);
+    }
+
+    /* Main Footer */
+    footer {
+      background: var(--bg-white);
+      padding: 32px 24px;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .footer-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-container p {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 960px) {
+      .problem-container,
+      .framework-body {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+      .process-grid,
+      .services-grid,
+      .diff-grid {
         grid-template-columns: 1fr 1fr;
-        gap: 32px;
+        gap: 24px;
       }
     }
 
     @media (max-width: 600px) {
       .hero-title {
-        font-size: 40px;
+        font-size: 36px;
       }
-      .features-grid {
+      .process-grid,
+      .services-grid,
+      .diff-grid {
         grid-template-columns: 1fr;
       }
-      .nav-links {
+      nav, .nav-actions {
         display: none;
       }
-      .hero-content {
-        gap: 24px;
+      .footer-container {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
       }
     }
   </style>
 </head>
 <body>
-  <!-- Glowing Cybernetic Background -->
-  <div class="bg-mesh">
-    <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1440 800" fill="none" preserveAspectRatio="none">
-      <defs>
-        <pattern id="dotGrid" width="32" height="32" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1" fill="rgba(255, 255, 255, 0.05)" />
-        </pattern>
-        <linearGradient id="blueGlow" x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stop-color="#1d4ed8" stop-opacity="0.12" />
-          <stop offset="50%" stop-color="#1e293b" stop-opacity="0.02" />
-          <stop offset="100%" stop-color="#070a13" stop-opacity="0" />
-        </linearGradient>
-        <linearGradient id="lineGrad" x1="0%" y1="50%" x2="100%" y2="50%">
-          <stop offset="0%" stop-color="#2563eb" stop-opacity="0" />
-          <stop offset="50%" stop-color="#60a5fa" stop-opacity="0.15" />
-          <stop offset="100%" stop-color="#2563eb" stop-opacity="0" />
-        </linearGradient>
-      </defs>
-      <!-- Background Glow -->
-      <circle cx="720" cy="300" r="500" fill="url(#blueGlow)" filter="blur(80px)" />
-      <!-- Grid pattern -->
-      <rect width="100%" height="100%" fill="url(#dotGrid)" />
-      <!-- Cybernetic wavy lines at the bottom/middle -->
-      <path d="M -100,520 Q 350,380 720,520 T 1540,480" stroke="url(#lineGrad)" stroke-width="1.5" fill="none" />
-      <path d="M -100,550 Q 300,430 720,540 T 1540,510" stroke="url(#lineGrad)" stroke-width="1" fill="none" opacity="0.6" />
-      <path d="M -100,490 Q 400,410 720,490 T 1540,530" stroke="url(#lineGrad)" stroke-width="1" fill="none" opacity="0.4" />
-    </svg>
-  </div>
 
-  <div class="header-nav">
-    <a href="/" class="logo">OIOS <span>PLATFORM</span></a>
-    <div class="nav-links">
-      <a href="#about">About</a>
-      <a href="#how-it-works">How it works</a>
-      <a href="#benefits">Benefits</a>
-      <a href="#contact">Contact</a>
-      <a href="/onboarding" class="btn-nav">Begin Onboarding</a>
+  <!-- Navigation Header -->
+  <header>
+    <div class="header-container">
+      <a href="/" class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24"><rect width="24" height="24" rx="2" /></svg>
+        <span class="brand-name">PRAGMA AI SYSTEMS</span>
+      </a>
+      <nav>
+        <a href="#philosophy">Philosophy</a>
+        <a href="#process">Process</a>
+        <a href="#services">Services</a>
+        <a href="#methodology">Methodology</a>
+      </nav>
+      <div class="nav-actions">
+        <a href="/login.html" class="nav-studio-link">Studio Access</a>
+        <a href="/onboarding" class="btn-header">Book Discovery</a>
+      </div>
     </div>
-  </div>
+  </header>
 
-  <div class="hero-container">
-    <div class="hero-content">
-      <div class="badge">Intelligence. Structure. Impact.</div>
-      <h1 class="hero-title">Organizational Intelligence Operating System</h1>
+  <!-- Hero Section -->
+  <section class="hero-section" id="philosophy">
+    <div class="hero-container">
+      <div class="badge-mono">Strategic Advisor & Implementation Partner</div>
+      <h1 class="hero-title">Transform Business Challenges Into Working AI Solutions.</h1>
       <p class="hero-subtitle">
-        An integrated platform for managing and scaling organizational intelligence, operational frameworks, and solution architecture.
+        We help organizations identify, prioritize, design, build, and implement AI solutions that create measurable business value.
       </p>
-      <div class="cta-group">
-        <a href="/onboarding" class="btn-large btn-primary-glow">Begin Onboarding &rarr;</a>
-        <a href="/login.html" class="btn-large btn-outline-glow">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 2px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-          Studio Login
-        </a>
+      <div class="hero-ctas">
+        <a href="/onboarding" class="btn-solid">Book a Discovery Call</a>
+        <a href="#problem" class="btn-outline">Learn More</a>
       </div>
 
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon-box">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
-          </div>
-          <div class="feature-title">Capture Intelligence</div>
-          <div class="feature-desc">Structure insights and organizational knowledge base.</div>
+      <!-- Connected Journey Timeline -->
+      <div class="timeline-container">
+        <div class="timeline-line"></div>
+        <div class="timeline-node">
+          <div class="timeline-square"></div>
+          <span class="timeline-label">Discovery</span>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon-box">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-          </div>
-          <div class="feature-title">Design Systems</div>
-          <div class="feature-desc">Build connected operating models and architectures.</div>
+        <div class="timeline-node">
+          <div class="timeline-square"></div>
+          <span class="timeline-label">Strategy</span>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon-box">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"></path></svg>
-          </div>
-          <div class="feature-title">Drive Impact</div>
-          <div class="feature-desc">Turn high-level strategy into execution and results.</div>
+        <div class="timeline-node">
+          <div class="timeline-square"></div>
+          <span class="timeline-label">Architecture</span>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon-box">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-          </div>
-          <div class="feature-title">AI-Augmented</div>
-          <div class="feature-desc">Leverage AI to scale clarity, speed, and decisions.</div>
+        <div class="timeline-node">
+          <div class="timeline-square"></div>
+          <span class="timeline-label">Development</span>
+        </div>
+        <div class="timeline-node active">
+          <div class="timeline-square"></div>
+          <span class="timeline-label">Implementation</span>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <div class="footer">
-    &copy; 2026 OIOS Platform. All rights reserved.
-  </div>
+  <!-- The Problem Section -->
+  <section class="problem-section" id="problem">
+    <div class="problem-container">
+      <div class="problem-info">
+        <span class="section-label">The Problem</span>
+        <h2 class="problem-title">Most AI Projects Start With The Wrong Question.</h2>
+        <p class="problem-subtitle">Technology should follow business goals.</p>
+        <p>
+          Before recommending platform acquisitions, intelligent agents, or LLM integrations, we conduct a rigorous architectural analysis of your operational foundation. Before recommending tools, we analyze:
+        </p>
+        <ul class="problem-list">
+          <li>Business objectives</li>
+          <li>Workflows</li>
+          <li>Decision-making processes</li>
+          <li>Information flows</li>
+          <li>Operational constraints</li>
+        </ul>
+        <div class="problem-callout">
+          Only then can the right AI opportunities be identified.
+        </div>
+      </div>
+
+      <div class="problem-cards">
+        <div class="q-card-light">
+          <span class="card-label-mono">Most Organizations Ask:</span>
+          <div class="card-quote-light">"What AI tool should we use?"</div>
+        </div>
+        <div class="q-card-dark">
+          <span class="card-label-mono">The Better Question Is:</span>
+          <div class="card-quote-dark">"What business outcome are we trying to achieve?"</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Process Section -->
+  <section class="process-section" id="process">
+    <div class="process-container">
+      <div class="process-header">
+        <span class="section-label">Process</span>
+        <h2 class="process-title">From Discovery To Implementation</h2>
+      </div>
+
+      <div class="process-grid">
+        <div class="process-card">
+          <span class="process-num">01 /</span>
+          <h3>Discovery & Analysis</h3>
+          <p>Understanding the organization from an AI perspective. Assessing current structural readiness and mapping friction points.</p>
+        </div>
+        <div class="process-card">
+          <span class="process-num">02 /</span>
+          <h3>Opportunity Assessment</h3>
+          <p>Identifying where AI creates the greatest value. Scoring initiatives comprehensively by impact, feasibility, and ROI.</p>
+        </div>
+        <div class="process-card">
+          <span class="process-num">03 /</span>
+          <h3>AI Strategy</h3>
+          <p>Defining priorities, aligning leadership, and building a structured, phased implementation roadmap.</p>
+        </div>
+        <div class="process-card">
+          <span class="process-num">04 /</span>
+          <h3>Solution Architecture</h3>
+          <p>Designing robust systems, secure data workflows, and integrated AI-enabled operations blueprints.</p>
+        </div>
+        <div class="process-card">
+          <span class="process-num">05 /</span>
+          <h3>AI Development</h3>
+          <p>Building or configuring custom AI tools, intelligent assistants, specialized agents, and operational automations.</p>
+        </div>
+        <div class="process-card highlighted">
+          <span class="process-num">06 /</span>
+          <h3>AI Implementation</h3>
+          <p>Deployment, system integration, cultural adoption, workforce training, and continuous algorithmic optimization.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Services Section -->
+  <section class="services-section" id="services">
+    <div class="services-container">
+      <div class="services-header">
+        <span class="section-label">Capabilities</span>
+        <h2>Services</h2>
+      </div>
+
+      <div class="services-grid">
+        <div class="service-item">
+          <h3>AI Discovery Workshops</h3>
+          <p>Facilitated executive leadership sessions designed to map current capabilities, align stakeholders, and unearth high-impact AI use cases.</p>
+        </div>
+        <div class="service-item">
+          <h3>AI Opportunity Assessment</h3>
+          <p>Comprehensive, objective evaluations of potential AI initiatives prioritizing projects by business value, data readiness, and ROI.</p>
+        </div>
+        <div class="service-item">
+          <h3>AI Strategy Development</h3>
+          <p>Creation of customized roadmaps detailing precise technology stacks, resource allocation, and sequential capability building.</p>
+        </div>
+        <div class="service-item">
+          <h3>AI Solution Architecture</h3>
+          <p>Technical blueprinting for enterprise AI systems ensuring strict security, scalability, and seamless integration with existing IT.</p>
+        </div>
+        <div class="service-item">
+          <h3>Custom AI Tools & Agents</h3>
+          <p>End-to-end engineering of bespoke LLM applications, retrieval-augmented generation (RAG) systems, and specialized workflow agents.</p>
+        </div>
+        <div class="service-item">
+          <h3>Implementation & Integration</h3>
+          <p>Hands-on technical deployment, continuous workflow integration, workforce training, and long-term optimization of working systems.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Framework Section -->
+  <section class="framework-section" id="methodology">
+    <div class="framework-container">
+      <div class="framework-header">
+        <span class="section-label">Framework</span>
+        <h2 class="framework-title">The OIOS Methodology</h2>
+        <div class="framework-subtitle">Organizational Intelligence Operating System</div>
+      </div>
+
+      <p class="framework-desc">
+        The OIOS Framework is the internal methodology we use to analyze organizations, identify AI opportunities, design resilient solutions, and guide implementation.
+      </p>
+
+      <div class="framework-body">
+        <div class="framework-outcomes">
+          <h4 class="outcomes-title">Clients do not buy OIOS. <span>They buy outcomes:</span></h4>
+          <ul class="outcomes-list">
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Clear AI strategy
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Better decisions
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Custom AI tools
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Efficient workflows
+            </li>
+            <li style="grid-column: span 2;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              Successful AI implementation
+            </li>
+          </ul>
+        </div>
+
+        <!-- Flowchart Diagram -->
+        <div class="framework-diagram">
+          <div class="diagram-arrows"></div>
+          <div class="diagram-col">
+            <div class="diagram-node">Business Objectives</div>
+            <div class="diagram-node">Operational Workflows</div>
+            <div class="diagram-node">Data & Constraints</div>
+          </div>
+          <div class="diagram-center">
+            <h4>OIOS</h4>
+            <span>Framework</span>
+            <div class="diagram-center-labels">
+              <div>Analysis</div>
+              <div>Architecture</div>
+            </div>
+          </div>
+          <div class="diagram-col">
+            <div class="diagram-node">Clear AI Strategy</div>
+            <div class="diagram-node">Custom AI Solutions</div>
+            <div class="diagram-node">Measurable ROI</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Differentiators Section -->
+  <section class="differentiators-section">
+    <div class="diff-container">
+      <div class="diff-header">
+        <span class="section-label">Differentiators</span>
+        <h2 class="diff-title">Why Organizations Choose This Approach</h2>
+      </div>
+
+      <div class="diff-grid">
+        <div class="diff-card">
+          <h3>Business-first approach</h3>
+          <p>Technology serves the business, not the other way around. Every recommendation is anchored directly in core operational objectives.</p>
+        </div>
+        <div class="diff-card">
+          <h3>Focus on measurable value</h3>
+          <p>Success is not defined by deploying a model; it is defined by tangible cost reduction, output acceleration, or net-new revenue.</p>
+        </div>
+        <div class="diff-card">
+          <h3>Independent tech recommendations</h3>
+          <p>Objective, vendor-agnostic recommendations. Architectures are selected based entirely on what infrastructure solves your problem best.</p>
+        </div>
+        <div class="diff-card">
+          <h3>Custom solution architecture</h3>
+          <p>Off-the-shelf software rarely fits complex enterprise workflows perfectly. Systems are architected securely for your unique realities.</p>
+        </div>
+        <div class="diff-card">
+          <h3>Hands-on implementation support</h3>
+          <p>We move beyond conceptual slide decks. We partner directly with your teams to build, integrate, and deploy working systems into production.</p>
+        </div>
+        <div class="diff-card">
+          <h3>Long-term optimization mindset</h3>
+          <p>AI is an evolving capability, not a one-time project. Architectures are designed to scale, adapt, and improve continuously over time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section class="about-section">
+    <div class="about-container">
+      <span class="section-label">About</span>
+      <h2 class="about-title">We help organizations transform business needs and opportunities into practical AI solutions.</h2>
+      <p>Our role covers the entire transformational journey:</p>
+      
+      <div class="about-pills">
+        <span class="about-pill">Discovery</span>
+        <span class="about-pill">Strategy</span>
+        <span class="about-pill">Architecture</span>
+        <span class="about-pill">Development</span>
+        <span class="about-pill active">Implementation</span>
+      </div>
+
+      <div class="about-quote">
+        <p>
+          "The objective is not simply to deploy AI. The objective is to deploy the right AI solution in the right place at the right time to create measurable business outcomes."
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer CTA Callout -->
+  <section class="footer-cta-section">
+    <div class="footer-cta-container">
+      <h2>Ready To Explore Your AI Opportunities?</h2>
+      <p>Start with a discovery conversation to identify where AI can create the greatest impact inside your organization.</p>
+      <a href="/onboarding" class="btn-cta-footer">Book a Discovery Call</a>
+    </div>
+  </section>
+
+  <!-- Main Footer -->
+  <footer>
+    <div class="footer-container">
+      <a href="/" class="brand-logo">
+        <svg width="16" height="16" viewBox="0 0 24 24"><rect width="24" height="24" rx="2" /></svg>
+        <span class="brand-name" style="font-size: 14px;">PRAGMA AI SYSTEMS</span>
+      </a>
+      <p>&copy; 2026 AI Strategy & Implementation Partner. All rights reserved.</p>
+    </div>
+  </footer>
+
 </body>
 </html>
