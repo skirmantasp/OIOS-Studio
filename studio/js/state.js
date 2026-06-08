@@ -271,7 +271,7 @@ class StateManager {
         return; // Safe check for older test runner environments
       }
       
-      const response = await fetch('/api/state');
+      const response = await fetch('/api/studio/state');
       if (!response.ok) {
         throw new Error('Failed to fetch state from backend API');
       }
@@ -286,7 +286,7 @@ class StateManager {
         console.log('[Database] Performing one-time migration from localStorage to PostgreSQL...');
         const localData = JSON.parse(localRaw);
         
-        const migrateRes = await fetch('/api/state/migrate', {
+        const migrateRes = await fetch('/api/studio/state/migrate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(localData)
@@ -303,7 +303,7 @@ class StateManager {
         // If remote database is completely empty, seed it with mock data
         if (!hasRemoteData) {
           console.log('[Database] Database is empty. Seeding database with mock templates...');
-          const seedRes = await fetch('/api/state/migrate', {
+          const seedRes = await fetch('/api/studio/state/migrate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(DEFAULT_MOCK_DATA)
@@ -561,7 +561,7 @@ class StateManager {
       
       // Perform background sync to PostgreSQL server
       if (typeof fetch === 'function') {
-        fetch('/api/state/migrate', {
+        fetch('/api/studio/state/migrate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)

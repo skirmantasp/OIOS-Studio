@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="lt" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OIOS — Discovery sesija</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-primary, #0b0f19);
+      color: var(--text-primary, #f3f4f6);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at 90% 10%, rgba(2, 136, 209, 0.1) 0%, rgba(11, 15, 25, 0) 60%),
+                  radial-gradient(circle at 10% 90%, rgba(56, 189, 248, 0.08) 0%, rgba(11, 15, 25, 0) 60%),
+                  #0b0f19;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 600px;
+      padding: 20px;
+    }
+
+    .card {
+      background: rgba(17, 24, 39, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .step-header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .step-indicator {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0;
+      background: linear-gradient(135deg, #ffffff 50%, #9ca3af 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-secondary, #9ca3af);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary, #9ca3af);
+      text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.5px;
+    }
+
+    .input-control {
+      background: rgba(11, 15, 25, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #f3f4f6;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .input-control:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+    }
+
+    textarea.input-control {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .btn {
+      background: #38bdf8;
+      color: #0b0f19;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.25);
+    }
+
+    .btn:hover {
+      background: #7dd3fc;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.35);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .nav-buttons {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+
+    .error-banner {
+      background: rgba(248, 113, 113, 0.08);
+      border: 1px solid #f87171;
+      color: #f87171;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .success-icon {
+      font-size: 48px;
+      color: #10b981;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card" id="discovery-wizard">
+      <!-- STEP 1: Company Profile -->
+      <div id="step-1">
+        <div class="step-header" style="margin-bottom: 24px;">
+          <div class="step-indicator">1 Žingsnis iš 2</div>
+          <h2 class="title">Įmonės profilis</h2>
+          <p class="subtitle">Pradėkite nurodydami savo įmonės bazinius duomenis, kad sukurtume atskirą analizės sesiją.</p>
+        </div>
+
+        <div class="error-banner" id="error-step-1" style="margin-bottom: 16px;"></div>
+
+        <form id="form-step-1" style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="form-group">
+            <label for="comp-name">Įmonės pavadinimas *</label>
+            <input type="text" id="comp-name" class="input-control" placeholder="pvz. UAB Ateities Technologijos" required>
+          </div>
+          <div class="form-group">
+            <label for="comp-industry">Industrija / Veiklos Sritis *</label>
+            <input type="text" id="comp-industry" class="input-control" placeholder="pvz. Finansai, Gamyba, Mažmeninė prekyba" required>
+          </div>
+          <div class="form-group">
+            <label for="comp-website">Svetainės adresas</label>
+            <input type="url" id="comp-website" class="input-control" placeholder="pvz. https://manoimone.lt">
+          </div>
+          <div class="form-group">
+            <label for="comp-desc">Trumpas aprašymas</label>
+            <textarea id="comp-desc" class="input-control" placeholder="Kuo užsiima įmonė ir kokie pagrindiniai veiklos tikslai?"></textarea>
+          </div>
+          
+          <div class="nav-buttons" style="justify-content: flex-end;">
+            <button type="submit" class="btn" id="btn-next-1">Tęsti į klausimyną &rarr;</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- STEP 2: Discovery Intake Questions -->
+      <div id="step-2" style="display: none;">
+        <div class="step-header" style="margin-bottom: 24px;">
+          <div class="step-indicator">2 Žingsnis iš 2</div>
+          <h2 class="title">Discovery klausimynas</h2>
+          <p class="subtitle">Atsakykite į šiuos klausimus, kad padėtumėte mums geriau suprasti esamus jūsų veiklos iššūkius.</p>
+        </div>
+
+        <div class="error-banner" id="error-step-2" style="margin-bottom: 16px;"></div>
+
+        <form id="form-step-2" style="display: flex; flex-direction: column; gap: 20px;">
+          <div class="form-group">
+            <label for="q-goals">Kokie yra jūsų įmonės šių metų pagrindiniai strateginiai tikslai?</label>
+            <textarea id="q-goals" class="input-control" placeholder="pvz. Padidinti gamybos efektyvumą 20%, sumažinti klaidų kiekį..." required></textarea>
+          </div>
+          <div class="form-group">
+            <label for="q-bottlenecks">Su kokiomis didžiausiomis veiklos ar technologinėmis problemomis susiduriate?</label>
+            <textarea id="q-bottlenecks" class="input-control" placeholder="pvz. Rankinis duomenų suvedimas iš Excel failų, informacijos vėlavimas..." required></textarea>
+          </div>
+          
+          <div class="nav-buttons">
+            <a href="/" class="btn" style="background: transparent; color: var(--text-secondary); box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.1);">Atšaukti</a>
+            <button type="submit" class="btn" id="btn-submit-discovery">Pateikti analizei</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- STEP 3: Thank You / Complete -->
+      <div id="step-3" style="display: none; text-align: center; padding: 20px 0;">
+        <div class="success-icon">&check;</div>
+        <h2 class="title" style="margin-bottom: 12px;">Discovery duomenys pateikti!</h2>
+        <p class="subtitle" style="margin-bottom: 32px; max-width: 450px; margin-left: auto; margin-right: auto;">
+          Dėkojame. Jūsų pateikti duomenys sėkmingai išsaugoti OIOS sistemoje. Mūsų konsultantai susisieks su jumis atlikę pirminį įvertinimą.
+        </p>
+        <a href="/" class="btn" style="display: inline-flex; margin-top: 10px;">Grįžti į pradžią</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let companyId = null;
+
+    const step1El = document.getElementById('step-1');
+    const step2El = document.getElementById('step-2');
+    const step3El = document.getElementById('step-3');
+
+    const form1 = document.getElementById('form-step-1');
+    const form2 = document.getElementById('form-step-2');
+
+    const error1 = document.getElementById('error-step-1');
+    const error2 = document.getElementById('error-step-2');
+
+    const btnNext1 = document.getElementById('btn-next-1');
+    const btnSubmit = document.getElementById('btn-submit-discovery');
+
+    // 1. Submit company details
+    form1.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      error1.style.display = 'none';
+      btnNext1.disabled = true;
+      btnNext1.textContent = 'Apdorojama...';
+
+      const payload = {
+        name: document.getElementById('comp-name').value,
+        industry: document.getElementById('comp-industry').value,
+        website: document.getElementById('comp-website').value,
+        description: document.getElementById('comp-desc').value
+      };
+
+      try {
+        const res = await fetch('/api/public/discovery/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          companyId = data.companyId;
+          
+          // Switch step
+          step1El.style.display = 'none';
+          step2El.style.display = 'block';
+        } else {
+          const errData = await res.json();
+          error1.textContent = errData.error || 'Nepavyko pradėti sesijos.';
+          error1.style.display = 'block';
+          btnNext1.disabled = false;
+          btnNext1.textContent = 'Tęsti į klausimyną \u2192';
+        }
+      } catch (err) {
+        error1.textContent = 'Ryšio klaida. Patikrinkite interneto ryšį.';
+        error1.style.display = 'block';
+        btnNext1.disabled = false;
+        btnNext1.textContent = 'Tęsti į klausimyną \u2192';
+      }
+    });
+
+    // 2. Submit questionnaire answers
+    form2.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      error2.style.display = 'none';
+      btnSubmit.disabled = true;
+      btnSubmit.textContent = 'Siunčiama...';
+
+      const payload = {
+        companyId,
+        answers: [
+          {
+            questionTitle: 'Strateginiai tikslai',
+            answerText: document.getElementById('q-goals').value
+          },
+          {
+            questionTitle: 'Didžiausi iššūkiai ir problemos',
+            answerText: document.getElementById('q-bottlenecks').value
+          }
+        ]
+      };
+
+      try {
+        const res = await fetch('/api/public/discovery/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          step2El.style.display = 'none';
+          step3El.style.display = 'block';
+        } else {
+          const errData = await res.json();
+          error2.textContent = errData.error || 'Nepavyko išsaugoti klausimų atsakymų.';
+          error2.style.display = 'block';
+          btnSubmit.disabled = false;
+          btnSubmit.textContent = 'Pateikti analizei';
+        }
+      } catch (err) {
+        error2.textContent = 'Ryšio klaida. Patikrinkite interneto ryšį.';
+        error2.style.display = 'block';
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = 'Pateikti analizei';
+      }
+    });
+  </script>
+</body>
+</html>

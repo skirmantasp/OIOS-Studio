@@ -27,7 +27,7 @@ window.addEventListener('error', (event) => {
     }
   };
   
-  fetch('/api/logs', {
+  fetch('/api/studio/logs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -45,7 +45,7 @@ window.addEventListener('unhandledrejection', (event) => {
     }
   };
   
-  fetch('/api/logs', {
+  fetch('/api/studio/logs', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -170,7 +170,7 @@ async function initApp() {
   // Dynamic Database Status Indicator
   const dbStatusEl = document.getElementById('sidebar-db-status');
   if (dbStatusEl) {
-    fetch('/api/status')
+    fetch('/api/studio/status')
       .then(res => res.ok ? res.json() : null)
       .then(statusData => {
         if (statusData) {
@@ -190,7 +190,7 @@ async function initApp() {
       e.preventDefault();
       if (confirm('Are you sure you want to log out of your workspace?')) {
         try {
-          const res = await fetch('/api/logout', { method: 'POST' });
+          const res = await fetch('/api/studio/logout', { method: 'POST' });
           if (res.ok) {
             window.location.href = '/login.html';
           } else {

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="lt" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OIOS — Organizacinio Intelekto Operacinė Sistema</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-primary, #0b0f19);
+      color: var(--text-primary, #f3f4f6);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: radial-gradient(circle at 10% 20%, rgba(2, 136, 209, 0.15) 0%, rgba(11, 15, 25, 0) 60%),
+                  radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.1) 0%, rgba(11, 15, 25, 0) 60%),
+                  #0b0f19;
+    }
+
+    .hero-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .hero-card {
+      max-width: 800px;
+      width: 100%;
+      background: rgba(17, 24, 39, 0.6);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      padding: 60px 40px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .logo-container {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      padding: 8px 16px;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      background: rgba(56, 189, 248, 0.05);
+      color: var(--text-primary, #f3f4f6);
+    }
+
+    .logo-container span {
+      color: #38bdf8;
+    }
+
+    .hero-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 48px;
+      font-weight: 800;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #ffffff 30%, #9ca3af 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 0;
+    }
+
+    .hero-subtitle {
+      font-size: 18px;
+      color: var(--text-secondary, #9ca3af);
+      line-height: 1.6;
+      max-width: 600px;
+      margin: 0;
+    }
+
+    .cta-group {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .btn-large {
+      padding: 16px 32px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-primary-glow {
+      background: #38bdf8;
+      color: #0b0f19;
+      border: none;
+      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-primary-glow:hover {
+      background: #7dd3fc;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(56, 189, 248, 0.45);
+    }
+
+    .btn-outline-glow {
+      background: transparent;
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.05);
+    }
+
+    .btn-outline-glow:hover {
+      background: rgba(56, 189, 248, 0.08);
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(56, 189, 248, 0.15);
+    }
+
+    .footer {
+      text-align: center;
+      padding: 24px;
+      font-size: 12px;
+      color: var(--text-muted, #6b7280);
+      font-family: 'JetBrains Mono', monospace;
+      border-top: 1px solid rgba(255, 255, 255, 0.02);
+    }
+  </style>
+</head>
+<body>
+  <div class="hero-container">
+    <div class="hero-card">
+      <div class="logo-container">OIOS <span>PLATFORM</span></div>
+      <h1 class="hero-title">Organizacinio Intelekto Operacinė Sistema</h1>
+      <p class="hero-subtitle">
+        Integruota verslo valdymo ir sprendimų architektūros platforma. Pradėkite Discovery sesiją, kad nustatytumėte procesų kliūtis ir suprojektuotumėte AI strategiją.
+      </p>
+      <div class="cta-group">
+        <a href="/discovery" class="btn-large btn-primary-glow">Pradėti Discovery sesiją</a>
+        <a href="/login.html" class="btn-large btn-outline-glow">OIOS Studio login</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    &copy; 2026 OIOS. Visos teisės saugomos.
+  </div>
+</body>
+</html>

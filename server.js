@@ -29,8 +29,24 @@ function getCookie(req, name) {
 }
 
 function checkAuth(req, res, next) {
-  // Allow login page, login API, and favicon.ico without authentication
-  if (req.path === '/login.html' || req.path === '/api/login' || req.path === '/favicon.ico') {
+  // Block direct endpoints that don't match public, login, or studio prefix
+  if (
+    req.path.startsWith('/api/') && 
+    !req.path.startsWith('/api/studio/') && 
+    !req.path.startsWith('/api/public/') && 
+    req.path !== '/api/login' && 
+    req.path !== '/api/logout'
+  ) {
+    return res.status(404).json({ error: 'Endpoint not found' });
+  }
+
+  // Allow login page, public APIs, favicon, and public landing/discovery paths without authentication
+  const isPublicApi = req.path.startsWith('/api/public/');
+  const isPublicAsset = req.path.startsWith('/css/') || req.path.startsWith('/js/public/') || req.path === '/favicon.ico';
+  const isPublicPage = req.path === '/' || req.path === '/discovery' || req.path === '/login.html';
+  const isLoginApi = req.path === '/api/login';
+
+  if (isPublicApi || isPublicAsset || isPublicPage || isLoginApi) {
     return next();
   }
   
@@ -48,7 +64,19 @@ function checkAuth(req, res, next) {
   res.redirect('/login.html');
 }
 
+// Serve public static assets first (so they bypass checkAuth)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Apply checkAuth for everything below this line
 app.use(checkAuth);
+
+// API URL rewrite middleware: rewrites /api/studio/* to /api/* internally
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/studio/')) {
+    req.url = req.url.replace('/api/studio/', '/api/');
+  }
+  next();
+});
 
 app.post('/api/login', (req, res) => {
   const { password } = req.body;
@@ -63,6 +91,194 @@ app.post('/api/login', (req, res) => {
 app.post('/api/logout', (req, res) => {
   res.setHeader('Set-Cookie', 'session_token=; Path=/; HttpOnly; Max-Age=0; SameSite=Strict');
   res.json({ success: true });
+});
+
+// --- PUBLIC API ENDPOINTS ---
+
+// Helper to validate discovery token
+function getDiscoveryCompanyId(req) {
+  const token = getCookie(req, 'discovery_token');
+  if (!token) return null;
+  
+  const companyId = req.body.companyId || req.query.companyId;
+  if (!companyId) return null;
+  
+  const expectedToken = crypto.createHash('sha256').update(companyId + SALT).digest('hex');
+  if (token === expectedToken) {
+    return companyId;
+  }
+  return null;
+}
+
+// 1. Start client discovery session
+app.post('/api/public/discovery/start', async (req, res) => {
+  const { name, industry, description, website, contactName, contactEmail } = req.body;
+  if (!name || !industry) {
+    return res.status(400).json({ error: 'Company name and industry are required.' });
+  }
+
+  const companyId = 'comp_disc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const newCompany = {
+    id: companyId,
+    name,
+    industry,
+    status: 'active',
+    stage: 'Discovery',
+    createdAt: new Date().toISOString(),
+    description: description || '',
+    website: website || '',
+    contactName: contactName || '',
+    contactEmail: contactEmail || '',
+    assessment: {
+      businessGoals: '',
+      coreProblems: '',
+      operationalBottlenecks: '',
+      techStack: ''
+    },
+    discoveryIntake: {
+      answers: []
+    }
+  };
+
+  if (usePostgres) {
+    try {
+      await pool.query(
+        `INSERT INTO companies (id, name, industry, status, stage, "createdAt", description, website, "contactName", "contactEmail", assessment, "discoveryIntake")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          newCompany.id,
+          newCompany.name,
+          newCompany.industry,
+          newCompany.status,
+          newCompany.stage,
+          newCompany.createdAt,
+          newCompany.description,
+          newCompany.website,
+          newCompany.contactName,
+          newCompany.contactEmail,
+          JSON.stringify(newCompany.assessment),
+          JSON.stringify(newCompany.discoveryIntake)
+        ]
+      );
+      
+      const discoveryToken = crypto.createHash('sha256').update(companyId + SALT).digest('hex');
+      res.setHeader('Set-Cookie', `discovery_token=${discoveryToken}; Path=/; HttpOnly; Max-Age=86400; SameSite=Strict`);
+      res.json({ success: true, companyId });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    try {
+      const dbData = readLocalDb();
+      dbData.companies.push(newCompany);
+      writeLocalDb(dbData);
+      
+      const discoveryToken = crypto.createHash('sha256').update(companyId + SALT).digest('hex');
+      res.setHeader('Set-Cookie', `discovery_token=${discoveryToken}; Path=/; HttpOnly; Max-Age=86400; SameSite=Strict`);
+      res.json({ success: true, companyId });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+
+// 2. Submit discovery answers
+app.post('/api/public/discovery/submit', async (req, res) => {
+  const companyId = getDiscoveryCompanyId(req);
+  if (!companyId) {
+    return res.status(403).json({ error: 'Unauthorized discovery session.' });
+  }
+
+  const { answers } = req.body;
+  if (!answers || !Array.isArray(answers)) {
+    return res.status(400).json({ error: 'Answers array is required.' });
+  }
+
+  if (usePostgres) {
+    try {
+      const client = await pool.connect();
+      await client.query('BEGIN');
+
+      const discoveryIntake = { answers };
+      await client.query(
+        `UPDATE companies SET "discoveryIntake" = $1 WHERE id = $2`,
+        [JSON.stringify(discoveryIntake), companyId]
+      );
+
+      for (const ans of answers) {
+        const noteId = 'note_disc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        const timestamp = new Date().toISOString();
+        await client.query(
+          `INSERT INTO "discoveryNotes" (id, "companyId", title, content, date, category, source, "createdAt")
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            noteId,
+            companyId,
+            ans.questionTitle || 'Discovery Answer',
+            ans.answerText || '',
+            timestamp.split('T')[0],
+            'intake',
+            'client_discovery',
+            timestamp
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+      client.release();
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  } else {
+    try {
+      const dbData = readLocalDb();
+      const compIdx = dbData.companies.findIndex(c => c.id === companyId);
+      if (compIdx === -1) {
+        return res.status(404).json({ error: 'Company not found.' });
+      }
+
+      dbData.companies[compIdx].discoveryIntake = { answers };
+
+      const timestamp = new Date().toISOString();
+      for (const ans of answers) {
+        dbData.discoveryNotes.push({
+          id: 'note_disc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+          companyId,
+          title: ans.questionTitle || 'Discovery Answer',
+          content: ans.answerText || '',
+          date: timestamp.split('T')[0],
+          category: 'intake',
+          source: 'client_discovery',
+          createdAt: timestamp
+        });
+      }
+
+      writeLocalDb(dbData);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+
+// 3. Public logging endpoint
+app.post('/api/public/logs', async (req, res) => {
+  const { level, message, stack, context } = req.body;
+  if (!level || !message) {
+    return res.status(400).json({ error: 'Level and message are required' });
+  }
+  try {
+    await writeLog(level, message, stack || '', typeof context === 'object' ? JSON.stringify(context) : (context || ''));
+    res.status(201).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Status endpoint (identifies database connection mode)
+app.get('/api/status', (req, res) => {
+  res.json({ postgres: usePostgres });
 });
 
 // Initialize database connection
@@ -936,12 +1152,21 @@ app.delete('/api/logs', async (req, res) => {
 
 
 
-// Serve static assets from root directory
-app.use(express.static(__dirname));
+// Serve OIOS Studio static assets (protected by checkAuth which runs globally above)
+app.use('/studio', express.static(path.join(__dirname, 'studio')));
 
-// Fallback to index.html for Single Page Application routing
+// Page route handlers
+app.get('/discovery', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'discovery.html'));
+});
+
+app.get('/studio', (req, res) => {
+  res.sendFile(path.join(__dirname, 'studio', 'index.html'));
+});
+
+// Fallback to studio/index.html (OIOS Studio) for SPA routing of internal routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(__dirname, 'studio', 'index.html'));
 });
 
 // Start application

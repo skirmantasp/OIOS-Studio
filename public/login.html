@@ -238,7 +238,7 @@
 
         if (response.ok) {
           // Redirect to the dashboard
-          window.location.href = '/';
+          window.location.href = '/studio';
         } else {
           const errData = await response.json();
           errorBanner.textContent = errData.error || 'Authentication failed.';
