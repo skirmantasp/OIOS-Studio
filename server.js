@@ -8,11 +8,62 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
+const crypto = require('crypto');
+
 const app = express();
 app.use(express.json({ limit: '50mb' }));
 
 const port = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, 'db.json');
+
+const SALT = 'oios_studio_salt_12345';
+const EXPECTED_PASSWORD = process.env.ACCESS_PASSWORD || 'oios2026';
+const EXPECTED_TOKEN = crypto.createHash('sha256').update(EXPECTED_PASSWORD + SALT).digest('hex');
+
+function getCookie(req, name) {
+  if (!req.headers.cookie) return null;
+  const value = `; ${req.headers.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
+}
+
+function checkAuth(req, res, next) {
+  // Allow login page, login API, and favicon.ico without authentication
+  if (req.path === '/login.html' || req.path === '/api/login' || req.path === '/favicon.ico') {
+    return next();
+  }
+  
+  const token = getCookie(req, 'session_token');
+  if (token === EXPECTED_TOKEN) {
+    return next();
+  }
+  
+  // If not authenticated:
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ error: 'Unauthorized. Please login.' });
+  }
+  
+  // Redirect to login page
+  res.redirect('/login.html');
+}
+
+app.use(checkAuth);
+
+app.post('/api/login', (req, res) => {
+  const { password } = req.body;
+  if (password === EXPECTED_PASSWORD) {
+    res.setHeader('Set-Cookie', `session_token=${EXPECTED_TOKEN}; Path=/; HttpOnly; Max-Age=2592000; SameSite=Strict`);
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ error: 'Incorrect password. Please try again.' });
+  }
+});
+
+app.post('/api/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'session_token=; Path=/; HttpOnly; Max-Age=0; SameSite=Strict');
+  res.json({ success: true });
+});
 
 // Initialize database connection
 let pool = null;

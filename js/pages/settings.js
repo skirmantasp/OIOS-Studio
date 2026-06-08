@@ -58,6 +58,15 @@ export default function renderSettings(viewport, params) {
             </button>
           </div>
 
+          <!-- Log Out -->
+          <div style="border-top:1px dashed var(--border-color); padding-top:16px; margin-top:8px;">
+            <strong>4. Workspace Access</strong>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">Securely close your current active session. You will need the password to re-enter.</div>
+            <button id="btn-logout" class="btn btn-secondary" style="border-color: var(--color-danger); color: var(--color-danger);">
+              ${getIconHTML('log-out')} Log Out of Workspace
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -172,4 +181,23 @@ function bindSettingsEvents(container) {
       }, 1000);
     }
   });
+
+  // Log Out
+  const btnLogout = container.querySelector('#btn-logout');
+  if (btnLogout) {
+    btnLogout.addEventListener('click', async () => {
+      if (confirm('Are you sure you want to log out of your workspace?')) {
+        try {
+          const res = await fetch('/api/logout', { method: 'POST' });
+          if (res.ok) {
+            window.location.href = '/login.html';
+          } else {
+            showToast('Failed to log out', 'danger');
+          }
+        } catch (e) {
+          showToast('Network error during log out', 'danger');
+        }
+      }
+    });
+  }
 }
