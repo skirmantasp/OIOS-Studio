@@ -5,58 +5,191 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OIOS — Company Onboarding</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/components.css">
   <style>
-    body {
+    :root {
+      --bg-primary: #070a13;
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      --color-primary-blue: #2563eb;
+      --color-primary-hover: #3b82f6;
+      --border-color: rgba(255, 255, 255, 0.05);
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
-      background-color: var(--bg-primary, #0b0f19);
-      color: var(--text-primary, #f3f4f6);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      position: relative;
+      overflow-x: hidden;
       align-items: center;
-      justify-content: center;
-      background: radial-gradient(circle at 90% 10%, rgba(2, 136, 209, 0.08) 0%, rgba(11, 15, 25, 0) 60%),
-                  radial-gradient(circle at 10% 90%, rgba(56, 189, 248, 0.06) 0%, rgba(11, 15, 25, 0) 60%),
-                  #0b0f19;
     }
 
-    .container {
+    /* Glowing Mesh Background */
+    .bg-mesh {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 1;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    
+    .bg-mesh svg {
       width: 100%;
-      max-width: 650px;
-      padding: 40px 20px;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Navigation Header */
+    .header-nav {
+      width: 100%;
+      max-width: 1200px;
+      padding: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: relative;
+      z-index: 10;
+      box-sizing: border-box;
+    }
+
+    .logo {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text-primary);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .logo span {
+      color: #60a5fa;
+      font-weight: 400;
+      font-size: 14px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
     }
 
     .back-link {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      color: var(--text-secondary, #9ca3af);
+      color: var(--text-secondary);
       text-decoration: none;
       font-size: 13px;
-      margin-bottom: 20px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       transition: color 0.2s ease;
     }
 
     .back-link:hover {
-      color: #38bdf8;
+      color: #60a5fa;
     }
 
-    .card {
-      background: rgba(17, 24, 39, 0.7);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 16px;
-      padding: 48px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+    /* Onboarding Content Container */
+    .container {
+      width: 100%;
+      max-width: 750px;
+      padding: 0 24px 60px 24px;
+      position: relative;
+      z-index: 10;
       display: flex;
       flex-direction: column;
-      gap: 28px;
+      align-items: center;
+      box-sizing: border-box;
+    }
+
+    /* Progress Steps Bar */
+    .steps-progress {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 32px;
+      width: 100%;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .step-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .step.active .step-num {
+      background: var(--color-primary-blue);
+      border-color: var(--color-primary-blue);
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
+    }
+
+    .step.active .step-label {
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .step-line {
+      flex: 1;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.04);
+      min-width: 20px;
+    }
+
+    /* Translucent Card Container */
+    .card {
+      background: rgba(13, 18, 30, 0.45);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-radius: 16px;
+      padding: 48px;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .step-header {
@@ -66,16 +199,16 @@
     }
 
     .step-indicator {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       font-size: 11px;
-      color: #38bdf8;
+      color: #60a5fa;
       text-transform: uppercase;
       letter-spacing: 1.5px;
     }
 
     .title {
       font-family: 'Outfit', sans-serif;
-      font-size: 32px;
+      font-size: 30px;
       font-weight: 700;
       margin: 0;
       background: linear-gradient(135deg, #ffffff 60%, #9ca3af 100%);
@@ -86,7 +219,7 @@
 
     .subtitle {
       font-size: 14px;
-      color: var(--text-secondary, #9ca3af);
+      color: var(--text-secondary);
       line-height: 1.5;
       margin: 0;
     }
@@ -94,7 +227,7 @@
     .form-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      gap: 24px;
     }
 
     .form-group-full {
@@ -110,27 +243,28 @@
     label {
       font-size: 11px;
       font-weight: 600;
-      color: var(--text-secondary, #9ca3af);
+      color: var(--text-secondary);
       text-transform: uppercase;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       letter-spacing: 0.5px;
     }
 
     .input-control {
-      background: rgba(11, 15, 25, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: #f3f4f6;
+      background: rgba(8, 12, 21, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      color: #ffffff;
       padding: 12px 16px;
       border-radius: 8px;
       font-size: 14px;
       outline: none;
       transition: all 0.2s ease;
-      font-family: 'Inter', sans-serif;
+      font-family: var(--font-sans);
+      width: 100%;
     }
 
     .input-control:focus {
-      border-color: #38bdf8;
-      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.12);
+      border-color: var(--color-primary-blue);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
     }
 
     select.input-control {
@@ -143,15 +277,20 @@
       padding-right: 40px;
     }
 
+    select.input-control option {
+      background-color: #0b0f19;
+      color: #ffffff;
+    }
+
     textarea.input-control {
       min-height: 120px;
       resize: vertical;
     }
 
     .btn {
-      background: #38bdf8;
-      color: #0b0f19;
-      padding: 14px 28px;
+      background: var(--color-primary-blue);
+      color: #ffffff;
+      padding: 12px 28px;
       border: none;
       border-radius: 8px;
       font-size: 14px;
@@ -162,13 +301,13 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: 0 4px 20px rgba(56, 189, 248, 0.2);
+      box-shadow: 0 4px 15px rgba(37, 99, 235, 0.2);
     }
 
     .btn:hover {
-      background: #7dd3fc;
+      background: var(--color-primary-hover);
       transform: translateY(-1px);
-      box-shadow: 0 6px 24px rgba(56, 189, 248, 0.35);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
     }
 
     .btn:disabled {
@@ -212,7 +351,7 @@
       margin-bottom: 8px;
     }
 
-    @media (max-width: 600px) {
+    @media (max-width: 650px) {
       .form-grid {
         grid-template-columns: 1fr;
       }
@@ -220,14 +359,66 @@
         grid-column: span 1;
       }
       .card {
-        padding: 28px;
+        padding: 32px 24px;
+      }
+      .steps-progress {
+        display: none; /* Hide steps bar on mobile for cleaner card layout */
       }
     }
   </style>
 </head>
 <body>
-  <div class="container">
+  <!-- Glowing Cybernetic Background -->
+  <div class="bg-mesh">
+    <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 1440 800" fill="none" preserveAspectRatio="none">
+      <defs>
+        <pattern id="dotGrid" width="32" height="32" patternUnits="userSpaceOnUse">
+          <circle cx="2" cy="2" r="1" fill="rgba(255, 255, 255, 0.05)" />
+        </pattern>
+        <linearGradient id="blueGlow" x1="50%" y1="0%" x2="50%" y2="100%">
+          <stop offset="0%" stop-color="#1d4ed8" stop-opacity="0.12" />
+          <stop offset="50%" stop-color="#1e293b" stop-opacity="0.02" />
+          <stop offset="100%" stop-color="#070a13" stop-opacity="0" />
+        </linearGradient>
+        <linearGradient id="lineGrad" x1="0%" y1="50%" x2="100%" y2="50%">
+          <stop offset="0%" stop-color="#2563eb" stop-opacity="0" />
+          <stop offset="50%" stop-color="#60a5fa" stop-opacity="0.15" />
+          <stop offset="100%" stop-color="#2563eb" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <circle cx="720" cy="300" r="500" fill="url(#blueGlow)" filter="blur(80px)" />
+      <rect width="100%" height="100%" fill="url(#dotGrid)" />
+    </svg>
+  </div>
+
+  <div class="header-nav">
+    <a href="/" class="logo">OIOS <span>PLATFORM</span></a>
     <a href="/" class="back-link">&larr; Back to Home</a>
+  </div>
+
+  <div class="container">
+    <!-- Progress Indicator Roadmap -->
+    <div class="steps-progress">
+      <div class="step active">
+        <span class="step-num">1</span>
+        <span class="step-label">Company Profile</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <span class="step-label">Current State</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <span class="step-label">Challenges</span>
+      </div>
+      <div class="step-line"></div>
+      <div class="step">
+        <span class="step-num">4</span>
+        <span class="step-label">Goals</span>
+      </div>
+    </div>
 
     <div class="card" id="onboarding-card">
       <!-- Onboarding Form -->
@@ -287,8 +478,8 @@
             <textarea id="comp-desc" class="input-control" placeholder="What does your company do? What are the main products or services?" required></textarea>
           </div>
           
-          <div class="form-group-full" style="margin-top: 12px; text-align: right;">
-            <button type="submit" class="btn" id="btn-submit">Complete Onboarding &rarr;</button>
+          <div class="form-group-full" style="margin-top: 12px; display: flex; justify-content: flex-end;">
+            <button type="submit" class="btn" id="btn-submit">Continue &rarr;</button>
           </div>
         </form>
       </div>
@@ -297,7 +488,7 @@
       <div class="success-container" id="success-container">
         <div class="success-badge">&check;</div>
         <h2 class="title">Onboarding Complete!</h2>
-        <p class="subtitle" style="max-width: 450px; margin: 0 auto; line-height: 1.6;">
+        <p class="subtitle" style="max-width: 500px; margin: 0 auto; line-height: 1.6;">
           Thank you. Your company profile has been successfully registered in the OIOS system. 
           You are now ready for the Discovery session. Our AI Consultant will contact you shortly to begin the evaluation conversation.
         </p>
@@ -345,13 +536,13 @@
           errorBanner.textContent = errData.error || 'Failed to complete onboarding. Please check inputs.';
           errorBanner.style.display = 'block';
           btnSubmit.disabled = false;
-          btnSubmit.textContent = 'Complete Onboarding \u2192';
+          btnSubmit.textContent = 'Continue \u2192';
         }
       } catch (err) {
         errorBanner.textContent = 'Network connection error. Please verify your internet connection.';
         errorBanner.style.display = 'block';
         btnSubmit.disabled = false;
-        btnSubmit.textContent = 'Complete Onboarding \u2192';
+        btnSubmit.textContent = 'Continue \u2192';
       }
     });
   </script>
