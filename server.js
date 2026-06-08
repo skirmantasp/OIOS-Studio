@@ -59,7 +59,7 @@ function checkAuth(req, res, next) {
   // Allow login page, public APIs, favicon, and public landing/discovery/onboarding paths without authentication
   const isPublicApi = req.path.startsWith('/api/public/');
   const isPublicAsset = req.path.startsWith('/css/') || req.path.startsWith('/js/') || req.path === '/favicon.ico';
-  const isPublicPage = req.path === '/' || req.path === '/onboarding' || req.path === '/discovery' || req.path === '/discovery-chat' || req.path === '/login.html';
+  const isPublicPage = req.path === '/' || req.path === '/onboarding' || req.path === '/discovery' || req.path.startsWith('/discovery-chat') || req.path === '/login.html';
   const isLoginApi = req.path === '/api/login';
 
   if (isPublicApi || isPublicAsset || isPublicPage || isLoginApi) {
